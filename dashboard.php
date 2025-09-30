@@ -1,394 +1,647 @@
 <?php
 /**
- * Dashboard Page
+ * Dashboard Page - Dynamic Version
  */
 define('TSM_ACCESS', true);
 require_once 'config.php';
 require_once 'functions.php';
-
-// DEBUG: Kiểm tra session
-if (!isset($_SESSION['user_id'])) {
-    die('Session not set! Please check login_user() function.');
-}
-
+require_once 'includes/status_helper.php';
 
 require_login();
 
 $current_user = get_logged_user();
-// DEBUG: Kiểm tra user data
 if (!$current_user) {
-    echo "Session user_id: " . $_SESSION['user_id'] . "<br>";
-    die('Cannot get current user from database!');
+    redirect('index.php?error=session_expired');
 }
 
-$page_title = 'Trang chủ';
+$page_title = 'Dashboard';
 
-// Lấy thống kê
+// Get filter parameters
+$filter_month = $_GET['month'] ?? date('Y-m');
+$filter_from = $_GET['from'] ?? date('Y-m-01', strtotime($filter_month));
+$filter_to = $_GET['to'] ?? date('Y-m-t', strtotime($filter_month));
+
+// Build WHERE conditions based on role
+$where_conditions = [];
+$params = [];
+
 if (is_admin()) {
-    // Admin: Thống kê tổng quan
-    $total_orders = count_orders([]);
-    $new_orders = count_orders(['status' => 'new']);
-    $confirmed_orders = count_orders(['status' => 'confirmed']);
-    $total_telesales = count(get_telesales('active'));
-    
-    // Đơn hàng hôm nay
-    $today_orders = db_get_var(
-        "SELECT COUNT(*) FROM orders WHERE DATE(created_at) = CURDATE()"
+    // Admin sees everything
+    $where_base = "1=1";
+    $team_label = "Toàn hệ thống";
+} elseif (is_manager()) {
+    // Manager sees their team's data
+    $managed_users = db_get_results(
+        "SELECT telesale_id FROM manager_assignments WHERE manager_id = ?",
+        [$current_user['id']]
     );
     
-    // Thống kê theo trạng thái
-    $status_stats = db_get_results(
-        "SELECT status, COUNT(*) as count FROM orders GROUP BY status"
-    );
-    
-    // Top telesales
-    $top_telesales = db_get_results(
-        "SELECT u.id, u.full_name, 
-                COUNT(o.id) as total_orders,
-                COUNT(CASE WHEN o.status = 'confirmed' THEN 1 END) as confirmed_orders,
-                ROUND(COUNT(CASE WHEN o.status = 'confirmed' THEN 1 END) * 100.0 / NULLIF(COUNT(o.id), 0), 2) as success_rate
-         FROM users u
-         LEFT JOIN orders o ON u.id = o.assigned_to
-         WHERE u.role = 'telesale' AND u.status = 'active'
-         GROUP BY u.id, u.full_name
-         ORDER BY confirmed_orders DESC
-         LIMIT 5"
-    );
-    
+    if (!empty($managed_users)) {
+        $team_ids = array_column($managed_users, 'telesale_id');
+        $team_ids[] = $current_user['id']; // Include manager's own orders
+        $placeholders = implode(',', array_fill(0, count($team_ids), '?'));
+        $where_base = "o.assigned_to IN ($placeholders) OR o.manager_id = ?";
+        $params = array_merge($team_ids, [$current_user['id']]);
+    } else {
+        // Manager with no team sees only their orders
+        $where_base = "o.assigned_to = ? OR o.manager_id = ?";
+        $params = [$current_user['id'], $current_user['id']];
+    }
+    $team_label = "Team của bạn";
 } else {
-    // Telesale: Thống kê cá nhân
-    // Kiểm tra an toàn trước khi sử dụng
-    if (!is_array($current_user) || !isset($current_user['id'])) {
-        die('ERROR: Cannot get current user data. Please logout and login again.');
-    }
-    
-    $user_id = $current_user['id'];
-    
-    $my_orders = count_orders(['assigned_to' => $user_id]);
-    $my_confirmed = count_orders(['assigned_to' => $user_id, 'status' => 'confirmed']);
-    $my_pending = count_orders(['assigned_to' => $user_id, 'status' => 'assigned']) +
-                  count_orders(['assigned_to' => $user_id, 'status' => 'calling']);
-    $available_orders = count_orders(['available' => true]);
-    
-    // Đơn cần gọi lại
-    $callback_orders = db_get_results(
-        "SELECT * FROM orders 
-         WHERE assigned_to = ? AND status = 'callback' AND callback_time <= NOW()
-         ORDER BY callback_time ASC
-         LIMIT 5",
-        [$user_id]
-    );
-
-    // === PHẦN CẬP NHẬT: LẤY DỮ LIỆU KPI ===
-    $current_month_sql = date('Y-m-01');
-    $month_start = date('Y-m-01');
-    $month_end = date('Y-m-t');
-
-    // Lấy mục tiêu KPI đã đặt
-    $kpi_targets_raw = db_get_results("SELECT target_type, target_value FROM kpis WHERE user_id = ? AND target_month = ?", [$user_id, $current_month_sql]);
-    $kpi_targets = ['confirmed_orders' => 0, 'total_revenue' => 0];
-
-    // Kiểm tra an toàn trước khi loop
-    if (!empty($kpi_targets_raw) && is_array($kpi_targets_raw)) {
-        foreach ($kpi_targets_raw as $target) {
-            if (isset($target['target_type']) && isset($target['target_value'])) {
-                $kpi_targets[$target['target_type']] = $target['target_value'];
-            }
-        }
-    }
-
-    // Lấy kết quả KPI đã đạt được
-    $kpi_achieved = db_get_row(
-        "SELECT COUNT(id) as confirmed_orders, SUM(CASE WHEN status = 'confirmed' THEN total_amount ELSE 0 END) as total_revenue
-         FROM orders
-         WHERE assigned_to = ? AND status = 'confirmed' AND DATE(completed_at) BETWEEN ? AND ?",
-        [$user_id, $month_start, $month_end]
-    );
-
-    // Đảm bảo $kpi_achieved luôn có giá trị
-    if (!$kpi_achieved || !is_array($kpi_achieved)) {
-        $kpi_achieved = ['confirmed_orders' => 0, 'total_revenue' => 0];
-    }
-    // =======================================
+    // Telesale sees only their data
+    $where_base = "o.assigned_to = ?";
+    $params = [$current_user['id']];
+    $team_label = "Của tôi";
 }
 
-// Đơn hàng gần đây
-$recent_orders_query = "SELECT o.*, u.full_name as assigned_name 
-     FROM orders o
-     LEFT JOIN users u ON o.assigned_to = u.id
-     " . (!is_admin() ? "WHERE o.assigned_to = {$current_user['id']}" : "") . "
-     ORDER BY o.created_at DESC
-     LIMIT 10";
-$recent_orders = db_get_results($recent_orders_query);
+// Get all dynamic statuses
+$all_statuses = get_all_statuses();
+
+// Calculate statistics with date filter
+$stats_query = "
+    SELECT 
+        COUNT(*) as total_orders,
+        SUM(o.total_amount) as total_revenue,
+        SUM(CASE WHEN osc.label LIKE '%thành công%' OR osc.label LIKE '%hoàn thành%' 
+                 OR osc.label LIKE '%completed%' THEN o.total_amount ELSE 0 END) as confirmed_revenue,
+        COUNT(CASE WHEN osc.label LIKE '%thành công%' OR osc.label LIKE '%hoàn thành%' 
+                   OR osc.label LIKE '%completed%' THEN 1 END) as confirmed_orders,
+        COUNT(CASE WHEN DATE(o.created_at) = CURDATE() THEN 1 END) as today_orders
+    FROM orders o
+    LEFT JOIN order_status_configs osc ON o.status = osc.status_key
+    WHERE ($where_base) 
+    AND DATE(o.created_at) BETWEEN ? AND ?";
+
+$date_params = array_merge($params, [$filter_from, $filter_to]);
+$stats = db_get_row($stats_query, $date_params);
+
+// Get status breakdown for chart
+$status_breakdown_query = "
+    SELECT 
+        osc.status_key,
+        osc.label,
+        osc.color,
+        osc.icon,
+        COUNT(o.id) as count,
+        SUM(o.total_amount) as revenue
+    FROM order_status_configs osc
+    LEFT JOIN orders o ON o.status = osc.status_key 
+        AND ($where_base)
+        AND DATE(o.created_at) BETWEEN ? AND ?
+    GROUP BY osc.status_key, osc.label, osc.color, osc.icon
+    ORDER BY osc.sort_order";
+
+$status_breakdown = db_get_results($status_breakdown_query, $date_params);
+
+// Get daily trend for the period (max 30 days)
+$daily_trend_query = "
+    SELECT 
+        DATE(o.created_at) as date,
+        COUNT(*) as orders,
+        SUM(o.total_amount) as revenue
+    FROM orders o
+    WHERE ($where_base)
+    AND DATE(o.created_at) BETWEEN ? AND ?
+    GROUP BY DATE(o.created_at)
+    ORDER BY date";
+
+$daily_trend = db_get_results($daily_trend_query, $date_params);
+
+// Get top performers (for admin/manager)
+$top_performers = [];
+if (is_admin() || is_manager()) {
+    $top_query = "
+        SELECT 
+            u.id, 
+            u.full_name,
+            u.role,
+            COUNT(o.id) as total_orders,
+            SUM(CASE WHEN osc.label LIKE '%thành công%' OR osc.label LIKE '%hoàn thành%' 
+                     THEN 1 ELSE 0 END) as confirmed_orders,
+            SUM(CASE WHEN osc.label LIKE '%thành công%' OR osc.label LIKE '%hoàn thành%' 
+                     THEN o.total_amount ELSE 0 END) as revenue,
+            ROUND(
+                COUNT(CASE WHEN osc.label LIKE '%thành công%' OR osc.label LIKE '%hoàn thành%' 
+                          THEN 1 END) * 100.0 / NULLIF(COUNT(o.id), 0), 1
+            ) as success_rate
+        FROM users u
+        LEFT JOIN orders o ON u.id = o.assigned_to 
+            AND DATE(o.created_at) BETWEEN ? AND ?
+        LEFT JOIN order_status_configs osc ON o.status = osc.status_key
+        WHERE u.status = 'active' 
+        " . (is_manager() ? "AND u.id IN (SELECT telesale_id FROM manager_assignments WHERE manager_id = ?)" : "") . "
+        GROUP BY u.id, u.full_name, u.role
+        HAVING total_orders > 0
+        ORDER BY confirmed_orders DESC, revenue DESC
+        LIMIT 10";
+    
+    $top_params = is_manager() 
+        ? [$filter_from, $filter_to, $current_user['id']] 
+        : [$filter_from, $filter_to];
+    
+    $top_performers = db_get_results($top_query, $top_params);
+}
+
+// Recent orders with dynamic status
+$recent_orders_query = "
+    SELECT 
+        o.*,
+        u.full_name as assigned_name,
+        osc.label as status_label,
+        osc.color as status_color,
+        osc.icon as status_icon
+    FROM orders o
+    LEFT JOIN users u ON o.assigned_to = u.id
+    LEFT JOIN order_status_configs osc ON o.status = osc.status_key
+    WHERE ($where_base)
+    ORDER BY o.created_at DESC
+    LIMIT 10";
+
+$recent_orders = db_get_results($recent_orders_query, $params);
+
+// KPI tracking (for telesales)
+$kpi_data = null;
+if (is_telesale()) {
+    $kpi_month = date('Y-m-01', strtotime($filter_month));
+    $kpi_targets = db_get_row(
+        "SELECT 
+            MAX(CASE WHEN target_type = 'confirmed_orders' THEN target_value END) as order_target,
+            MAX(CASE WHEN target_type = 'total_revenue' THEN target_value END) as revenue_target
+         FROM kpis 
+         WHERE user_id = ? AND target_month = ?",
+        [$current_user['id'], $kpi_month]
+    );
+    
+    if ($kpi_targets) {
+        $kpi_data = [
+            'order_target' => $kpi_targets['order_target'] ?? 0,
+            'order_achieved' => $stats['confirmed_orders'] ?? 0,
+            'revenue_target' => $kpi_targets['revenue_target'] ?? 0,
+            'revenue_achieved' => $stats['confirmed_revenue'] ?? 0
+        ];
+    }
+}
 
 include 'includes/header.php';
 ?>
 
-<?php if (is_admin()): ?>
-    <div class="row g-4 mb-4">
+<div class="container-fluid">
+    <!-- Header với Filter -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0">Dashboard - <?php echo $team_label; ?></h1>
+            <small class="text-muted">
+                Dữ liệu từ <?php echo date('d/m/Y', strtotime($filter_from)); ?> 
+                đến <?php echo date('d/m/Y', strtotime($filter_to)); ?>
+            </small>
+        </div>
+        
+        <!-- Filter Form -->
+        <form method="GET" class="d-flex gap-2">
+            <select name="month" class="form-select" style="width: 150px;" onchange="this.form.submit()">
+                <?php for($i = 0; $i < 12; $i++): 
+                    $month_value = date('Y-m', strtotime("-$i months"));
+                    $month_label = date('m/Y', strtotime("-$i months"));
+                ?>
+                <option value="<?php echo $month_value; ?>" <?php echo $filter_month == $month_value ? 'selected' : ''; ?>>
+                    Tháng <?php echo $month_label; ?>
+                </option>
+                <?php endfor; ?>
+            </select>
+            
+            <input type="date" name="from" class="form-control" value="<?php echo $filter_from; ?>" style="width: 150px;">
+            <input type="date" name="to" class="form-control" value="<?php echo $filter_to; ?>" style="width: 150px;">
+            
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-filter"></i> Lọc
+            </button>
+            
+            <a href="dashboard.php" class="btn btn-secondary">
+                <i class="fas fa-redo"></i> Reset
+            </a>
+        </form>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row g-3 mb-4">
         <div class="col-md-3">
-            <div class="stat-card">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h6 class="text-muted mb-2">Tổng đơn hàng</h6>
-                        <h2 class="mb-0"><?php echo number_format($total_orders); ?></h2>
-                        <small class="text-success">
-                            <i class="fas fa-arrow-up"></i> <?php echo $today_orders; ?> hôm nay
-                        </small>
-                    </div>
-                    <div class="icon" style="background: rgba(102, 126, 234, 0.1); color: #667eea;">
-                        <i class="fas fa-shopping-cart"></i>
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <p class="text-muted mb-1">Tổng đơn hàng</p>
+                            <h3 class="mb-0"><?php echo number_format($stats['total_orders'] ?? 0); ?></h3>
+                            <small class="text-success">
+                                <i class="fas fa-plus"></i> <?php echo $stats['today_orders'] ?? 0; ?> hôm nay
+                            </small>
+                        </div>
+                        <div class="bg-primary bg-opacity-10 p-3 rounded">
+                            <i class="fas fa-shopping-cart text-primary"></i>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-        
+
         <div class="col-md-3">
-            <div class="stat-card">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h6 class="text-muted mb-2">Đơn mới</h6>
-                        <h2 class="mb-0"><?php echo number_format($new_orders); ?></h2>
-                        <small class="text-warning">
-                            <i class="fas fa-clock"></i> Chưa xử lý
-                        </small>
-                    </div>
-                    <div class="icon" style="background: rgba(255, 193, 7, 0.1); color: #ffc107;">
-                        <i class="fas fa-file-alt"></i>
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <p class="text-muted mb-1">Doanh thu tổng</p>
+                            <h4 class="mb-0"><?php echo format_money($stats['total_revenue'] ?? 0); ?></h4>
+                            <small class="text-muted">Danh nghĩa</small>
+                        </div>
+                        <div class="bg-warning bg-opacity-10 p-3 rounded">
+                            <i class="fas fa-chart-line text-warning"></i>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-        
+
         <div class="col-md-3">
-            <div class="stat-card">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h6 class="text-muted mb-2">Đã xác nhận</h6>
-                        <h2 class="mb-0"><?php echo number_format($confirmed_orders); ?></h2>
-                        <small class="text-success">
-                            <i class="fas fa-check-circle"></i> Thành công
-                        </small>
-                    </div>
-                    <div class="icon" style="background: rgba(40, 167, 69, 0.1); color: #28a745;">
-                        <i class="fas fa-check-double"></i>
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <p class="text-muted mb-1">Doanh thu xác nhận</p>
+                            <h4 class="mb-0 text-success"><?php echo format_money($stats['confirmed_revenue'] ?? 0); ?></h4>
+                            <small class="text-muted">Đã giao thành công</small>
+                        </div>
+                        <div class="bg-success bg-opacity-10 p-3 rounded">
+                            <i class="fas fa-check-circle text-success"></i>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-        
+
         <div class="col-md-3">
-            <div class="stat-card">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h6 class="text-muted mb-2">Nhân viên</h6>
-                        <h2 class="mb-0"><?php echo number_format($total_telesales); ?></h2>
-                        <small class="text-info">
-                            <i class="fas fa-users"></i> Đang hoạt động
-                        </small>
-                    </div>
-                    <div class="icon" style="background: rgba(23, 162, 184, 0.1); color: #17a2b8;">
-                        <i class="fas fa-user-friends"></i>
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <p class="text-muted mb-1">Tỷ lệ thành công</p>
+                            <h3 class="mb-0">
+                                <?php 
+                                $success_rate = $stats['total_orders'] > 0 
+                                    ? round(($stats['confirmed_orders'] / $stats['total_orders']) * 100, 1) 
+                                    : 0;
+                                echo $success_rate;
+                                ?>%
+                            </h3>
+                            <small class="text-muted"><?php echo $stats['confirmed_orders']; ?> đơn thành công</small>
+                        </div>
+                        <div class="bg-info bg-opacity-10 p-3 rounded">
+                            <i class="fas fa-percentage text-info"></i>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-    
-    <div class="row g-4">
-        <div class="col-md-8">
-            <div class="table-card">
-                <h5 class="mb-3">Thống kê theo trạng thái</h5>
-                <canvas id="statusChart" height="100"></canvas>
-            </div>
-        </div>
-        
-        <div class="col-md-4">
-            <div class="table-card">
-                <h5 class="mb-3">Top Telesales</h5>
-                <div class="list-group list-group-flush">
-                    <?php foreach ($top_telesales as $ts): ?>
-                    <div class="list-group-item px-0">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <strong><?php echo htmlspecialchars($ts['full_name']); ?></strong>
-                                <br>
-                                <small class="text-muted">
-                                    <?php echo $ts['confirmed_orders']; ?>/<?php echo $ts['total_orders']; ?> đơn
-                                </small>
-                            </div>
-                            <div class="text-end">
-                                <span class="badge bg-success"><?php echo $ts['success_rate']; ?>%</span>
+
+    <!-- KPI Progress (for telesales) -->
+    <?php if (is_telesale() && $kpi_data): ?>
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <h5 class="card-title mb-3">
+                <i class="fas fa-bullseye"></i> KPI Tháng <?php echo date('m/Y', strtotime($filter_month)); ?>
+            </h5>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-2">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>Mục tiêu đơn hàng</span>
+                            <strong>
+                                <?php echo $kpi_data['order_achieved']; ?> / <?php echo $kpi_data['order_target']; ?>
+                            </strong>
+                        </div>
+                        <?php 
+                        $order_progress = $kpi_data['order_target'] > 0 
+                            ? min(100, round(($kpi_data['order_achieved'] / $kpi_data['order_target']) * 100))
+                            : 0;
+                        ?>
+                        <div class="progress" style="height: 20px;">
+                            <div class="progress-bar" style="width: <?php echo $order_progress; ?>%">
+                                <?php echo $order_progress; ?>%
                             </div>
                         </div>
                     </div>
-                    <?php endforeach; ?>
                 </div>
-            </div>
-        </div>
-    </div>
-    
-    <script>
-        // Chart data
-        const statusData = <?php echo json_encode($status_stats); ?>;
-        const labels = statusData.map(item => {
-            const statusLabels = {
-                'new': 'Đơn mới', 'assigned': 'Đã nhận', 'calling': 'Đang gọi', 'confirmed': 'Xác nhận',
-                'rejected': 'Từ chối', 'no_answer': 'Không bắt máy', 'callback': 'Gọi lại'
-            };
-            return statusLabels[item.status] || item.status;
-        });
-        const data = statusData.map(item => item.count);
-        
-        const ctx = document.getElementById('statusChart').getContext('2d');
-        new Chart(ctx, { type: 'bar', data: { labels: labels, datasets: [{ label: 'Số lượng đơn', data: data, backgroundColor: ['#667eea', '#17a2b8', '#ffc107', '#28a745', '#dc3545', '#6c757d'] }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } });
-    </script>
-
-<?php else: ?>
-    <div class="row g-4 mb-4">
-        <div class="col-md-3">
-            <div class="stat-card">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h6 class="text-muted mb-2">Đơn của tôi</h6>
-                        <h2 class="mb-0"><?php echo number_format($my_orders); ?></h2>
-                        <small class="text-info">Tổng số đơn</small>
-                    </div>
-                    <div class="icon" style="background: rgba(102, 126, 234, 0.1); color: #667eea;">
-                        <i class="fas fa-clipboard-list"></i>
+                <div class="col-md-6">
+                    <div class="mb-2">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>Mục tiêu doanh thu</span>
+                            <strong class="text-success">
+                                <?php echo format_money($kpi_data['revenue_achieved']); ?> / 
+                                <?php echo format_money($kpi_data['revenue_target']); ?>
+                            </strong>
+                        </div>
+                        <?php 
+                        $revenue_progress = $kpi_data['revenue_target'] > 0 
+                            ? min(100, round(($kpi_data['revenue_achieved'] / $kpi_data['revenue_target']) * 100))
+                            : 0;
+                        ?>
+                        <div class="progress" style="height: 20px;">
+                            <div class="progress-bar bg-success" style="width: <?php echo $revenue_progress; ?>%">
+                                <?php echo $revenue_progress; ?>%
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="stat-card">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h6 class="text-muted mb-2">Đã xác nhận</h6>
-                        <h2 class="mb-0"><?php echo number_format($my_confirmed); ?></h2>
-                        <small class="text-success">
-                            <?php 
-                            $rate = $my_orders > 0 ? round(($my_confirmed / $my_orders) * 100, 1) : 0;
-                            echo $rate . '% tỷ lệ thành công';
-                            ?>
-                        </small>
-                    </div>
-                    <div class="icon" style="background: rgba(40, 167, 69, 0.1); color: #28a745;">
-                        <i class="fas fa-check-circle"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="stat-card">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h6 class="text-muted mb-2">Đang xử lý</h6>
-                        <h2 class="mb-0"><?php echo number_format($my_pending); ?></h2>
-                        <small class="text-warning">Cần gọi điện</small>
-                    </div>
-                    <div class="icon" style="background: rgba(255, 193, 7, 0.1); color: #ffc107;">
-                        <i class="fas fa-phone"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="stat-card">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h6 class="text-muted mb-2">Đơn có thể nhận</h6>
-                        <h2 class="mb-0"><?php echo number_format($available_orders); ?></h2>
-                        <small class="text-primary">
-                            <a href="orders.php?status=available">Xem ngay</a>
-                        </small>
-                    </div>
-                    <div class="icon" style="background: rgba(0, 123, 255, 0.1); color: #007bff;">
-                        <i class="fas fa-star"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="table-card mb-4">
-        <h5 class="mb-3"><i class="fas fa-chart-line me-2"></i>Tiến độ KPI tháng này (<?php echo date('m/Y'); ?>)</h5>
-        <?php
-            $achieved_orders = $kpi_achieved['confirmed_orders'] ?? 0;
-            $target_orders = $kpi_targets['confirmed_orders'];
-            $order_progress = $target_orders > 0 ? round(($achieved_orders / $target_orders) * 100) : 0;
-            
-            $achieved_revenue = $kpi_achieved['total_revenue'] ?? 0;
-            $target_revenue = $kpi_targets['total_revenue'];
-            $revenue_progress = $target_revenue > 0 ? round(($achieved_revenue / $target_revenue) * 100) : 0;
-        ?>
-        <div class="mb-3">
-            <div class="d-flex justify-content-between">
-                <span>Mục tiêu đơn hàng</span>
-                <strong><?php echo number_format($achieved_orders); ?> / <?php echo number_format($target_orders); ?></strong>
-            </div>
-            <div class="progress mt-1" style="height: 15px;">
-                <div class="progress-bar" role="progressbar" style="width: <?php echo $order_progress; ?>%;" aria-valuenow="<?php echo $order_progress; ?>" aria-valuemin="0" aria-valuemax="100"><?php echo $order_progress; ?>%</div>
-            </div>
-        </div>
-        <div>
-            <div class="d-flex justify-content-between">
-                <span>Mục tiêu doanh thu</span>
-                <strong class="text-success"><?php echo format_money($achieved_revenue); ?> / <?php echo format_money($target_revenue); ?></strong>
-            </div>
-            <div class="progress mt-1" style="height: 15px;">
-                <div class="progress-bar bg-success" role="progressbar" style="width: <?php echo $revenue_progress; ?>%;" aria-valuenow="<?php echo $revenue_progress; ?>" aria-valuemin="0" aria-valuemax="100"><?php echo $revenue_progress; ?>%</div>
-            </div>
-        </div>
-    </div>
-    <?php if (!empty($callback_orders)): ?>
-    <div class="alert alert-warning mb-4">
-        <h5><i class="fas fa-bell me-2"></i>Đơn cần gọi lại (<?php echo count($callback_orders); ?>)</h5>
-        <ul class="mb-0">
-            <?php foreach ($callback_orders as $order): ?>
-            <li>
-                <strong><?php echo htmlspecialchars($order['customer_name']); ?></strong> - <?php echo $order['customer_phone']; ?> - <a href="order-detail.php?id=<?php echo $order['id']; ?>">Xem chi tiết</a>
-            </li>
-            <?php endforeach; ?>
-        </ul>
     </div>
     <?php endif; ?>
-<?php endif; ?>
 
-<div class="table-card mt-4">
-    <h5 class="mb-3">Đơn hàng gần đây</h5>
-    <div class="table-responsive">
-        <table class="table table-hover">
-            <thead>
-                <tr>
-                    <th>Mã đơn</th>
-                    <th>Khách hàng</th>
-                    <th>Tổng tiền</th>
-                    <th>Trạng thái</th>
-                    <?php if (is_admin()): ?><th>Người xử lý</th><?php endif; ?>
-                    <th>Ngày tạo</th>
-                    <th>Thao tác</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if (empty($recent_orders)): ?>
-                    <tr><td colspan="<?php echo is_admin() ? 7 : 6; ?>" class="text-center text-muted py-4">Chưa có đơn hàng nào.</td></tr>
-                <?php else: ?>
-                    <?php foreach ($recent_orders as $order): ?>
-                    <tr>
-                        <td><strong>#<?php echo htmlspecialchars($order['order_number']); ?></strong></td>
-                        <td><?php echo htmlspecialchars($order['customer_name']); ?></td>
-                        <td><?php echo format_money($order['total_amount']); ?></td>
-                        <td><?php echo get_status_badge($order['status']); ?></td>
-                        <?php if (is_admin()): ?><td><?php echo $order['assigned_name'] ? htmlspecialchars($order['assigned_name']) : '<span class="text-muted">Chưa gán</span>'; ?></td><?php endif; ?>
-                        <td><?php echo time_ago($order['created_at']); ?></td>
-                        <td><a href="order-detail.php?id=<?php echo $order['id']; ?>" class="btn btn-sm btn-primary"><i class="fas fa-eye"></i></a></td>
-                    </tr>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </tbody>
-        </table>
+    <!-- Charts Row -->
+    <div class="row g-3 mb-4">
+        <!-- Status Breakdown Chart -->
+        <div class="col-md-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">Phân bố theo trạng thái</h5>
+                    <div style="height: 350px; position: relative;">
+                        <canvas id="statusChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Top Performers -->
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">
+                        <?php echo (is_admin() || is_manager()) ? 'Top Nhân viên' : 'Thống kê của bạn'; ?>
+                    </h5>
+                    
+                    <?php if (is_admin() || is_manager()): ?>
+                        <?php if (empty($top_performers)): ?>
+                            <p class="text-muted text-center">Chưa có dữ liệu</p>
+                        <?php else: ?>
+                            <div class="list-group list-group-flush">
+                                <?php foreach (array_slice($top_performers, 0, 5) as $performer): ?>
+                                <div class="list-group-item px-0">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <strong><?php echo htmlspecialchars($performer['full_name']); ?></strong>
+                                            <?php if ($performer['role'] == 'manager'): ?>
+                                            <span class="badge bg-warning ms-1">Manager</span>
+                                            <?php endif; ?>
+                                            <br>
+                                            <small class="text-muted">
+                                                <?php echo $performer['confirmed_orders']; ?>/<?php echo $performer['total_orders']; ?> đơn
+                                                • <?php echo format_money($performer['revenue']); ?>
+                                            </small>
+                                        </div>
+                                        <span class="badge bg-success">
+                                            <?php echo $performer['success_rate']; ?>%
+                                        </span>
+                                    </div>
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+                    <?php else: ?>
+                        <!-- Personal stats for telesale -->
+                        <ul class="list-unstyled">
+                            <li class="mb-2">
+                                <span class="text-muted">Tổng đơn:</span> 
+                                <strong><?php echo $stats['total_orders']; ?></strong>
+                            </li>
+                            <li class="mb-2">
+                                <span class="text-muted">Thành công:</span> 
+                                <strong class="text-success"><?php echo $stats['confirmed_orders']; ?></strong>
+                            </li>
+                            <li class="mb-2">
+                                <span class="text-muted">Tỷ lệ:</span> 
+                                <strong><?php echo $success_rate; ?>%</strong>
+                            </li>
+                            <li>
+                                <span class="text-muted">Doanh thu:</span> 
+                                <strong class="text-primary"><?php echo format_money($stats['confirmed_revenue']); ?></strong>
+                            </li>
+                        </ul>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Daily Trend Chart -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <h5 class="card-title mb-3">Xu hướng theo ngày</h5>
+            <div style="height: 250px; position: relative;">
+                <canvas id="trendChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Orders -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-body">
+            <h5 class="card-title mb-3">Đơn hàng gần đây</h5>
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Mã đơn</th>
+                            <th>Khách hàng</th>
+                            <th>Tổng tiền</th>
+                            <th>Trạng thái</th>
+                            <th>Người xử lý</th>
+                            <th>Thời gian</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($recent_orders)): ?>
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-4">
+                                Chưa có đơn hàng nào
+                            </td>
+                        </tr>
+                        <?php else: ?>
+                            <?php foreach ($recent_orders as $order): ?>
+                            <tr>
+                                <td>
+                                    <strong>#<?php echo htmlspecialchars($order['order_number']); ?></strong>
+                                </td>
+                                <td><?php echo htmlspecialchars($order['customer_name']); ?></td>
+                                <td><?php echo format_money($order['total_amount']); ?></td>
+                                <td>
+                                    <span class="badge" style="background-color: <?php echo $order['status_color']; ?>">
+                                        <i class="fas <?php echo $order['status_icon']; ?>"></i>
+                                        <?php echo $order['status_label']; ?>
+                                    </span>
+                                </td>
+                                <td>
+                                    <?php echo $order['assigned_name'] ? htmlspecialchars($order['assigned_name']) : '<span class="text-muted">Chưa gán</span>'; ?>
+                                </td>
+                                <td>
+                                    <small><?php echo time_ago($order['created_at']); ?></small>
+                                </td>
+                                <td>
+                                    <a href="order-detail.php?id=<?php echo $order['id']; ?>" class="btn btn-sm btn-primary">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Status Chart
+    const statusData = <?php echo json_encode($status_breakdown); ?>;
+    const statusCtx = document.getElementById('statusChart');
+    
+    if (statusCtx && statusData.length > 0) {
+        new Chart(statusCtx, {
+            type: 'doughnut',
+            data: {
+                labels: statusData.map(item => item.label),
+                datasets: [{
+                    data: statusData.map(item => item.count),
+                    backgroundColor: statusData.map(item => item.color),
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: {
+                            padding: 15,
+                            usePointStyle: true,
+                            font: { size: 11 }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.parsed;
+                                const revenue = statusData[context.dataIndex].revenue;
+                                return [
+                                    label + ': ' + value + ' đơn',
+                                    'Doanh thu: ' + new Intl.NumberFormat('vi-VN').format(revenue) + '₫'
+                                ];
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Trend Chart
+    const trendData = <?php echo json_encode($daily_trend); ?>;
+    const trendCtx = document.getElementById('trendChart');
+    
+    if (trendCtx && trendData.length > 0) {
+        new Chart(trendCtx, {
+            type: 'line',
+            data: {
+                labels: trendData.map(item => {
+                    const date = new Date(item.date);
+                    return date.getDate() + '/' + (date.getMonth() + 1);
+                }),
+                datasets: [
+                    {
+                        label: 'Đơn hàng',
+                        data: trendData.map(item => item.orders),
+                        borderColor: 'rgb(102, 126, 234)',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        yAxisID: 'y',
+                        tension: 0.3
+                    },
+                    {
+                        label: 'Doanh thu',
+                        data: trendData.map(item => item.revenue),
+                        borderColor: 'rgb(40, 167, 69)',
+                        backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                        yAxisID: 'y1',
+                        tension: 0.3
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: {
+                            display: true,
+                            text: 'Số đơn'
+                        },
+                        ticks: {
+                            precision: 0
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: 'Doanh thu (₫)'
+                        },
+                        ticks: {
+                            callback: function(value) {
+                                return new Intl.NumberFormat('vi-VN', {
+                                    notation: 'compact',
+                                    maximumFractionDigits: 1
+                                }).format(value);
+                            }
+                        },
+                        grid: {
+                            drawOnChartArea: false
+                        }
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (context.parsed.y !== null) {
+                                    if (context.datasetIndex === 1) { // Revenue
+                                        label += ': ' + new Intl.NumberFormat('vi-VN').format(context.parsed.y) + '₫';
+                                    } else { // Orders
+                                        label += ': ' + context.parsed.y + ' đơn';
+                                    }
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+});
+</script>
 
 <?php include 'includes/footer.php'; ?>

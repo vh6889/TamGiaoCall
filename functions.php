@@ -815,3 +815,85 @@ function get_orders_extended($filters = []) {
     
     return db_get_results($sql, $params);
 }
+function count_orders_by_status($status_key, $user_id = null) {
+    if ($user_id) {
+        return db_get_value(
+            "SELECT COUNT(*) FROM orders WHERE status = ? AND assigned_to = ?",
+            [$status_key, $user_id]
+        );
+    }
+    
+    return db_get_value(
+        "SELECT COUNT(*) FROM orders WHERE status = ?",
+        [$status_key]
+    );
+}
+// Hàm mới lấy orders với thông tin status đầy đủ
+function get_orders_with_status($filters = []) {
+    $query = "SELECT o.*, 
+              osc.label as status_label,
+              osc.color as status_color,
+              osc.icon as status_icon
+              FROM orders o
+              LEFT JOIN order_status_configs osc ON o.status = osc.status_key";
+    
+    $conditions = [];
+    $params = [];
+    $types = '';
+    
+    // Build WHERE conditions
+    if (!empty($filters['status']) && $filters['status'] !== 'all') {
+        $conditions[] = "o.status = ?";
+        $params[] = $filters['status'];
+        $types .= 's';
+    }
+    
+    if (!empty($filters['assigned_to'])) {
+        $conditions[] = "o.assigned_to = ?";
+        $params[] = $filters['assigned_to'];
+        $types .= 'i';
+    }
+    
+    if (!empty($filters['search'])) {
+        $conditions[] = "(o.customer_name LIKE ? OR o.customer_phone LIKE ? OR o.order_number LIKE ?)";
+        $search = '%' . $filters['search'] . '%';
+        $params[] = $search;
+        $params[] = $search;
+        $params[] = $search;
+        $types .= 'sss';
+    }
+    
+    if (!empty($filters['date_from'])) {
+        $conditions[] = "DATE(o.created_at) >= ?";
+        $params[] = $filters['date_from'];
+        $types .= 's';
+    }
+    
+    if (!empty($filters['date_to'])) {
+        $conditions[] = "DATE(o.created_at) <= ?";
+        $params[] = $filters['date_to'];
+        $types .= 's';
+    }
+    
+    if (!empty($conditions)) {
+        $query .= " WHERE " . implode(" AND ", $conditions);
+    }
+    
+    $query .= " ORDER BY o.created_at DESC";
+    
+    // Pagination
+    if (isset($filters['page']) && isset($filters['per_page'])) {
+        $offset = ($filters['page'] - 1) * $filters['per_page'];
+        $query .= " LIMIT " . intval($filters['per_page']) . " OFFSET " . intval($offset);
+    }
+    
+    if (!empty($params)) {
+        return db_get_results($query, $params);
+    }
+    
+    return db_get_results($query);
+}
+// Alias để tương thích
+function db_get_value($sql, $params = []) {
+    return db_get_var($sql, $params);
+}

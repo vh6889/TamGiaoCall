@@ -6,6 +6,7 @@
 define('TSM_ACCESS', true);
 require_once '../config.php';
 require_once '../functions.php';
+require_once '../includes/status_helper.php';
 
 header('Content-Type: application/json');
 
@@ -41,7 +42,7 @@ try {
     // Assign the order to the current user
     db_update('orders', [
         'assigned_to' => $user_id,
-        'status' => 'assigned', // Change status from 'new' to 'assigned'
+        'status' => get_default_status(), // Change status from 'new' to 'assigned'
         'assigned_at' => date('Y-m-d H:i:s')
     ], 'id = ?', [$order_id]);
 

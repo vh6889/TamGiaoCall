@@ -5,6 +5,7 @@
 define('TSM_ACCESS', true);
 require_once '../config.php';
 require_once '../functions.php';
+require_once '../includes/status_helper.php';
 
 header('Content-Type: application/json');
 
@@ -29,7 +30,7 @@ try {
         'customer_notes' => sanitize($input['customer_notes'] ?? ''),
         'total_amount' => (float)($input['total_amount'] ?? 0),
         'products' => json_encode($input['products']),
-        'status' => 'pending_approval',
+        'status' => db_get_var("SELECT status_key FROM order_status_configs WHERE label LIKE '%duyệt%' LIMIT 1") ?: 'pending_approval',
         'approval_status' => 'pending',
         'source' => 'manual',
         'created_by' => $current_user_id,
