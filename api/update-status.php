@@ -2,8 +2,11 @@
 define('TSM_ACCESS', true);
 require_once '../config.php';
 require_once '../functions.php';
+require_once '../RuleEngine.php';
 header('Content-Type: application/json');
 if (!is_logged_in()) json_error('Unauthorized', 401);
+$engine = new RuleEngine($pdo);
+$engine->evaluate('order', $order_id, 'status_changed');
 
 $input = json_decode(file_get_contents('php://input'), true);
 $order_id = (int)($input['order_id'] ?? 0);

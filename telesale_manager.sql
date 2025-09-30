@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Máy chủ: 127.0.0.1
--- Thời gian đã tạo: Th9 30, 2025 lúc 04:23 PM
+-- Thời gian đã tạo: Th9 30, 2025 lúc 11:49 PM
 -- Phiên bản máy phục vụ: 10.4.32-MariaDB
 -- Phiên bản PHP: 8.0.30
 
@@ -74,7 +74,18 @@ INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `related_
 (8, 1, 'update_user', 'Updated user info', 'user', 3, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 12:54:32'),
 (9, 1, 'update_settings', 'System settings have been updated.', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 12:55:19'),
 (10, 1, 'update_settings', 'System settings have been updated.', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 12:55:38'),
-(11, 1, 'create_user', 'Created new user: oigioioi', 'user', 4, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 18:50:59');
+(11, 1, 'create_user', 'Created new user: oigioioi', 'user', 4, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 18:50:59'),
+(12, 1, 'login', 'User logged in', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 23:23:10'),
+(13, 1, 'create_rule', 'Created rule: Xử lý khách không nghe máy lâu', 'rule', 1, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 23:28:22'),
+(14, 1, 'create_rule', 'Created rule: Nâng cấp khách VIP', 'rule', 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 23:28:23'),
+(15, 1, 'create_rule', 'Created rule: Suspend nhân viên yếu kém', 'rule', 3, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 23:28:23'),
+(16, 1, 'create_rule', 'Created rule: Xử lý khách không nghe máy lâu', 'rule', 4, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 23:39:09'),
+(17, 1, 'create_rule', 'Created rule: Suspend nhân viên yếu kém', 'rule', 5, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 23:39:09'),
+(18, 1, 'create_rule', 'Created rule: Nâng cấp khách VIP', 'rule', 6, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 23:39:09'),
+(19, 1, 'delete_rule', 'Deleted rule #3', 'rule', 3, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 23:40:24'),
+(20, 1, 'delete_rule', 'Deleted rule #4', 'rule', 4, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 23:40:28'),
+(21, 1, 'delete_rule', 'Deleted rule #2', 'rule', 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 23:40:38'),
+(22, 1, 'create_rule', 'Created rule: Tự chuyển không nghe thành rác', 'rule', 7, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 00:36:21');
 
 -- --------------------------------------------------------
 
@@ -106,7 +117,17 @@ INSERT INTO `customer_labels` (`id`, `label_key`, `label_name`, `description`, `
 (2, 'normal', 'Thường', 'Khách hàng thông thường', '#6c757d', 'fa-user', NULL, NULL, 0, NULL, '2025-09-30 20:55:35', '2025-09-30 20:55:35'),
 (3, 'potential', 'Tiềm năng', 'Khách hàng tiềm năng', '#17a2b8', 'fa-star', NULL, NULL, 0, NULL, '2025-09-30 20:55:35', '2025-09-30 20:55:35'),
 (4, 'blacklist', 'Blacklist', 'Khách hàng cần cảnh báo', '#dc3545', 'fa-ban', NULL, NULL, 0, NULL, '2025-09-30 20:55:35', '2025-09-30 20:55:35'),
-(5, 'returning', 'Quay lại', 'Khách hàng quay lại', '#28a745', 'fa-redo', NULL, NULL, 0, NULL, '2025-09-30 20:55:35', '2025-09-30 20:55:35');
+(5, 'returning', 'Quay lại', 'Khách hàng quay lại', '#28a745', 'fa-redo', NULL, NULL, 0, NULL, '2025-09-30 20:55:35', '2025-09-30 20:55:35'),
+(6, 'khach-bom-hang', 'Khách bom hàng', 'Bom hàng', '#c21d00', 'fa-tag', NULL, NULL, 0, NULL, '2025-09-30 14:52:04', '2025-09-30 14:52:04'),
+(7, 'khach-hang-rac', 'Khách hàng rác', 'Không đặt gì hoặc thái độ khó chịu, không mua hàng', '#626160', 'fa-tag', NULL, NULL, 0, NULL, '2025-09-30 14:52:04', '2025-09-30 14:52:04'),
+(8, 'khach-hang-than-quen', 'Khách hàng thân quen', 'Khách đã mua hàng ít nhất 2 lần', '#31c12f', 'fa-tag', NULL, NULL, 0, NULL, '2025-09-30 14:52:04', '2025-09-30 14:52:04'),
+(9, 'khach-hang-vip', 'Khách hàng VIP', 'Khách hàng mua hàng nhiều lần, giá trị lớn', '#d0bf01', 'fa-tag', NULL, NULL, 0, NULL, '2025-09-30 14:52:04', '2025-09-30 14:52:04'),
+(10, 'n-a', 'Khách hàng tiềm năng', 'Khách hàng mới đặt hàng, chưa xác nhận', '#6f899f', 'fa-tag', NULL, NULL, 0, NULL, '2025-09-30 14:52:04', '2025-09-30 14:52:04'),
+(11, 'n-a-1759225492', 'Khách gọi nhiều không nghe', 'Không từ chối nhưng gọi mãi không nghe', '#978e20', 'fa-tag', NULL, NULL, 0, NULL, '2025-09-30 14:52:04', '2025-09-30 14:52:04'),
+(12, 'n-a-1759225595', 'Khách hàng đã xác nhận', 'Khách hàng đã xác nhận mua hàng chờ gửi hàng', '#51c8f0', 'fa-tag', NULL, NULL, 0, NULL, '2025-09-30 14:52:04', '2025-09-30 14:52:04'),
+(13, 'n-a-1759225632', 'Khách hàng mới nhận', 'Khách mới nhận hàng lần đầu', '#7ec80e', 'fa-tag', NULL, NULL, 0, NULL, '2025-09-30 14:52:04', '2025-09-30 14:52:04'),
+(14, 'n-a-1759225700', 'Khách nhận một phần', 'Khách hàng chỉ nhận một phần', '#28b87a', 'fa-tag', NULL, NULL, 0, NULL, '2025-09-30 14:52:04', '2025-09-30 14:52:04'),
+(15, 'n-a-1759225776', 'Khách đã nhận 5 ngày', 'Khách đã nhận hàng 5 ngày cần chăm sóc lần 1', '#1b94ac', 'fa-tag', NULL, NULL, 0, NULL, '2025-09-30 14:52:04', '2025-09-30 14:52:04');
 
 -- --------------------------------------------------------
 
@@ -278,6 +299,50 @@ CREATE TABLE `order_notes` (
 -- --------------------------------------------------------
 
 --
+-- Cấu trúc bảng cho bảng `order_status_configs`
+--
+
+CREATE TABLE `order_status_configs` (
+  `status_key` varchar(50) NOT NULL,
+  `label` varchar(100) NOT NULL,
+  `color` varchar(20) NOT NULL,
+  `icon` varchar(50) NOT NULL,
+  `sort_order` int(11) NOT NULL DEFAULT 0,
+  `logic_json` text NOT NULL,
+  `created_by` int(10) UNSIGNED DEFAULT NULL,
+  `created_at` datetime DEFAULT current_timestamp(),
+  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Configs cho trạng thái tùy chỉnh';
+
+--
+-- Đang đổ dữ liệu cho bảng `order_status_configs`
+--
+
+INSERT INTO `order_status_configs` (`status_key`, `label`, `color`, `icon`, `sort_order`, `logic_json`, `created_by`, `created_at`, `updated_at`) VALUES
+('bom-hang', 'Bom hàng', '#ff0000', 'fa-tag', 15, '', NULL, '2025-09-30 16:34:13', '2025-09-30 16:34:13'),
+('dang-giao', 'Đang giao', '#639419', 'fa-tag', 11, '', NULL, '2025-09-30 16:28:29', '2025-09-30 16:28:29'),
+('dang-hoan', 'Đang hoàn', '#8c460d', 'fa-tag', 16, '', NULL, '2025-09-30 16:34:44', '2025-09-30 16:34:44'),
+('dong-goi-sai', 'Đóng gói sai', '#7c3131', 'fa-tag', 12, '', NULL, '2025-09-30 16:30:16', '2025-09-30 16:30:16'),
+('giao-thanh-cong', 'Giao thành công', '#00d604', 'fa-tag', 20, '', NULL, '2025-09-30 16:37:32', '2025-09-30 16:37:32'),
+('hoan-thanh-cong', 'Hoàn thành công', '#1a1a1a', 'fa-tag', 17, '', NULL, '2025-09-30 16:35:25', '2025-09-30 16:35:25'),
+('khong-nghe', 'Không nghe', '#dfc834', 'fa-tag', 3, '', NULL, '2025-09-30 16:23:37', '2025-09-30 16:23:37'),
+('n-a', 'Đơn mới', '#08f7cf', 'fa-tag', 1, '', NULL, '2025-09-30 16:18:10', '2025-09-30 16:18:10'),
+('n-a-1759223929', 'Đang gọi', '#2a88df', 'fa-tag', 2, '', NULL, '2025-09-30 16:18:49', '2025-09-30 16:18:49'),
+('n-a-1759224057', 'Hẹn gọi lại', '#9e62a3', 'fa-tag', 4, '', NULL, '2025-09-30 16:20:57', '2025-09-30 16:20:57'),
+('n-a-1759224134', 'Sai số', '#d10000', 'fa-tag', 5, '', NULL, '2025-09-30 16:22:14', '2025-09-30 16:22:14'),
+('n-a-1759224173', 'Đơn rác', '#4c2a2a', 'fa-tag', 6, '', NULL, '2025-09-30 16:22:53', '2025-09-30 16:22:53'),
+('n-a-1759224282', 'Từ chối', '#b30036', 'fa-tag', 7, '', NULL, '2025-09-30 16:24:42', '2025-09-30 16:24:42'),
+('n-a-1759224317', 'Xác nhận', '#1d9f4b', 'fa-tag', 8, '', NULL, '2025-09-30 16:25:17', '2025-09-30 16:25:17'),
+('n-a-1759224363', 'Chờ giao', '#e1ff00', 'fa-tag', 9, '', NULL, '2025-09-30 16:26:03', '2025-09-30 16:26:03'),
+('n-a-1759224426', 'Hết hàng', '#4f2a74', 'fa-tag', 10, '', NULL, '2025-09-30 16:27:06', '2025-09-30 16:27:06'),
+('n-a-1759224683', 'Gửi đơn mới', '#624771', 'fa-tag', 13, '', NULL, '2025-09-30 16:31:23', '2025-09-30 16:31:23'),
+('n-a-1759224783', 'Giao một phần', '#15932a', 'fa-tag', 14, '', NULL, '2025-09-30 16:33:03', '2025-09-30 16:33:03'),
+('n-a-1759224985', 'Đổi hàng', '#2a4635', 'fa-tag', 18, '', NULL, '2025-09-30 16:36:25', '2025-09-30 16:36:25'),
+('n-a-1759225011', 'Trả hàng', '#7a0012', 'fa-tag', 19, '', NULL, '2025-09-30 16:36:51', '2025-09-30 16:36:51');
+
+-- --------------------------------------------------------
+
+--
 -- Cấu trúc bảng cho bảng `reminders`
 --
 
@@ -358,6 +423,16 @@ CREATE TABLE `rules` (
   `created_at` datetime DEFAULT current_timestamp(),
   `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Đang đổ dữ liệu cho bảng `rules`
+--
+
+INSERT INTO `rules` (`id`, `rule_key`, `name`, `description`, `entity_type`, `rule_type`, `priority`, `is_active`, `trigger_conditions`, `actions`, `metadata`, `created_by`, `created_at`, `updated_at`) VALUES
+(1, 'rule_1759249702_3702', 'Xử lý khách không nghe máy lâu', 'Tự động chuyển đơn sang rác khi gọi nhiều lần không nghe', 'order', 'condition_based', 90, 1, '{\"type\":\"AND\",\"rules\":[{\"field\":\"order.status\",\"operator\":\"equals\",\"value\":\"khong-nghe\"},{\"field\":\"order.hours_since_created\",\"operator\":\"greater_than\",\"value\":\"48\"},{\"field\":\"order.call_count\",\"operator\":\"greater_than\",\"value\":\"5\"}]}', '[{\"type\":\"change_order_status\",\"params\":{\"status\":\"n-a-1759224173\"}},{\"type\":\"add_customer_label\",\"params\":{\"label_key\":\"n-a-1759225492\"}},{\"type\":\"send_notification\",\"params\":{\"to\":\"manager\",\"priority\":\"high\",\"message\":\"\\u0110\\u01a1n h\\u00e0ng chuy\\u1ec3n v\\u00e0o r\\u00e1c do kh\\u00f4ng li\\u00ean l\\u1ea1c \\u0111\\u01b0\\u1ee3c\"}}]', NULL, 1, '2025-09-30 23:28:22', '2025-09-30 23:28:22'),
+(5, 'rule_1759250349_6473', 'Suspend nhân viên yếu kém', 'Tự động suspend nhân viên có hiệu suất thấp và vi phạm nhiều', 'employee', 'condition_based', 85, 1, '{\"type\":\"AND\",\"rules\":[{\"field\":\"employee.performance_score\",\"operator\":\"less_than\",\"value\":\"50\"},{\"field\":\"employee.violation_count\",\"operator\":\"greater_than\",\"value\":\"3\"},{\"field\":\"employee.role\",\"operator\":\"equals\",\"value\":\"telesale\"}]}', '[{\"type\":\"add_user_label\",\"params\":{\"label_key\":\"n-a\"}},{\"type\":\"suspend_user\",\"params\":{\"duration_hours\":\"24\",\"reason\":\"Performance k\\u00e9m v\\u00e0 vi ph\\u1ea1m nhi\\u1ec1u\"}},{\"type\":\"send_notification\",\"params\":{\"to\":\"admin\",\"priority\":\"urgent\",\"message\":\"\\u0110\\u00e3 suspend nh\\u00e2n vi\\u00ean do performance k\\u00e9m\"}}]', NULL, 1, '2025-09-30 23:39:09', '2025-09-30 23:39:09'),
+(6, 'rule_1759250349_1494', 'Nâng cấp khách VIP', 'Tự động gắn nhãn VIP cho khách hàng mua nhiều', 'customer', 'condition_based', 70, 1, '{\"type\":\"AND\",\"rules\":[{\"field\":\"customer.total_orders\",\"operator\":\"greater_than\",\"value\":\"5\"},{\"field\":\"customer.total_value\",\"operator\":\"greater_than\",\"value\":\"10000000\"}]}', '[{\"type\":\"add_customer_label\",\"params\":{\"label_key\":\"khach-hang-vip\"}},{\"type\":\"mark_customer_vip\",\"params\":[]}]', NULL, 1, '2025-09-30 23:39:09', '2025-09-30 23:39:09'),
+(7, 'rule_1759253781_1583', 'Tự chuyển không nghe thành rác', 'Chuyển những đơn gọi nhiều lần khách không nghe thành đơn rác', 'order', 'condition_based', 50, 1, '{\"type\":\"AND\",\"rules\":[{\"field\":\"order.assigned_to_role\",\"operator\":\"equals\",\"value\":\"manager\"},{\"field\":\"order.status\",\"operator\":\"equals\",\"value\":\"khong-nghe\"},{\"field\":\"order.hours_since_created\",\"operator\":\"greater_than_or_equals\",\"value\":\"48\"},{\"field\":\"order.assigned_to_role\",\"operator\":\"equals\",\"value\":\"telesale\"},{\"field\":\"order.total_calls\",\"operator\":\"greater_than\",\"value\":\"5\"}]}', '[{\"type\":\"change_order_status\",\"params\":{\"status\":\"n-a-1759224173\"}},{\"type\":\"add_customer_label\",\"params\":{\"label_key\":\"n-a-1759225492\"}},{\"type\":\"send_notification\",\"params\":{\"to\":\"admin\",\"priority\":\"normal\",\"message\":\"\\u0111\\u01a1n r\\u00e1c\"}}]', NULL, 1, '2025-10-01 00:36:21', '2025-10-01 00:36:21');
 
 -- --------------------------------------------------------
 
@@ -548,7 +623,7 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`id`, `username`, `password`, `full_name`, `email`, `phone`, `role`, `status`, `avatar`, `last_login_at`, `last_login_ip`, `created_at`, `updated_at`, `suspension_reason`, `suspension_until`) VALUES
-(1, 'admin', '$2y$10$5EzgChCuFM.LG/yVCMbuseZFP2fxECDOQJb8FzEmssX4iev/sjbVi', 'Administrator', 'admin@example.com', NULL, 'admin', 'active', NULL, '2025-09-30 11:06:54', '::1', '2025-09-30 09:36:19', '2025-09-30 11:06:54', NULL, NULL),
+(1, 'admin', '$2y$10$5EzgChCuFM.LG/yVCMbuseZFP2fxECDOQJb8FzEmssX4iev/sjbVi', 'Administrator', 'admin@example.com', NULL, 'admin', 'active', NULL, '2025-09-30 23:23:10', '::1', '2025-09-30 09:36:19', '2025-09-30 23:23:10', NULL, NULL),
 (2, 'telesale1', '$2y$10$lkpRcTFFgJVlNIawkjprY.n7mubXpkH1/Sa0TOf4pl7rZQw6DVuqa', 'Nguyễn Văn Ad', 'vh6889@gmail.com', '0963470944', 'telesale', 'active', NULL, NULL, NULL, '2025-09-30 09:36:19', '2025-09-30 12:46:43', NULL, NULL),
 (3, 'telesale2', '$2y$10$lkpRcTFFgJVlNIawkjprY.n7mubXpkH1/Sa0TOf4pl7rZQw6DVuqa', 'Trần Thị Booo', 'telesale2@example.com', '', 'telesale', 'active', NULL, NULL, NULL, '2025-09-30 09:36:19', '2025-09-30 12:54:32', NULL, NULL),
 (4, 'oigioioi', '$2y$10$AxE8XaE9rkf9G7nvTyTFgu1xQNGMAKItLU/tkocwj2ZTJv/JmGppq', 'Hai Vu', 'raintl07@gmail.com', '0963470944', 'manager', 'active', NULL, NULL, NULL, '2025-09-30 18:50:59', '2025-09-30 18:50:59', NULL, NULL);
@@ -613,7 +688,12 @@ INSERT INTO `user_labels` (`id`, `label_key`, `label_name`, `description`, `colo
 (2, 'warning', 'Cảnh báo', 'Đang bị cảnh báo', '#ffc107', 'fa-exclamation-triangle', NULL, NULL, 0, NULL, '2025-09-30 20:55:35', '2025-09-30 20:55:35'),
 (3, 'suspended', 'Tạm khóa', 'Tài khoản bị tạm khóa', '#dc3545', 'fa-lock', NULL, NULL, 0, NULL, '2025-09-30 20:55:35', '2025-09-30 20:55:35'),
 (4, 'training', 'Đào tạo', 'Đang trong giai đoạn đào tạo', '#17a2b8', 'fa-graduation-cap', NULL, NULL, 0, NULL, '2025-09-30 20:55:35', '2025-09-30 20:55:35'),
-(5, 'probation', 'Thử việc', 'Nhân viên thử việc', '#6f42c1', 'fa-user-clock', NULL, NULL, 0, NULL, '2025-09-30 20:55:35', '2025-09-30 20:55:35');
+(5, 'probation', 'Thử việc', 'Nhân viên thử việc', '#6f42c1', 'fa-user-clock', NULL, NULL, 0, NULL, '2025-09-30 20:55:35', '2025-09-30 20:55:35'),
+(6, 'n-a', 'Nhân viên yếu kém', 'Nhân viên có tỉ lệ chốt đơn dưới 50% trong tháng', '#383838', 'fa-user-tag', NULL, NULL, 0, NULL, '2025-09-30 14:52:05', '2025-09-30 14:52:05'),
+(7, 'n-a-1759229091', 'Nhân viên gương mẫu', 'Nhân viên dưới 80%', '#0b74d5', 'fa-user-tag', NULL, NULL, 0, NULL, '2025-09-30 14:52:05', '2025-09-30 14:52:05'),
+(8, 'n-a-1759229123', 'Nhân viên xuất sắc', 'Nhân viên trên 90%', '#ffbb00', 'fa-user-tag', NULL, NULL, 0, NULL, '2025-09-30 14:52:05', '2025-09-30 14:52:05'),
+(9, 'n-a-1759229353', 'Nhân viên mới', 'Nhân viên mới gia nhập', '#04ff00', 'fa-user-tag', NULL, NULL, 0, NULL, '2025-09-30 14:52:05', '2025-09-30 14:52:05'),
+(10, 'nhan-vien-trung-binh', 'Nhân viên trung bình', 'Nhân viên có tỉ lệ trung bình dưới 60%', '#9a972d', 'fa-user-tag', NULL, NULL, 0, NULL, '2025-09-30 14:52:05', '2025-09-30 14:52:05');
 
 --
 -- Chỉ mục cho các bảng đã đổ
@@ -707,6 +787,12 @@ ALTER TABLE `order_notes`
   ADD PRIMARY KEY (`id`),
   ADD KEY `idx_order_id` (`order_id`),
   ADD KEY `user_id` (`user_id`);
+
+--
+-- Chỉ mục cho bảng `order_status_configs`
+--
+ALTER TABLE `order_status_configs`
+  ADD PRIMARY KEY (`status_key`);
 
 --
 -- Chỉ mục cho bảng `reminders`
@@ -820,13 +906,13 @@ ALTER TABLE `action_logs`
 -- AUTO_INCREMENT cho bảng `activity_logs`
 --
 ALTER TABLE `activity_logs`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=23;
 
 --
 -- AUTO_INCREMENT cho bảng `customer_labels`
 --
 ALTER TABLE `customer_labels`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
 
 --
 -- AUTO_INCREMENT cho bảng `kpis`
@@ -874,7 +960,7 @@ ALTER TABLE `role_permissions`
 -- AUTO_INCREMENT cho bảng `rules`
 --
 ALTER TABLE `rules`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT cho bảng `rule_executions`
@@ -916,7 +1002,7 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT cho bảng `user_labels`
 --
 ALTER TABLE `user_labels`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
 
 --
 -- Các ràng buộc cho các bảng đã đổ

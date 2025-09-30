@@ -15,6 +15,7 @@ if (!is_logged_in()) {
 }
 
 // Get JSON input
+$engine->evaluate('order', $order_id, 'order_assigned');
 $input = json_decode(file_get_contents('php://input'), true);
 $order_id = isset($input['order_id']) ? (int)$input['order_id'] : 0;
 
