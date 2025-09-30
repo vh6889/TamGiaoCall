@@ -29,7 +29,7 @@ if (empty($order['assigned_to'])) {
     json_error('Order is not currently assigned to anyone.', 400);
 }
 
-$current_user = get_current_user();
+$current_user = get_logged_user();
 $reclaimed_user = get_user($order['assigned_to']);
 
 try {

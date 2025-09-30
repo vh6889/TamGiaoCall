@@ -13,7 +13,7 @@ if (!is_logged_in()) {
 }
 
 $input = json_decode(file_get_contents('php://input'), true);
-$current_user_id = get_current_user()['id'];
+$current_user_id = get_logged_user()['id'];
 
 // Validate input
 if (empty($input['customer_name']) || empty($input['customer_phone']) || empty($input['products'])) {

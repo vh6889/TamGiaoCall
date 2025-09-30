@@ -23,7 +23,7 @@ if (!$order) {
     json_error('Order not found', 404);
 }
 
-$current_user = get_current_user();
+$current_user = get_logged_user();
 if (!is_admin() && $order['assigned_to'] != $current_user['id']) {
     json_error('Access denied', 403);
 }

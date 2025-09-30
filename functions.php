@@ -98,7 +98,7 @@ function is_logged_in() {
  * Get current user - CRITICAL FUNCTION
  * Returns full user array from database
  */
-function get_current_user() {
+function get_logged_user() {
     if (!is_logged_in()) {
         return null;
     }
@@ -120,12 +120,12 @@ function get_current_user() {
 }
 
 function is_admin() {
-    $user = get_current_user();
+    $user = get_logged_user();
     return $user && is_array($user) && isset($user['role']) && $user['role'] === 'admin';
 }
 
 function is_telesale() {
-    $user = get_current_user();
+    $user = get_logged_user();
     return $user && is_array($user) && isset($user['role']) && $user['role'] === 'telesale';
 }
 
@@ -526,4 +526,56 @@ function json_error($message = 'Error', $code = 400) {
         'success' => false,
         'message' => $message
     ], $code);
+}
+// Load custom order status configs (thay thế ORDER_STATUS)
+function get_order_status_configs() {
+    static $configs = null;
+    if ($configs === null) {
+        $results = db_get_results("SELECT * FROM order_status_configs");
+        $configs = [];
+        foreach ($results as $row) {
+            $configs[$row['status_key']] = [
+                'label' => $row['label'],
+                'color' => $row['color'],
+                'icon' => $row['icon'],
+                'logic' => json_decode($row['logic_json'], true) ?? []  // Parse JSON logic
+            ];
+        }
+    }
+    return $configs;
+}
+
+// Validate status tồn tại
+function is_valid_status($status_key) {
+    $configs = get_order_status_configs();
+    return isset($configs[$status_key]);
+}
+
+// Insert reminder dựa trên logic
+function insert_reminder($order_id, $user_id, $type, $due_time, $remind_time = null) {
+    db_insert('reminders', [
+        'order_id' => $order_id,
+        'user_id' => $user_id,
+        'type' => $type,
+        'due_time' => $due_time,
+        'remind_time' => $remind_time,
+        'status' => 'pending'
+    ]);
+    log_activity('insert_reminder', "Inserted reminder for order #$order_id (type: $type)", 'order', $order_id);
+}
+
+// Check và hủy reminders nếu action sớm
+function cancel_pending_reminders($order_id) {
+    db_update('reminders', ['status' => 'cancelled'], 'order_id = ? AND status = "pending"', [$order_id]);
+    log_activity('cancel_reminder', "Cancelled pending reminders for order #$order_id", 'order', $order_id);
+}
+
+// Get pending reminders cho cron
+function get_pending_reminders() {
+    return db_get_results("SELECT * FROM reminders WHERE status = 'pending' ORDER BY remind_time ASC");
+}
+
+function get_overdue_reminders($grace_minutes = 5) {
+    $grace_time = date('Y-m-d H:i:s', strtotime("-$grace_minutes minutes"));
+    return db_get_results("SELECT * FROM reminders WHERE status IN ('pending', 'sent') AND due_time < ?", [$grace_time]);
 }

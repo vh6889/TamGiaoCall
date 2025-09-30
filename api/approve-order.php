@@ -13,7 +13,7 @@ if (!is_logged_in() || !is_admin()) {
 }
 
 $input = json_decode(file_get_contents('php://input'), true);
-$current_user_id = get_current_user()['id'];
+$current_user_id = get_logged_user()['id'];
 
 $order_id = (int)($input['order_id'] ?? 0);
 $action = $input['action'] ?? ''; // 'approve' or 'reject'

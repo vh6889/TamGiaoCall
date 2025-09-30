@@ -6,8 +6,6 @@ define('TSM_ACCESS', true);
 require_once 'config.php';
 require_once 'functions.php';
 
-
-
 require_admin();
 
 $page_title = 'Quản lý KPIs & Mục tiêu';
@@ -18,7 +16,6 @@ $target_month_date = new DateTime($target_month_input . '-01');
 $target_month_sql = $target_month_date->format('Y-m-01');
 $month_start = $target_month_date->format('Y-m-01');
 $month_end = $target_month_date->format('Y-m-t');
-
 
 // 1. Lấy danh sách tất cả telesale đang hoạt động
 $telesales = get_telesales('active');
@@ -53,7 +50,6 @@ if (!empty($telesales)) {
     }
 }
 
-
 include 'includes/header.php';
 ?>
 
@@ -62,63 +58,79 @@ include 'includes/header.php';
         <h5 class="mb-0"><i class="fas fa-bullseye me-2"></i>Quản lý KPIs & Mục tiêu</h5>
         <form method="GET" class="d-flex align-items-center">
             <label for="month" class="form-label me-2 mb-0">Chọn tháng:</label>
-            <input type="month" id="month" name="month" class="form-control" value="<?php echo htmlspecialchars($target_month_input); ?>" onchange="this.form.submit()">
+            <input type="month" class="form-control form-control-sm" id="month" name="month" value="<?php echo $target_month_input; ?>" onchange="this.form.submit()">
         </form>
     </div>
-    <p>Thiết lập mục tiêu cho nhân viên Telesale trong tháng <strong><?php echo $target_month_date->format('m/Y'); ?></strong>.</p>
     
     <form id="kpiForm">
         <input type="hidden" name="target_month" value="<?php echo $target_month_sql; ?>">
         <div class="table-responsive">
-            <table class="table table-hover align-middle">
+            <table class="table table-hover">
                 <thead>
-                    <tr class="table-light">
-                        <th rowspan="2" class="align-middle">Nhân viên</th>
-                        <th colspan="2" class="text-center">Mục tiêu Đơn hàng (số đơn)</th>
-                        <th colspan="2" class="text-center">Mục tiêu Doanh thu (<?php echo CURRENCY_SYMBOL; ?>)</th>
-                    </tr>
                     <tr>
-                        <th class="text-center">Mục tiêu</th>
-                        <th class="text-center">Thực tế</th>
-                        <th class="text-center">Mục tiêu</th>
-                        <th class="text-center">Thực tế</th>
+                        <th>Nhân viên</th>
+                        <th>Mục tiêu Đơn hàng</th>
+                        <th>Đạt được</th>
+                        <th>Tiến độ</th>
+                        <th>Mục tiêu Doanh thu</th>
+                        <th>Đạt được</th>
+                        <th>Tiến độ</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($telesales)): ?>
-                    <tr><td colspan="5" class="text-center text-muted">Chưa có nhân viên telesale nào.</td></tr>
+                    <tr><td colspan="7" class="text-center text-muted">Chưa có nhân viên telesale nào.</td></tr>
                     <?php else: ?>
-                        <?php foreach($telesales as $ts): 
-                            $user_id = $ts['id'];
-                            $targets = $kpi_data[$user_id]['targets'];
-                            $achieved = $kpi_data[$user_id]['achieved'];
-                            $order_progress = $targets['confirmed_orders'] > 0 ? round(($achieved['confirmed_orders'] / $targets['confirmed_orders']) * 100) : 0;
-                            $revenue_progress = $targets['total_revenue'] > 0 ? round(($achieved['total_revenue'] / $targets['total_revenue']) * 100) : 0;
-                        ?>
-                        <tr>
-                            <td><strong><?php echo htmlspecialchars($ts['full_name']); ?></strong></td>
-                            
-                            <td>
-                                <input type="number" name="kpis[<?php echo $user_id; ?>][confirmed_orders]" class="form-control text-center" value="<?php echo $targets['confirmed_orders']; ?>" min="0">
-                            </td>
-                            <td class="text-center">
-                                <span class="fw-bold fs-5"><?php echo number_format($achieved['confirmed_orders']); ?></span>
-                                <div class="progress mt-1" style="height: 10px;">
-                                    <div class="progress-bar" role="progressbar" style="width: <?php echo $order_progress; ?>%;" aria-valuenow="<?php echo $order_progress; ?>" aria-valuemin="0" aria-valuemax="100"></div>
+                    <?php foreach ($telesales as $ts): ?>
+                    <?php $user_id = $ts['id']; $data = $kpi_data[$user_id]; ?>
+                    <tr>
+                        <td><strong><?php echo htmlspecialchars($ts['full_name']); ?></strong></td>
+                        <td>
+                            <input type="number" class="form-control form-control-sm" 
+                                   name="kpis[<?php echo $user_id; ?>][confirmed_orders]"
+                                   value="<?php echo $data['targets']['confirmed_orders']; ?>" min="0">
+                        </td>
+                        <td><?php echo $data['achieved']['confirmed_orders']; ?></td>
+                        <td>
+                            <?php 
+                            $orders_progress = $data['targets']['confirmed_orders'] > 0 
+                                ? round(($data['achieved']['confirmed_orders'] / $data['targets']['confirmed_orders']) * 100, 1) 
+                                : 0; 
+                            ?>
+                            <div class="progress" style="height: 20px;">
+                                <div class="progress-bar <?php echo $orders_progress >= 100 ? 'bg-success' : ''; ?>" 
+                                     role="progressbar" 
+                                     style="width: <?php echo min(100, $orders_progress); ?>%;" 
+                                     aria-valuenow="<?php echo $orders_progress; ?>" 
+                                     aria-valuemin="0" aria-valuemax="100">
+                                    <?php echo $orders_progress; ?>%
                                 </div>
-                            </td>
-
-                            <td>
-                                <input type="number" name="kpis[<?php echo $user_id; ?>][total_revenue]" class="form-control text-center" value="<?php echo $targets['total_revenue']; ?>" min="0" step="1000">
-                            </td>
-                            <td class="text-center">
-                                <span class="fw-bold fs-5 text-success"><?php echo format_money($achieved['total_revenue']); ?></span>
-                                <div class="progress mt-1" style="height: 10px;">
-                                    <div class="progress-bar bg-success" role="progressbar" style="width: <?php echo $revenue_progress; ?>%;" aria-valuenow="<?php echo $revenue_progress; ?>" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                        </td>
+                        <td>
+                            <input type="number" class="form-control form-control-sm" 
+                                   name="kpis[<?php echo $user_id; ?>][total_revenue]"
+                                   value="<?php echo $data['targets']['total_revenue']; ?>" min="0" step="1000">
+                        </td>
+                        <td><?php echo format_money($data['achieved']['total_revenue']); ?></td>
+                        <td>
+                            <?php 
+                            $revenue_progress = $data['targets']['total_revenue'] > 0 
+                                ? round(($data['achieved']['total_revenue'] / $data['targets']['total_revenue']) * 100, 1) 
+                                : 0; 
+                            ?>
+                            <div class="progress" style="height: 20px;">
+                                <div class="progress-bar <?php echo $revenue_progress >= 100 ? 'bg-success' : ''; ?>" 
+                                     role="progressbar" 
+                                     style="width: <?php echo min(100, $revenue_progress); ?>%;" 
+                                     aria-valuenow="<?php echo $revenue_progress; ?>" 
+                                     aria-valuemin="0" aria-valuemax="100">
+                                    <?php echo $revenue_progress; ?>%
                                 </div>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
+                            </div>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
                     <?php endif; ?>
                 </tbody>
             </table>

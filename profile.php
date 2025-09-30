@@ -11,7 +11,7 @@ require_once 'functions.php';
 require_login();
 
 $page_title = 'Hồ sơ cá nhân';
-$current_user = get_current_user();
+$current_user = get_logged_user();
 $user_id = $current_user['id'];
 
 // Xử lý cập nhật thông tin

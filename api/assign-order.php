@@ -43,12 +43,12 @@ try {
     ], 'id = ?', [$order_id]);
 
     // 4. Add a system note for the assignment
-    $current_user_name = get_current_user()['full_name'];
+    $current_user_name = get_logged_user()['full_name'];
     $note_content = "Đơn hàng được phân công cho " . $user_to_assign['full_name'] . " bởi " . $current_user_name . ".";
     
     db_insert('order_notes', [
         'order_id' => $order_id,
-        'user_id' => get_current_user()['id'],
+        'user_id' => get_logged_user()['id'],
         'note_type' => 'assignment',
         'content' => $note_content
     ]);

@@ -35,7 +35,7 @@ if ($order['assigned_to'] == $target_user_id) {
     json_error('Đơn hàng đã thuộc về nhân viên này.');
 }
 
-$current_user = get_current_user();
+$current_user = get_logged_user();
 $from_user = $order['assigned_to'] ? get_user($order['assigned_to']) : null;
 $from_user_name = $from_user ? $from_user['full_name'] : 'kho đơn mới';
 

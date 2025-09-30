@@ -24,7 +24,7 @@ if (!$order) {
 }
 
 // Check permission
-$current_user = get_current_user();
+$current_user = get_logged_user();
 if (!is_admin() && $order['assigned_to'] != $current_user['id'] && $order['status'] !== 'new') {
     set_flash('error', 'Bạn không có quyền xem đơn hàng này');
     redirect('orders.php');
@@ -32,6 +32,8 @@ if (!is_admin() && $order['assigned_to'] != $current_user['id'] && $order['statu
 
 // Get order notes
 $notes = get_order_notes($order_id);
+// Get reminders
+$reminders = db_get_results("SELECT * FROM reminders WHERE order_id = ? ORDER BY due_time DESC", [$order_id]);
 
 // Parse products JSON
 $products = json_decode($order['products'], true) ?? [];
@@ -176,6 +178,7 @@ include 'includes/header.php';
             <p class="text-muted text-center py-3">Chưa có ghi chú nào</p>
             <?php endif; ?>
         </div>
+		
     </div>
     
         <div class="col-md-4">
@@ -226,6 +229,12 @@ include 'includes/header.php';
             <?php endif; ?>
             <?php endif; ?>
         </div>
+		<!-- Trong HTML timeline, add:-->
+			<?php foreach ($reminders as $rem): ?>
+			<div class="timeline-item">
+				<strong>Remind: <?php echo $rem['type']; ?></strong> - Due: <?php echo format_date($rem['due_time']); ?> - Status: <?php echo $rem['status']; ?>
+			</div>
+			<?php endforeach; ?>
         
         <?php if (is_admin() && $order['assigned_to']): ?>
         <div class="table-card mb-3">

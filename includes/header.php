@@ -4,12 +4,9 @@ if (!defined('TSM_ACCESS')) {
     die('Direct access not allowed');
 }
 
-// CHỈ NẠP Ở ĐÂY
-require_once __DIR__ . '/../config.php';
-require_once __DIR__ . '/../functions.php';
 
 // Lấy thông tin người dùng đang đăng nhập
-$current_user = get_current_user();
+$current_user = get_logged_user();
 // Lấy trang hiện tại để active menu
 $current_page = basename($_SERVER['PHP_SELF']);
 ?>
@@ -19,10 +16,9 @@ $current_page = basename($_SERVER['PHP_SELF']);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo isset($page_title) ? htmlspecialchars($page_title) : 'Dashboard'; ?> - <?php echo SITE_NAME; ?></title>
-
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-
     <style>
         :root {
             --sidebar-width: 250px;
@@ -74,7 +70,6 @@ $current_page = basename($_SERVER['PHP_SELF']);
             width: 30px;
             text-align: center;
         }
-
         /* Main Content */
         .main-content {
             margin-left: var(--sidebar-width);
@@ -126,28 +121,33 @@ $current_page = basename($_SERVER['PHP_SELF']);
                 <li class="<?php echo ($current_page == 'users.php') ? 'active' : ''; ?>">
                     <a href="users.php"><i class="fas fa-users-cog"></i> Quản lý nhân viên</a>
                 </li>
-				<li class="<?php echo ($current_page == 'customer-history.php') ? 'active' : ''; ?>">
-					<a href="customer-history.php"><i class="fas fa-address-book"></i> Lịch sử Khách hàng</a>
-				</li>
-				<li class="<?php echo ($current_page == 'pending-orders.php') ? 'active' : ''; ?>">
-					<a href="pending-orders.php">
-						<i class="fas fa-user-check"></i> Duyệt đơn
-						<?php 
-							$pending_count = count_orders(['status' => 'pending_approval']);
-							if ($pending_count > 0) echo "<span class='badge bg-danger ms-2'>{$pending_count}</span>";
-						?>
-					</a>
-				</li>
+                <li class="<?php echo ($current_page == 'customer-history.php') ? 'active' : ''; ?>">
+                    <a href="customer-history.php"><i class="fas fa-address-book"></i> Lịch sử Khách hàng</a>
+                </li>
+                <li class="<?php echo ($current_page == 'pending-orders.php') ? 'active' : ''; ?>">
+                    <a href="pending-orders.php">
+                        <i class="fas fa-user-check"></i> Duyệt đơn
+                        <?php
+                        $pending_count = count_orders(['status' => 'pending_approval']);
+                        if ($pending_count > 0) echo "<span class='badge bg-danger ms-2'>{$pending_count}</span>";
+                        ?>
+                    </a>
+                </li>
                 <li class="<?php echo ($current_page == 'statistics.php') ? 'active' : ''; ?>">
                     <a href="statistics.php"><i class="fas fa-chart-bar"></i> Thống kê</a>
                 </li>
+                <li class="<?php echo ($current_page == 'kpi.php') ? 'active' : ''; ?>">
+                    <a href="kpi.php"><i class="fas fa-bullseye"></i> Quản lý KPI</a>
+                </li>
+				<li class="<?php echo ($current_page == 'admin-status-config.php') ? 'active' : ''; ?>">
+					<a href="admin-status-config.php"><i class="fas fa-cog"></i> Quản Lý Trạng Thái</a>
+				</li>
                 <li class="<?php echo ($current_page == 'settings.php') ? 'active' : ''; ?>">
                     <a href="settings.php"><i class="fas fa-cogs"></i> Cài đặt</a>
                 </li>
                 <?php endif; ?>
             </ul>
         </nav>
-
         <div class="main-content">
             <header class="top-navbar d-flex justify-content-end align-items-center">
                 <div class="dropdown">
@@ -162,5 +162,4 @@ $current_page = basename($_SERVER['PHP_SELF']);
                     </ul>
                 </div>
             </header>
-
             <main class="p-4">

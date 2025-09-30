@@ -33,7 +33,7 @@ if ($order['status'] !== 'new' || !empty($order['assigned_to'])) {
     json_error('This order has already been taken or is not new.', 409); // 409 Conflict
 }
 
-$current_user = get_current_user();
+$current_user = get_logged_user();
 $user_id = $current_user['id'];
 
 try {

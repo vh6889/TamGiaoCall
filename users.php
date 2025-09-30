@@ -3,8 +3,6 @@ define('TSM_ACCESS', true);
 require_once 'config.php';
 require_once 'functions.php';
 
-
-
 require_admin();
 
 $page_title = 'Quản lý nhân viên';
@@ -25,6 +23,11 @@ include 'includes/header.php';
 ?>
 
 <div class="table-card">
+    <div class="d-flex justify-content-end mb-3">
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createUserModal">
+            <i class="fas fa-user-plus me-2"></i> Tạo nhân viên mới
+        </button>
+    </div>
     <div class="table-responsive">
         <table class="table table-hover">
             <thead>
@@ -58,12 +61,42 @@ include 'includes/header.php';
                         <?php endif; ?>
                     </td>
                     <td>
-                        <?php if ($user['id'] != get_current_user()['id']): ?>
+                        <?php if ($user['id'] != get_logged_user()['id']): ?>
                         <div class="btn-group btn-group-sm">
-                            <button class="btn btn-secondary btn-disable" data-user-id="<?php echo $user['id']; ?>" data-user-name="<?php echo htmlspecialchars($user['full_name']); ?>" data-pending-orders="<?php echo $user['pending_orders']; ?>" title="Vô hiệu hóa & Bàn giao">
+                            <button class="btn btn-primary btn-edit" 
+                                    data-bs-toggle="modal" data-bs-target="#editUserModal"
+                                    data-user-id="<?php echo $user['id']; ?>"
+                                    data-username="<?php echo htmlspecialchars($user['username']); ?>"
+                                    data-full-name="<?php echo htmlspecialchars($user['full_name']); ?>"
+                                    data-email="<?php echo htmlspecialchars($user['email']); ?>"
+                                    data-phone="<?php echo htmlspecialchars($user['phone']); ?>"
+                                    data-role="<?php echo $user['role']; ?>"
+                                    data-status="<?php echo $user['status']; ?>"
+                                    title="Sửa thông tin">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <?php if ($user['status'] === 'active'): ?>
+                            <button class="btn btn-secondary btn-disable" 
+                                    data-bs-toggle="modal" data-bs-target="#handoverModal"
+                                    data-user-id="<?php echo $user['id']; ?>" 
+                                    data-user-name="<?php echo htmlspecialchars($user['full_name']); ?>" 
+                                    data-pending-orders="<?php echo $user['pending_orders']; ?>" 
+                                    title="Vô hiệu hóa & Bàn giao">
                                 <i class="fas fa-user-lock"></i>
                             </button>
-                            <button class="btn btn-danger btn-delete" data-user-id="<?php echo $user['id']; ?>" data-user-name="<?php echo htmlspecialchars($user['full_name']); ?>" data-pending-orders="<?php echo $user['pending_orders']; ?>" title="Xóa & Bàn giao">
+                            <?php else: ?>
+                            <button class="btn btn-success btn-enable" 
+                                    data-user-id="<?php echo $user['id']; ?>" 
+                                    title="Kích hoạt lại">
+                                <i class="fas fa-user-check"></i>
+                            </button>
+                            <?php endif; ?>
+                            <button class="btn btn-danger btn-delete" 
+                                    data-bs-toggle="modal" data-bs-target="#handoverModal"
+                                    data-user-id="<?php echo $user['id']; ?>" 
+                                    data-user-name="<?php echo htmlspecialchars($user['full_name']); ?>" 
+                                    data-pending-orders="<?php echo $user['pending_orders']; ?>" 
+                                    title="Xóa & Bàn giao">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </div>
@@ -76,6 +109,7 @@ include 'includes/header.php';
     </div>
 </div>
 
+<!-- Modal Bàn Giao (Handover) - Giữ nguyên -->
 <div class="modal fade" id="handoverModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -119,11 +153,113 @@ include 'includes/header.php';
     </div>
 </div>
 
+<!-- Modal Tạo Nhân Viên Mới - Giữ nguyên -->
+<div class="modal fade" id="createUserModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Tạo Nhân Viên Mới</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="createUserForm">
+                    <div class="mb-3">
+                        <label for="new_username" class="form-label">Username</label>
+                        <input type="text" class="form-control" id="new_username" name="username" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="new_password" class="form-label">Password</label>
+                        <input type="password" class="form-control" id="new_password" name="password" required minlength="<?php echo PASSWORD_MIN_LENGTH; ?>">
+                        <small class="form-text text-muted">Mật khẩu phải có ít nhất <?php echo PASSWORD_MIN_LENGTH; ?> ký tự.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="new_full_name" class="form-label">Họ tên</label>
+                        <input type="text" class="form-control" id="new_full_name" name="full_name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="new_email" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="new_email" name="email">
+                    </div>
+                    <div class="mb-3">
+                        <label for="new_phone" class="form-label">Số điện thoại</label>
+                        <input type="text" class="form-control" id="new_phone" name="phone">
+                    </div>
+                    <div class="mb-3">
+                        <label for="new_role" class="form-label">Vai trò</label>
+                        <select class="form-select" id="new_role" name="role" required>
+                            <option value="telesale">Telesale</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" class="btn btn-primary" id="btnCreateUser">Tạo mới</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Sửa Nhân Viên -->
+<div class="modal fade" id="editUserModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Sửa Thông Tin Nhân Viên</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editUserForm">
+                    <input type="hidden" id="edit_user_id" name="user_id">
+                    <div class="mb-3">
+                        <label for="edit_username" class="form-label">Username (Không thể sửa)</label>
+                        <input type="text" class="form-control" id="edit_username" disabled>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_password" class="form-label">Password Mới (Để trống nếu không đổi)</label>
+                        <input type="password" class="form-control" id="edit_password" name="password" minlength="<?php echo PASSWORD_MIN_LENGTH; ?>">
+                        <small class="form-text text-muted">Mật khẩu phải có ít nhất <?php echo PASSWORD_MIN_LENGTH; ?> ký tự nếu đổi.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_full_name" class="form-label">Họ tên</label>
+                        <input type="text" class="form-control" id="edit_full_name" name="full_name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_email" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="edit_email" name="email">
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_phone" class="form-label">Số điện thoại</label>
+                        <input type="text" class="form-control" id="edit_phone" name="phone">
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_role" class="form-label">Vai trò</label>
+                        <select class="form-select" id="edit_role" name="role" required>
+                            <option value="telesale">Telesale</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_status" class="form-label">Trạng thái</label>
+                        <select class="form-select" id="edit_status" name="status" required>
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" class="btn btn-primary" id="btnUpdateUser">Lưu thay đổi</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 $(document).ready(function() {
-    const handoverModal = new bootstrap.Modal(document.getElementById('handoverModal'));
-
-    // Event listener for showing the modal
+    // Event cho modal handover
     $('#handoverModal').on('show.bs.modal', function (event) {
         const button = $(event.relatedTarget);
         const userId = button.data('user-id');
@@ -138,12 +274,16 @@ $(document).ready(function() {
         modal.find('#pendingOrdersText').text(pendingOrders);
         modal.find('#actionText').text(action === 'delete' ? 'xóa' : 'vô hiệu hóa');
         
-        // Disable handover options if user has no pending orders
+        // Disable handover options if no pending orders
         if (pendingOrders == 0) {
             modal.find('input[name="handover_option"]').prop('disabled', true);
         } else {
             modal.find('input[name="handover_option"]').prop('disabled', false);
         }
+
+        // Hide option của chính user trong transfer list
+        $('#transferToUser option').show();
+        $('#transferToUser option[value="' + userId + '"]').hide();
     });
 
     // Toggle dropdown based on radio button
@@ -155,7 +295,7 @@ $(document).ready(function() {
         }
     });
 
-    // Handle final confirmation
+    // Xác nhận handover
     $('#btnConfirmHandover').click(function() {
         const btn = $(this);
         const userId = $('#handoverUserId').val();
@@ -185,14 +325,14 @@ $(document).ready(function() {
             success: function(response) {
                 if (response.success) {
                     showToast(response.message, 'success');
-                    handoverModal.hide();
+                    $('#handoverModal').modal('hide');
                     setTimeout(() => location.reload(), 1500);
                 } else {
                     showToast(response.message, 'error');
                 }
             },
             error: function() {
-                showToast('Có lỗi kết nối máy chủ.', 'error');
+                showToast('Có lỗi xảy ra.', 'error');
             },
             complete: function() {
                 btn.prop('disabled', false).text('Xác nhận');
@@ -200,13 +340,139 @@ $(document).ready(function() {
         });
     });
 
-    // Re-purpose buttons to open modal instead of direct action
-    $('.btn-delete, .btn-disable').click(function() {
-        const userId = $(this).data('user-id');
-        // Prevent trying to select the user being actioned on in the transfer list
-        $('#transferToUser option').show();
-        $('#transferToUser option[value="' + userId + '"]').hide();
-        handoverModal.show($(this));
+    // Create User
+    $('#btnCreateUser').click(function() {
+        const btn = $(this);
+        const form = $('#createUserForm');
+        
+        if (!form[0].checkValidity()) {
+            form[0].reportValidity();
+            return;
+        }
+        
+        const formData = form.serializeArray();
+        let postData = {};
+        formData.forEach(item => {
+            postData[item.name] = item.value;
+        });
+
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Đang tạo...');
+
+        $.ajax({
+            url: 'api/create-user.php',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(postData),
+            success: function(response) {
+                if (response.success) {
+                    showToast('Đã tạo nhân viên thành công!', 'success');
+                    $('#createUserModal').modal('hide');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    showToast(response.message || 'Có lỗi xảy ra', 'error');
+                }
+            },
+            error: function() {
+                showToast('Có lỗi kết nối máy chủ.', 'error');
+            },
+            complete: function() {
+                btn.prop('disabled', false).text('Tạo mới');
+            }
+        });
+    });
+
+    // Edit User
+    $('#editUserModal').on('show.bs.modal', function (event) {
+        const button = $(event.relatedTarget);
+        const userId = button.data('user-id');
+        const username = button.data('username');
+        const fullName = button.data('full-name');
+        const email = button.data('email');
+        const phone = button.data('phone');
+        const role = button.data('role');
+        const status = button.data('status');
+
+        const modal = $(this);
+        modal.find('#edit_user_id').val(userId);
+        modal.find('#edit_username').val(username);
+        modal.find('#edit_full_name').val(fullName);
+        modal.find('#edit_email').val(email);
+        modal.find('#edit_phone').val(phone);
+        modal.find('#edit_role').val(role);
+        modal.find('#edit_status').val(status);
+    });
+
+    $('#btnUpdateUser').click(function() {
+        const btn = $(this);
+        const form = $('#editUserForm');
+        
+        if (!form[0].checkValidity()) {
+            form[0].reportValidity();
+            return;
+        }
+        
+        const formData = form.serializeArray();
+        let postData = {};
+        formData.forEach(item => {
+            postData[item.name] = item.value;
+        });
+
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Đang lưu...');
+
+        $.ajax({
+            url: 'api/update-user.php',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(postData),
+            success: function(response) {
+                if (response.success) {
+                    showToast('Đã cập nhật thành công!', 'success');
+                    $('#editUserModal').modal('hide');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    showToast(response.message || 'Có lỗi xảy ra', 'error');
+                }
+            },
+            error: function() {
+                showToast('Có lỗi kết nối máy chủ.', 'error');
+            },
+            complete: function() {
+                btn.prop('disabled', false).text('Lưu thay đổi');
+            }
+        });
+    });
+
+    // Enable User (Mới Thêm)
+    $('.btn-enable').click(function() {
+        const btn = $(this);
+        const userId = btn.data('user-id');
+
+        if (!confirm('Bạn có chắc chắn muốn kích hoạt lại tài khoản này?')) {
+            return;
+        }
+
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+
+        $.ajax({
+            url: 'api/update-user.php',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ user_id: userId, status: 'active' }),
+            success: function(response) {
+                if (response.success) {
+                    showToast('Đã kích hoạt tài khoản thành công!', 'success');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    showToast(response.message || 'Có lỗi xảy ra', 'error');
+                }
+            },
+            error: function() {
+                showToast('Có lỗi kết nối máy chủ.', 'error');
+            },
+            complete: function() {
+                btn.prop('disabled', false).html('<i class="fas fa-user-check"></i>');
+            }
+        });
     });
 });
 </script>

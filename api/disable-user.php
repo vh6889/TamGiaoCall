@@ -13,7 +13,7 @@ if (!is_logged_in() || !is_admin()) {
 }
 
 $input = json_decode(file_get_contents('php://input'), true);
-$current_user = get_current_user();
+$current_user = get_logged_user();
 
 $user_id_to_disable = (int)($input['user_id'] ?? 0);
 $handover_option = $input['handover_option'] ?? 'reclaim'; // 'reclaim' or 'transfer'

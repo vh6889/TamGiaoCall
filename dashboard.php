@@ -14,7 +14,7 @@ if (!isset($_SESSION['user_id'])) {
 
 require_login();
 
-$current_user = get_current_user();
+$current_user = get_logged_user();
 // DEBUG: Kiểm tra user data
 if (!$current_user) {
     echo "Session user_id: " . $_SESSION['user_id'] . "<br>";

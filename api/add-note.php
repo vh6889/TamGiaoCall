@@ -28,7 +28,7 @@ if (!$order) {
 }
 
 // Check permission: User must be an admin or the one assigned to the order
-$current_user = get_current_user();
+$current_user = get_logged_user();
 if (!is_admin() && $order['assigned_to'] != $current_user['id']) {
     json_error('You do not have permission to add a note to this order.', 403);
 }
