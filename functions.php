@@ -12,9 +12,6 @@ if (!defined('TSM_ACCESS')) {
 // DATABASE FUNCTIONS
 // =============================================
 
-/**
- * Get Database Connection
- */
 function get_db_connection() {
     static $pdo = null;
     
@@ -35,9 +32,6 @@ function get_db_connection() {
     return $pdo;
 }
 
-/**
- * Execute Query
- */
 function db_query($sql, $params = []) {
     $pdo = get_db_connection();
     $stmt = $pdo->prepare($sql);
@@ -45,33 +39,21 @@ function db_query($sql, $params = []) {
     return $stmt;
 }
 
-/**
- * Get Single Row
- */
 function db_get_row($sql, $params = []) {
     $stmt = db_query($sql, $params);
-    return $stmt->fetch();
+    return $stmt->fetch(PDO::FETCH_ASSOC);
 }
 
-/**
- * Get All Rows
- */
 function db_get_results($sql, $params = []) {
     $stmt = db_query($sql, $params);
-    return $stmt->fetchAll();
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
-/**
- * Get Single Value
- */
 function db_get_var($sql, $params = []) {
     $stmt = db_query($sql, $params);
     return $stmt->fetchColumn();
 }
 
-/**
- * Insert Data
- */
 function db_insert($table, $data) {
     $fields = array_keys($data);
     $values = array_values($data);
@@ -84,9 +66,6 @@ function db_insert($table, $data) {
     return get_db_connection()->lastInsertId();
 }
 
-/**
- * Update Data
- */
 function db_update($table, $data, $where, $where_params = []) {
     $set_parts = [];
     $values = [];
@@ -100,12 +79,8 @@ function db_update($table, $data, $where, $where_params = []) {
     $values = array_merge($values, $where_params);
     
     db_query($sql, $values);
-    return get_db_connection()->lastInsertId();
 }
 
-/**
- * Delete Data
- */
 function db_delete($table, $where, $where_params = []) {
     $sql = "DELETE FROM {$table} WHERE {$where}";
     db_query($sql, $where_params);
@@ -115,51 +90,45 @@ function db_delete($table, $where, $where_params = []) {
 // AUTHENTICATION FUNCTIONS
 // =============================================
 
-/**
- * Check if user is logged in
- */
 function is_logged_in() {
     return isset($_SESSION['user_id']) && !empty($_SESSION['user_id']);
 }
 
 /**
- * Get current user
+ * Get current user - CRITICAL FUNCTION
+ * Returns full user array from database
  */
-if (!function_exists('get_current_user')) {
-    /**
-     * Get current user
-     */
-    function get_current_user() {
-        if (!is_logged_in()) {
-            return null;
-        }
+function get_current_user() {
+    if (!is_logged_in()) {
+        return null;
+    }
 
-        return db_get_row(
+    static $cached_user = null;
+    
+    if ($cached_user === null) {
+        $cached_user = db_get_row(
             "SELECT * FROM users WHERE id = ? AND status = 'active'",
             [$_SESSION['user_id']]
         );
+        
+        if (!is_array($cached_user) || empty($cached_user)) {
+            return null;
+        }
     }
+    
+    return $cached_user;
 }
 
-/**
- * Check if user is admin
- */
 function is_admin() {
     $user = get_current_user();
-    return $user && $user['role'] === 'admin';
+    return $user && is_array($user) && isset($user['role']) && $user['role'] === 'admin';
 }
 
-/**
- * Check if user is telesale
- */
 function is_telesale() {
     $user = get_current_user();
-    return $user && $user['role'] === 'telesale';
+    return $user && is_array($user) && isset($user['role']) && $user['role'] === 'telesale';
 }
 
-/**
- * Require login
- */
 function require_login() {
     if (!is_logged_in()) {
         redirect('index.php?error=login_required');
@@ -167,9 +136,6 @@ function require_login() {
     }
 }
 
-/**
- * Require admin
- */
 function require_admin() {
     require_login();
     if (!is_admin()) {
@@ -178,16 +144,13 @@ function require_admin() {
     }
 }
 
-/**
- * Login user
- */
 function login_user($username, $password) {
     $user = db_get_row(
         "SELECT * FROM users WHERE username = ? AND status = 'active'",
         [$username]
     );
     
-    if (!$user || !password_verify($password, $user['password'])) {
+    if (!$user || !is_array($user) || !password_verify($password, $user['password'])) {
         return false;
     }
     
@@ -209,9 +172,6 @@ function login_user($username, $password) {
     return true;
 }
 
-/**
- * Logout user
- */
 function logout_user() {
     log_activity('logout', 'User logged out');
     session_destroy();
@@ -222,9 +182,6 @@ function logout_user() {
 // SECURITY FUNCTIONS
 // =============================================
 
-/**
- * Sanitize input
- */
 function sanitize($input) {
     if (is_array($input)) {
         return array_map('sanitize', $input);
@@ -232,23 +189,14 @@ function sanitize($input) {
     return htmlspecialchars(strip_tags(trim($input)), ENT_QUOTES, 'UTF-8');
 }
 
-/**
- * Validate email
- */
 function is_valid_email($email) {
     return filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
 }
 
-/**
- * Hash password
- */
 function hash_password($password) {
     return password_hash($password, PASSWORD_BCRYPT, ['cost' => HASH_COST]);
 }
 
-/**
- * Generate CSRF token
- */
 function generate_csrf_token() {
     if (!isset($_SESSION['csrf_token'])) {
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -256,16 +204,10 @@ function generate_csrf_token() {
     return $_SESSION['csrf_token'];
 }
 
-/**
- * Verify CSRF token
- */
 function verify_csrf_token($token) {
     return isset($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token);
 }
 
-/**
- * Get client IP
- */
 function get_client_ip() {
     if (!empty($_SERVER['HTTP_CLIENT_IP'])) {
         return $_SERVER['HTTP_CLIENT_IP'];
@@ -280,9 +222,6 @@ function get_client_ip() {
 // UTILITY FUNCTIONS
 // =============================================
 
-/**
- * Redirect
- */
 function redirect($url) {
     if (!headers_sent()) {
         header('Location: ' . $url);
@@ -292,17 +231,11 @@ function redirect($url) {
     exit;
 }
 
-/**
- * Format date
- */
 function format_date($date, $format = DATETIME_FORMAT) {
     if (empty($date)) return '';
     return date($format, strtotime($date));
 }
 
-/**
- * Format money
- */
 function format_money($amount, $decimals = 0) {
     $formatted = number_format($amount, $decimals, ',', '.');
     
@@ -313,9 +246,6 @@ function format_money($amount, $decimals = 0) {
     }
 }
 
-/**
- * Get order status badge
- */
 function get_status_badge($status) {
     $statuses = ORDER_STATUS;
     
@@ -332,9 +262,6 @@ function get_status_badge($status) {
     );
 }
 
-/**
- * Get time ago
- */
 function time_ago($datetime) {
     $timestamp = strtotime($datetime);
     $diff = time() - $timestamp;
@@ -352,9 +279,6 @@ function time_ago($datetime) {
     }
 }
 
-/**
- * Truncate text
- */
 function truncate($text, $length = 100, $suffix = '...') {
     if (mb_strlen($text) <= $length) {
         return $text;
@@ -362,9 +286,6 @@ function truncate($text, $length = 100, $suffix = '...') {
     return mb_substr($text, 0, $length) . $suffix;
 }
 
-/**
- * Generate random string
- */
 function generate_random_string($length = 10) {
     return substr(str_shuffle(str_repeat('0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ', ceil($length / 62))), 1, $length);
 }
@@ -373,9 +294,6 @@ function generate_random_string($length = 10) {
 // ACTIVITY LOG FUNCTIONS
 // =============================================
 
-/**
- * Log activity
- */
 function log_activity($action, $description = '', $related_type = null, $related_id = null) {
     $user_id = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : null;
     
@@ -394,26 +312,20 @@ function log_activity($action, $description = '', $related_type = null, $related
 // ORDER FUNCTIONS
 // =============================================
 
-/**
- * Get orders with filters
- */
 function get_orders($filters = []) {
     $where = ['1=1'];
     $params = [];
     
-    // Filter by status
     if (!empty($filters['status'])) {
         $where[] = "status = ?";
         $params[] = $filters['status'];
     }
     
-    // Filter by assigned user
     if (!empty($filters['assigned_to'])) {
         $where[] = "assigned_to = ?";
         $params[] = $filters['assigned_to'];
     }
     
-    // Filter by date range
     if (!empty($filters['date_from'])) {
         $where[] = "DATE(created_at) >= ?";
         $params[] = $filters['date_from'];
@@ -424,7 +336,6 @@ function get_orders($filters = []) {
         $params[] = $filters['date_to'];
     }
     
-    // Search by phone or name
     if (!empty($filters['search'])) {
         $where[] = "(customer_phone LIKE ? OR customer_name LIKE ? OR order_number LIKE ?)";
         $search_term = '%' . $filters['search'] . '%';
@@ -433,18 +344,15 @@ function get_orders($filters = []) {
         $params[] = $search_term;
     }
     
-    // Available orders (not assigned)
     if (!empty($filters['available'])) {
         $where[] = "assigned_to IS NULL";
         $where[] = "status = 'new'";
     }
     
-    // Pagination
     $page = $filters['page'] ?? 1;
     $per_page = $filters['per_page'] ?? ITEMS_PER_PAGE;
     $offset = ($page - 1) * $per_page;
     
-    // Order by
     $order_by = $filters['order_by'] ?? 'created_at';
     $order_dir = $filters['order_dir'] ?? 'DESC';
     
@@ -454,16 +362,10 @@ function get_orders($filters = []) {
     return db_get_results($sql, $params);
 }
 
-/**
- * Get order by ID
- */
 function get_order($order_id) {
     return db_get_row("SELECT * FROM orders WHERE id = ?", [$order_id]);
 }
 
-/**
- * Get order notes
- */
 function get_order_notes($order_id) {
     return db_get_results(
         "SELECT n.*, u.full_name, u.username 
@@ -475,9 +377,6 @@ function get_order_notes($order_id) {
     );
 }
 
-/**
- * Count orders
- */
 function count_orders($filters = []) {
     $where = ['1=1'];
     $params = [];
@@ -498,16 +397,13 @@ function count_orders($filters = []) {
     }
     
     $sql = "SELECT COUNT(*) FROM orders WHERE " . implode(' AND ', $where);
-    return db_get_var($sql, $params);
+    return (int) db_get_var($sql, $params);
 }
 
 // =============================================
 // USER FUNCTIONS
 // =============================================
 
-/**
- * Get all telesales
- */
 function get_telesales($status = 'active') {
     return db_get_results(
         "SELECT * FROM users WHERE role = 'telesale' AND status = ? ORDER BY full_name",
@@ -515,16 +411,10 @@ function get_telesales($status = 'active') {
     );
 }
 
-/**
- * Get user by ID
- */
 function get_user($user_id) {
     return db_get_row("SELECT * FROM users WHERE id = ?", [$user_id]);
 }
 
-/**
- * Get user statistics
- */
 function get_user_statistics($user_id = null, $date_from = null, $date_to = null) {
     $where = ['1=1'];
     $params = [];
@@ -561,17 +451,11 @@ function get_user_statistics($user_id = null, $date_from = null, $date_to = null
 // SETTINGS FUNCTIONS
 // =============================================
 
-/**
- * Get setting value
- */
 function get_setting($key, $default = null) {
     $value = db_get_var("SELECT setting_value FROM settings WHERE setting_key = ?", [$key]);
-    return $value !== false ? $value : $default;
+    return $value !== false && $value !== null ? $value : $default;
 }
 
-/**
- * Update setting
- */
 function update_setting($key, $value) {
     $exists = db_get_var("SELECT COUNT(*) FROM settings WHERE setting_key = ?", [$key]);
     
@@ -586,16 +470,10 @@ function update_setting($key, $value) {
 // NOTIFICATION FUNCTIONS
 // =============================================
 
-/**
- * Set flash message
- */
 function set_flash($type, $message) {
     $_SESSION['flash'] = ['type' => $type, 'message' => $message];
 }
 
-/**
- * Get and clear flash message
- */
 function get_flash() {
     if (isset($_SESSION['flash'])) {
         $flash = $_SESSION['flash'];
@@ -605,9 +483,6 @@ function get_flash() {
     return null;
 }
 
-/**
- * Display flash message
- */
 function display_flash() {
     $flash = get_flash();
     if ($flash) {
@@ -631,9 +506,6 @@ function display_flash() {
 // JSON RESPONSE (for AJAX)
 // =============================================
 
-/**
- * Send JSON response
- */
 function json_response($data, $status_code = 200) {
     http_response_code($status_code);
     header('Content-Type: application/json');
@@ -641,9 +513,6 @@ function json_response($data, $status_code = 200) {
     exit;
 }
 
-/**
- * JSON success response
- */
 function json_success($message = 'Success', $data = []) {
     json_response([
         'success' => true,
@@ -652,9 +521,6 @@ function json_success($message = 'Success', $data = []) {
     ]);
 }
 
-/**
- * JSON error response
- */
 function json_error($message = 'Error', $code = 400) {
     json_response([
         'success' => false,

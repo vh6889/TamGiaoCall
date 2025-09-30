@@ -3,11 +3,24 @@
  * Dashboard Page
  */
 define('TSM_ACCESS', true);
+require_once 'config.php';
+require_once 'functions.php';
+
+// DEBUG: Kiểm tra session
+if (!isset($_SESSION['user_id'])) {
+    die('Session not set! Please check login_user() function.');
+}
 
 
 require_login();
 
 $current_user = get_current_user();
+// DEBUG: Kiểm tra user data
+if (!$current_user) {
+    echo "Session user_id: " . $_SESSION['user_id'] . "<br>";
+    die('Cannot get current user from database!');
+}
+
 $page_title = 'Trang chủ';
 
 // Lấy thống kê
@@ -44,6 +57,11 @@ if (is_admin()) {
     
 } else {
     // Telesale: Thống kê cá nhân
+    // Kiểm tra an toàn trước khi sử dụng
+    if (!is_array($current_user) || !isset($current_user['id'])) {
+        die('ERROR: Cannot get current user data. Please logout and login again.');
+    }
+    
     $user_id = $current_user['id'];
     
     $my_orders = count_orders(['assigned_to' => $user_id]);
@@ -69,8 +87,14 @@ if (is_admin()) {
     // Lấy mục tiêu KPI đã đặt
     $kpi_targets_raw = db_get_results("SELECT target_type, target_value FROM kpis WHERE user_id = ? AND target_month = ?", [$user_id, $current_month_sql]);
     $kpi_targets = ['confirmed_orders' => 0, 'total_revenue' => 0];
-    foreach ($kpi_targets_raw as $target) {
-        $kpi_targets[$target['target_type']] = $target['target_value'];
+
+    // Kiểm tra an toàn trước khi loop
+    if (!empty($kpi_targets_raw) && is_array($kpi_targets_raw)) {
+        foreach ($kpi_targets_raw as $target) {
+            if (isset($target['target_type']) && isset($target['target_value'])) {
+                $kpi_targets[$target['target_type']] = $target['target_value'];
+            }
+        }
     }
 
     // Lấy kết quả KPI đã đạt được
@@ -80,6 +104,11 @@ if (is_admin()) {
          WHERE assigned_to = ? AND status = 'confirmed' AND DATE(completed_at) BETWEEN ? AND ?",
         [$user_id, $month_start, $month_end]
     );
+
+    // Đảm bảo $kpi_achieved luôn có giá trị
+    if (!$kpi_achieved || !is_array($kpi_achieved)) {
+        $kpi_achieved = ['confirmed_orders' => 0, 'total_revenue' => 0];
+    }
     // =======================================
 }
 

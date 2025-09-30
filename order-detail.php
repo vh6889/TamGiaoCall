@@ -3,6 +3,9 @@
  * Order Detail Page
  */
 define('TSM_ACCESS', true);
+require_once 'config.php';
+require_once 'functions.php';
+
 
 
 require_login();
