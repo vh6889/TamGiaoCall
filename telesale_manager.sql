@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Máy chủ: 127.0.0.1
--- Thời gian đã tạo: Th9 30, 2025 lúc 11:49 PM
+-- Thời gian đã tạo: Th10 01, 2025 lúc 01:50 AM
 -- Phiên bản máy phục vụ: 10.4.32-MariaDB
 -- Phiên bản PHP: 8.0.30
 
@@ -20,6 +20,81 @@ SET time_zone = "+00:00";
 --
 -- Cơ sở dữ liệu: `telesale_manager`
 --
+
+DELIMITER $$
+--
+-- Thủ tục
+--
+CREATE DEFINER=`root`@`localhost` PROCEDURE `get_next_valid_statuses` (IN `current_status` VARCHAR(50))   BEGIN
+    DECLARE current_sort_order INT;
+    DECLARE logic_json TEXT;
+    
+    -- Lấy thông tin status hiện tại
+    SELECT sort_order, logic_json INTO current_sort_order, logic_json
+    FROM order_status_configs
+    WHERE status_key = current_status
+    LIMIT 1;
+    
+    -- Nếu có định nghĩa next_statuses trong logic_json
+    IF logic_json IS NOT NULL AND logic_json != '' AND JSON_VALID(logic_json) AND JSON_EXTRACT(logic_json, '$.next_statuses') IS NOT NULL THEN
+        -- Return configured next statuses
+        SELECT osc.status_key, osc.label, osc.color, osc.icon
+        FROM order_status_configs osc
+        WHERE JSON_CONTAINS(
+            JSON_EXTRACT(logic_json, '$.next_statuses'),
+            JSON_QUOTE(osc.status_key)
+        );
+    ELSE
+        -- Mặc định: return tất cả status có sort_order >= hiện tại
+        SELECT status_key, label, color, icon
+        FROM order_status_configs
+        WHERE sort_order > IFNULL(current_sort_order, 0)
+        ORDER BY sort_order
+        LIMIT 5;
+    END IF;
+END$$
+
+CREATE DEFINER=`root`@`localhost` PROCEDURE `get_status_info` (IN `status_key_param` VARCHAR(50))   BEGIN
+    SELECT *
+    FROM order_status_configs
+    WHERE status_key = status_key_param
+    LIMIT 1;
+END$$
+
+CREATE DEFINER=`root`@`localhost` PROCEDURE `get_status_list` ()   BEGIN
+    SELECT 
+        status_key,
+        label,
+        color,
+        icon,
+        sort_order
+    FROM order_status_configs
+    ORDER BY sort_order;
+END$$
+
+--
+-- Các hàm
+--
+CREATE DEFINER=`root`@`localhost` FUNCTION `get_default_status` () RETURNS VARCHAR(50) CHARSET utf8mb4 COLLATE utf8mb4_unicode_ci DETERMINISTIC READS SQL DATA BEGIN
+    DECLARE default_status VARCHAR(50);
+    SELECT status_key INTO default_status
+    FROM order_status_configs
+    ORDER BY sort_order ASC
+    LIMIT 1;
+    RETURN IFNULL(default_status, 'n-a');
+END$$
+
+CREATE DEFINER=`root`@`localhost` FUNCTION `is_valid_status` (`check_status` VARCHAR(50)) RETURNS TINYINT(1) DETERMINISTIC READS SQL DATA BEGIN
+    DECLARE is_valid INT;
+    
+    SELECT COUNT(*) INTO is_valid
+    FROM order_status_configs
+    WHERE status_key = check_status;
+    
+    RETURN is_valid > 0;
+END$$
+
+DELIMITER ;
 
 -- --------------------------------------------------------
 
@@ -85,7 +160,8 @@ INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `related_
 (19, 1, 'delete_rule', 'Deleted rule #3', 'rule', 3, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 23:40:24'),
 (20, 1, 'delete_rule', 'Deleted rule #4', 'rule', 4, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 23:40:28'),
 (21, 1, 'delete_rule', 'Deleted rule #2', 'rule', 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 23:40:38'),
-(22, 1, 'create_rule', 'Created rule: Tự chuyển không nghe thành rác', 'rule', 7, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 00:36:21');
+(22, 1, 'create_rule', 'Created rule: Tự chuyển không nghe thành rác', 'rule', 7, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 00:36:21'),
+(23, 1, 'migrate_dynamic_status', 'Migrated system to use dynamic status', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 06:09:44');
 
 -- --------------------------------------------------------
 
@@ -245,7 +321,7 @@ CREATE TABLE `orders` (
   `payment_method` varchar(50) DEFAULT NULL,
   `products` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL COMMENT 'Danh sách sản phẩm (JSON)' CHECK (json_valid(`products`)),
   `customer_notes` text DEFAULT NULL COMMENT 'Ghi chú của khách',
-  `status` enum('new','assigned','calling','confirmed','rejected','no_answer','callback','completed','cancelled','pending_approval') NOT NULL DEFAULT 'new',
+  `status` varchar(50) NOT NULL DEFAULT 'n-a',
   `assigned_to` int(10) UNSIGNED DEFAULT NULL COMMENT 'ID nhân viên được gán',
   `manager_id` int(10) UNSIGNED DEFAULT NULL COMMENT 'ID manager đang giám sát đơn',
   `assigned_at` datetime DEFAULT NULL COMMENT 'Thời gian gán',
@@ -254,7 +330,7 @@ CREATE TABLE `orders` (
   `callback_time` datetime DEFAULT NULL,
   `source` enum('woocommerce','manual') NOT NULL DEFAULT 'woocommerce' COMMENT 'Nguồn đơn hàng',
   `created_by` int(10) UNSIGNED DEFAULT NULL COMMENT 'ID nhân viên tạo đơn thủ công',
-  `approval_status` enum('approved','pending','rejected') DEFAULT NULL COMMENT 'Trạng thái duyệt đơn thủ công',
+  `approval_status` varchar(50) DEFAULT NULL,
   `approved_by` int(10) UNSIGNED DEFAULT NULL COMMENT 'ID admin duyệt đơn',
   `approved_at` datetime DEFAULT NULL,
   `woo_created_at` datetime DEFAULT NULL COMMENT 'Thời gian tạo đơn trên WooCommerce',
@@ -264,18 +340,82 @@ CREATE TABLE `orders` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Bảng đơn hàng';
 
 --
+-- Đang đổ dữ liệu cho bảng `orders`
+--
+
+INSERT INTO `orders` (`id`, `woo_order_id`, `order_number`, `customer_name`, `customer_phone`, `customer_email`, `customer_address`, `total_amount`, `currency`, `payment_method`, `products`, `customer_notes`, `status`, `assigned_to`, `manager_id`, `assigned_at`, `call_count`, `last_call_at`, `callback_time`, `source`, `created_by`, `approval_status`, `approved_by`, `approved_at`, `woo_created_at`, `created_at`, `updated_at`, `completed_at`) VALUES
+(22, NULL, 'DYN001', 'Test Bom hàng', '0900000000', NULL, '123 Test Street, District 1', 450136.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'bom-hang', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 06:09:44', NULL),
+(23, NULL, 'DYN002', 'Test Đang giao', '0900000001', NULL, '123 Test Street, District 2', 1628333.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'dang-giao', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 06:09:44', NULL),
+(24, NULL, 'DYN003', 'Test Đang hoàn', '0900000002', NULL, '123 Test Street, District 3', 1233607.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'dang-hoan', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 06:09:44', NULL),
+(25, NULL, 'DYN004', 'Test Đóng gói sai', '0900000003', NULL, '123 Test Street, District 4', 1030515.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'dong-goi-sai', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 06:09:44', NULL),
+(26, NULL, 'DYN005', 'Test Giao thành công', '0900000004', NULL, '123 Test Street, District 5', 1169812.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'giao-thanh-cong', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 06:09:44', NULL),
+(27, NULL, 'DYN006', 'Test Hoàn thành công', '0900000005', NULL, '123 Test Street, District 6', 1427145.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'hoan-thanh-cong', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 06:09:44', NULL),
+(28, NULL, 'DYN007', 'Test Không nghe', '0900000006', NULL, '123 Test Street, District 7', 339382.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'khong-nghe', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 06:09:44', NULL),
+(29, NULL, 'DYN008', 'Test Đơn mới', '0900000007', NULL, '123 Test Street, District 8', 1925618.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'n-a', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 06:09:44', NULL),
+(30, NULL, 'DYN009', 'Test Đang gọi', '0900000008', NULL, '123 Test Street, District 9', 1795834.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'n-a-1759223929', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 06:09:44', NULL),
+(31, NULL, 'DYN010', 'Test Hẹn gọi lại', '0900000009', NULL, '123 Test Street, District 10', 822067.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'n-a-1759224057', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 06:09:44', NULL);
+
+--
 -- Bẫy `orders`
 --
 DELIMITER $$
 CREATE TRIGGER `tr_order_status_change` AFTER UPDATE ON `orders` FOR EACH ROW BEGIN
+    DECLARE old_label VARCHAR(100);
+    DECLARE new_label VARCHAR(100);
+    
     IF OLD.status != NEW.status THEN
-        INSERT INTO `order_notes` (order_id, user_id, note_type, content)
+        -- Lấy label từ order_status_configs
+        SELECT label INTO old_label FROM order_status_configs WHERE status_key = OLD.status LIMIT 1;
+        SELECT label INTO new_label FROM order_status_configs WHERE status_key = NEW.status LIMIT 1;
+        
+        -- Fallback to status_key nếu không tìm thấy
+        SET old_label = IFNULL(old_label, OLD.status);
+        SET new_label = IFNULL(new_label, NEW.status);
+        
+        INSERT INTO order_notes (order_id, user_id, note_type, content)
         VALUES (
             NEW.id,
-            NEW.assigned_to, -- Gán cho user đang xử lý đơn, có thể là NULL
+            NEW.assigned_to,
             'status',
-            CONCAT('Trạng thái đổi từ "', OLD.status, '" sang "', NEW.status, '"')
+            CONCAT('Trạng thái đổi từ "', old_label, '" sang "', new_label, '"')
         );
+    END IF;
+END
+$$
+DELIMITER ;
+DELIMITER $$
+CREATE TRIGGER `validate_status_insert` BEFORE INSERT ON `orders` FOR EACH ROW BEGIN
+    DECLARE status_exists INT;
+    DECLARE default_status VARCHAR(50);
+    
+    -- Check if status exists
+    SELECT COUNT(*) INTO status_exists 
+    FROM order_status_configs 
+    WHERE status_key = NEW.status;
+    
+    -- If not exists, use first status from configs
+    IF status_exists = 0 THEN
+        SELECT status_key INTO default_status
+        FROM order_status_configs 
+        ORDER BY sort_order ASC 
+        LIMIT 1;
+        
+        SET NEW.status = IFNULL(default_status, 'n-a');
+    END IF;
+END
+$$
+DELIMITER ;
+DELIMITER $$
+CREATE TRIGGER `validate_status_update` BEFORE UPDATE ON `orders` FOR EACH ROW BEGIN
+    DECLARE status_exists INT;
+    
+    SELECT COUNT(*) INTO status_exists 
+    FROM order_status_configs 
+    WHERE status_key = NEW.status;
+    
+    -- Keep old status if new one is invalid
+    IF status_exists = 0 THEN
+        SET NEW.status = OLD.status;
     END IF;
 END
 $$
@@ -695,6 +835,102 @@ INSERT INTO `user_labels` (`id`, `label_key`, `label_name`, `description`, `colo
 (9, 'n-a-1759229353', 'Nhân viên mới', 'Nhân viên mới gia nhập', '#04ff00', 'fa-user-tag', NULL, NULL, 0, NULL, '2025-09-30 14:52:05', '2025-09-30 14:52:05'),
 (10, 'nhan-vien-trung-binh', 'Nhân viên trung bình', 'Nhân viên có tỉ lệ trung bình dưới 60%', '#9a972d', 'fa-user-tag', NULL, NULL, 0, NULL, '2025-09-30 14:52:05', '2025-09-30 14:52:05');
 
+-- --------------------------------------------------------
+
+--
+-- Cấu trúc đóng vai cho view `v_orders_with_status`
+-- (See below for the actual view)
+--
+CREATE TABLE `v_orders_with_status` (
+`id` int(10) unsigned
+,`woo_order_id` int(10) unsigned
+,`order_number` varchar(50)
+,`customer_name` varchar(100)
+,`customer_phone` varchar(20)
+,`customer_email` varchar(100)
+,`customer_address` text
+,`total_amount` decimal(15,2)
+,`currency` varchar(10)
+,`payment_method` varchar(50)
+,`products` longtext
+,`customer_notes` text
+,`status` varchar(50)
+,`assigned_to` int(10) unsigned
+,`manager_id` int(10) unsigned
+,`assigned_at` datetime
+,`call_count` int(10) unsigned
+,`last_call_at` datetime
+,`callback_time` datetime
+,`source` enum('woocommerce','manual')
+,`created_by` int(10) unsigned
+,`approval_status` varchar(50)
+,`approved_by` int(10) unsigned
+,`approved_at` datetime
+,`woo_created_at` datetime
+,`created_at` datetime
+,`updated_at` datetime
+,`completed_at` datetime
+,`status_label` varchar(100)
+,`status_color` varchar(20)
+,`status_icon` varchar(50)
+);
+
+-- --------------------------------------------------------
+
+--
+-- Cấu trúc đóng vai cho view `v_order_status_summary`
+-- (See below for the actual view)
+--
+CREATE TABLE `v_order_status_summary` (
+`status_key` varchar(50)
+,`label` varchar(100)
+,`color` varchar(20)
+,`icon` varchar(50)
+,`sort_order` int(11)
+,`total_orders` bigint(21)
+);
+
+-- --------------------------------------------------------
+
+--
+-- Cấu trúc đóng vai cho view `v_status_options`
+-- (See below for the actual view)
+--
+CREATE TABLE `v_status_options` (
+`value` varchar(50)
+,`text` varchar(100)
+,`color` varchar(20)
+,`icon` varchar(50)
+,`sort_order` int(11)
+);
+
+-- --------------------------------------------------------
+
+--
+-- Cấu trúc cho view `v_orders_with_status`
+--
+DROP TABLE IF EXISTS `v_orders_with_status`;
+
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_orders_with_status`  AS SELECT `o`.`id` AS `id`, `o`.`woo_order_id` AS `woo_order_id`, `o`.`order_number` AS `order_number`, `o`.`customer_name` AS `customer_name`, `o`.`customer_phone` AS `customer_phone`, `o`.`customer_email` AS `customer_email`, `o`.`customer_address` AS `customer_address`, `o`.`total_amount` AS `total_amount`, `o`.`currency` AS `currency`, `o`.`payment_method` AS `payment_method`, `o`.`products` AS `products`, `o`.`customer_notes` AS `customer_notes`, `o`.`status` AS `status`, `o`.`assigned_to` AS `assigned_to`, `o`.`manager_id` AS `manager_id`, `o`.`assigned_at` AS `assigned_at`, `o`.`call_count` AS `call_count`, `o`.`last_call_at` AS `last_call_at`, `o`.`callback_time` AS `callback_time`, `o`.`source` AS `source`, `o`.`created_by` AS `created_by`, `o`.`approval_status` AS `approval_status`, `o`.`approved_by` AS `approved_by`, `o`.`approved_at` AS `approved_at`, `o`.`woo_created_at` AS `woo_created_at`, `o`.`created_at` AS `created_at`, `o`.`updated_at` AS `updated_at`, `o`.`completed_at` AS `completed_at`, coalesce(`osc`.`label`,`o`.`status`) AS `status_label`, coalesce(`osc`.`color`,'#6c757d') AS `status_color`, coalesce(`osc`.`icon`,'fa-tag') AS `status_icon` FROM (`orders` `o` left join `order_status_configs` `osc` on(`o`.`status` = `osc`.`status_key`)) ;
+
+-- --------------------------------------------------------
+
+--
+-- Cấu trúc cho view `v_order_status_summary`
+--
+DROP TABLE IF EXISTS `v_order_status_summary`;
+
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_order_status_summary`  AS SELECT `osc`.`status_key` AS `status_key`, `osc`.`label` AS `label`, `osc`.`color` AS `color`, `osc`.`icon` AS `icon`, `osc`.`sort_order` AS `sort_order`, count(`o`.`id`) AS `total_orders` FROM (`order_status_configs` `osc` left join `orders` `o` on(`o`.`status` = `osc`.`status_key`)) GROUP BY `osc`.`status_key`, `osc`.`label`, `osc`.`color`, `osc`.`icon`, `osc`.`sort_order` ORDER BY `osc`.`sort_order` ASC ;
+
+-- --------------------------------------------------------
+
+--
+-- Cấu trúc cho view `v_status_options`
+--
+DROP TABLE IF EXISTS `v_status_options`;
+
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_status_options`  AS SELECT `order_status_configs`.`status_key` AS `value`, `order_status_configs`.`label` AS `text`, `order_status_configs`.`color` AS `color`, `order_status_configs`.`icon` AS `icon`, `order_status_configs`.`sort_order` AS `sort_order` FROM `order_status_configs` ORDER BY `order_status_configs`.`sort_order` ASC ;
+
 --
 -- Chỉ mục cho các bảng đã đổ
 --
@@ -773,12 +1009,12 @@ ALTER TABLE `orders`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `woo_order_id` (`woo_order_id`),
   ADD KEY `idx_woo_order_id` (`woo_order_id`),
-  ADD KEY `idx_status` (`status`),
   ADD KEY `idx_assigned_to` (`assigned_to`),
   ADD KEY `idx_customer_phone` (`customer_phone`),
   ADD KEY `created_by` (`created_by`),
   ADD KEY `approved_by` (`approved_by`),
-  ADD KEY `idx_manager_id` (`manager_id`);
+  ADD KEY `idx_manager_id` (`manager_id`),
+  ADD KEY `idx_status` (`status`);
 
 --
 -- Chỉ mục cho bảng `order_notes`
@@ -906,7 +1142,7 @@ ALTER TABLE `action_logs`
 -- AUTO_INCREMENT cho bảng `activity_logs`
 --
 ALTER TABLE `activity_logs`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=23;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=24;
 
 --
 -- AUTO_INCREMENT cho bảng `customer_labels`
@@ -936,7 +1172,7 @@ ALTER TABLE `notifications`
 -- AUTO_INCREMENT cho bảng `orders`
 --
 ALTER TABLE `orders`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=32;
 
 --
 -- AUTO_INCREMENT cho bảng `order_notes`
