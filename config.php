@@ -129,6 +129,19 @@ define('USER_ROLES', [
         'label' => 'Quản trị viên',
         'permissions' => ['all']
     ],
+    'manager' => [
+        'label' => 'Quản lý',
+        'permissions' => [
+            'view_all_orders',
+            'manage_orders', 
+            'receive_handover_orders',
+            'disable_users', // Không có enable_users
+            'view_statistics',
+            'view_kpi',
+            'transfer_orders',
+            'approve_orders'
+        ]
+    ],
     'telesale' => [
         'label' => 'Telesale',
         'permissions' => ['view_orders', 'claim_orders', 'update_orders']

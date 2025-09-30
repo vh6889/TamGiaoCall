@@ -3,31 +3,58 @@ define('TSM_ACCESS', true);
 require_once 'config.php';
 require_once 'functions.php';
 
-require_admin();
+// Allow both admin and manager, but with different permissions
+if (!is_logged_in() || (!is_admin() && !is_manager())) {
+    redirect('dashboard.php?error=access_denied');
+    exit;
+}
 
-$page_title = 'Quản lý nhân viên';
+$current_user = get_logged_user();
+$page_title = is_admin() ? 'Quản lý nhân viên' : 'Xem nhân viên';
 
-// Lấy tất cả users và đếm số đơn đang xử lý của họ
-$users = db_get_results("
-    SELECT u.*, COUNT(o.id) as pending_orders
-    FROM users u
-    LEFT JOIN orders o ON u.id = o.assigned_to AND o.status IN ('assigned', 'calling', 'callback')
-    GROUP BY u.id
-    ORDER BY u.created_at DESC
-");
+// Manager only sees their assigned telesales
+if (is_manager()) {
+    $users = db_get_results("
+        SELECT u.*, COUNT(o.id) as pending_orders
+        FROM users u
+        INNER JOIN manager_assignments ma ON u.id = ma.telesale_id
+        LEFT JOIN orders o ON u.id = o.assigned_to AND o.status IN ('assigned', 'calling', 'callback')
+        WHERE ma.manager_id = ?
+        GROUP BY u.id
+        ORDER BY u.created_at DESC",
+        [$current_user['id']]
+    );
+} else {
+    // Admin sees all
+    $users = db_get_results("
+        SELECT u.*, COUNT(o.id) as pending_orders
+        FROM users u
+        LEFT JOIN orders o ON u.id = o.assigned_to AND o.status IN ('assigned', 'calling', 'callback')
+        GROUP BY u.id
+        ORDER BY u.created_at DESC
+    ");
+}
 
-// Lấy danh sách telesale đang hoạt động để bàn giao
+// Lấy danh sách telesale đang hoạt động để bàn giao (giữ nguyên cho admin)
 $active_telesales = get_telesales('active');
 
 include 'includes/header.php';
 ?>
 
 <div class="table-card">
+    <?php if (is_admin()): ?>
     <div class="d-flex justify-content-end mb-3">
         <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createUserModal">
             <i class="fas fa-user-plus me-2"></i> Tạo nhân viên mới
         </button>
     </div>
+    <?php elseif (is_manager()): ?>
+    <div class="alert alert-info mb-3">
+        <i class="fas fa-info-circle me-2"></i>
+        Bạn đang xem danh sách nhân viên được phân công cho mình quản lý.
+    </div>
+    <?php endif; ?>
+    
     <div class="table-responsive">
         <table class="table table-hover">
             <thead>
@@ -41,69 +68,83 @@ include 'includes/header.php';
                 </tr>
             </thead>
             <tbody>
-                <?php foreach ($users as $user): ?>
-                <tr>
-                    <td><strong><?php echo htmlspecialchars($user['username']); ?></strong></td>
-                    <td><?php echo htmlspecialchars($user['full_name']); ?></td>
-                    <td>
-                        <?php if ($user['role'] === 'admin'): ?>
-                            <span class="badge bg-danger">Admin</span>
-                        <?php else: ?>
-                            <span class="badge bg-info">Telesale</span>
-                        <?php endif; ?>
-                    </td>
-                    <td><span class="badge bg-warning"><?php echo $user['pending_orders']; ?></span></td>
-                    <td>
-                        <?php if ($user['status'] === 'active'): ?>
-                            <span class="badge bg-success">Active</span>
-                        <?php else: ?>
-                            <span class="badge bg-secondary"><?php echo ucfirst($user['status']); ?></span>
-                        <?php endif; ?>
-                    </td>
-                    <td>
-                        <?php if ($user['id'] != get_logged_user()['id']): ?>
-                        <div class="btn-group btn-group-sm">
-                            <button class="btn btn-primary btn-edit" 
-                                    data-bs-toggle="modal" data-bs-target="#editUserModal"
-                                    data-user-id="<?php echo $user['id']; ?>"
-                                    data-username="<?php echo htmlspecialchars($user['username']); ?>"
-                                    data-full-name="<?php echo htmlspecialchars($user['full_name']); ?>"
-                                    data-email="<?php echo htmlspecialchars($user['email']); ?>"
-                                    data-phone="<?php echo htmlspecialchars($user['phone']); ?>"
-                                    data-role="<?php echo $user['role']; ?>"
-                                    data-status="<?php echo $user['status']; ?>"
-                                    title="Sửa thông tin">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <?php if ($user['status'] === 'active'): ?>
-                            <button class="btn btn-secondary btn-disable" 
-                                    data-bs-toggle="modal" data-bs-target="#handoverModal"
-                                    data-user-id="<?php echo $user['id']; ?>" 
-                                    data-user-name="<?php echo htmlspecialchars($user['full_name']); ?>" 
-                                    data-pending-orders="<?php echo $user['pending_orders']; ?>" 
-                                    title="Vô hiệu hóa & Bàn giao">
-                                <i class="fas fa-user-lock"></i>
-                            </button>
+                <?php if (empty($users)): ?>
+                    <tr>
+                        <td colspan="6" class="text-center">Không tìm thấy nhân viên nào.</td>
+                    </tr>
+                <?php else: ?>
+                    <?php foreach ($users as $user): ?>
+                    <tr>
+                        <td><strong><?php echo htmlspecialchars($user['username']); ?></strong></td>
+                        <td><?php echo htmlspecialchars($user['full_name']); ?></td>
+                        <td>
+                            <?php if ($user['role'] === 'admin'): ?>
+                                <span class="badge bg-danger">Admin</span>
+                            <?php elseif ($user['role'] === 'manager'): ?>
+                                <span class="badge bg-warning text-dark">Manager</span>
                             <?php else: ?>
-                            <button class="btn btn-success btn-enable" 
-                                    data-user-id="<?php echo $user['id']; ?>" 
-                                    title="Kích hoạt lại">
-                                <i class="fas fa-user-check"></i>
-                            </button>
+                                <span class="badge bg-info text-dark">Telesale</span>
                             <?php endif; ?>
-                            <button class="btn btn-danger btn-delete" 
-                                    data-bs-toggle="modal" data-bs-target="#handoverModal"
-                                    data-user-id="<?php echo $user['id']; ?>" 
-                                    data-user-name="<?php echo htmlspecialchars($user['full_name']); ?>" 
-                                    data-pending-orders="<?php echo $user['pending_orders']; ?>" 
-                                    title="Xóa & Bàn giao">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                        <?php endif; ?>
-                    </td>
-                </tr>
-                <?php endforeach; ?>
+                        </td>
+                        <td><span class="badge bg-secondary"><?php echo $user['pending_orders']; ?></span></td>
+                        <td>
+                            <?php if ($user['status'] === 'active'): ?>
+                                <span class="badge bg-success">Active</span>
+                            <?php else: ?>
+                                <span class="badge bg-dark"><?php echo ucfirst($user['status']); ?></span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <?php if ($user['id'] != $current_user['id']): ?>
+                            <div class="btn-group btn-group-sm">
+                                <?php if (is_admin()): ?>
+                                <button class="btn btn-primary btn-edit" 
+                                        data-bs-toggle="modal" data-bs-target="#editUserModal"
+                                        data-user-id="<?php echo $user['id']; ?>"
+                                        data-username="<?php echo htmlspecialchars($user['username']); ?>"
+                                        data-full-name="<?php echo htmlspecialchars($user['full_name']); ?>"
+                                        data-email="<?php echo htmlspecialchars($user['email']); ?>"
+                                        data-phone="<?php echo htmlspecialchars($user['phone']); ?>"
+                                        data-role="<?php echo $user['role']; ?>"
+                                        data-status="<?php echo $user['status']; ?>"
+                                        title="Sửa thông tin">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <?php endif; ?>
+                                
+                                <?php if ((is_admin() || is_manager()) && $user['role'] === 'telesale'): ?>
+                                    <?php if ($user['status'] === 'active'): ?>
+                                    <button class="btn btn-secondary btn-disable" 
+                                            data-user-id="<?php echo $user['id']; ?>" 
+                                            data-user-name="<?php echo htmlspecialchars($user['full_name']); ?>" 
+                                            title="Vô hiệu hóa">
+                                        <i class="fas fa-user-lock"></i>
+                                    </button>
+                                    <?php elseif (is_admin()): // Only admin can enable ?>
+                                    <button class="btn btn-success btn-enable" 
+                                            data-user-id="<?php echo $user['id']; ?>" 
+                                            title="Kích hoạt lại">
+                                        <i class="fas fa-user-check"></i>
+                                    </button>
+                                    <?php endif; ?>
+                                <?php endif; ?>
+                                
+                                <?php if (is_admin()): ?>
+                                <button class="btn btn-danger btn-delete" 
+                                        data-bs-toggle="modal" data-bs-target="#handoverModal"
+                                        data-user-id="<?php echo $user['id']; ?>" 
+                                        data-user-name="<?php echo htmlspecialchars($user['full_name']); ?>" 
+                                        data-pending-orders="<?php echo $user['pending_orders']; ?>" 
+                                        title="Xóa & Bàn giao">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                                <?php endif; ?>
+                            </div>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                <?php endif; ?>
             </tbody>
         </table>
     </div>
@@ -188,6 +229,7 @@ include 'includes/header.php';
                         <label for="new_role" class="form-label">Vai trò</label>
                         <select class="form-select" id="new_role" name="role" required>
                             <option value="telesale">Telesale</option>
+							<option value="manager">Manager</option>
                             <option value="admin">Admin</option>
                         </select>
                     </div>
@@ -237,6 +279,7 @@ include 'includes/header.php';
                         <label for="edit_role" class="form-label">Vai trò</label>
                         <select class="form-select" id="edit_role" name="role" required>
                             <option value="telesale">Telesale</option>
+							<option value="manager">Manager</option> 
                             <option value="admin">Admin</option>
                         </select>
                     </div>
@@ -339,7 +382,50 @@ $(document).ready(function() {
             }
         });
     });
+	// Disable button handler - works for both admin and manager
+	$('.btn-disable').click(function() {
+		const btn = $(this);
+		const userId = btn.data('user-id');
+		const userName = btn.data('user-name');
 
+		if (!confirm(`Bạn có chắc muốn vô hiệu hóa tài khoản của ${userName}?`)) {
+			return;
+		}
+
+		btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+
+		// Manager và Admin sẽ gọi đến API khác nhau để xử lý
+		const apiUrl = <?php echo is_manager() ? "'api/manager-disable-user.php'" : "'api/disable-user.php'"; ?>;
+
+		// Manager chỉ có thể disable, admin có thể bàn giao đơn
+		let postData = { user_id: userId };
+		<?php if (is_admin()): ?>
+			// Nếu là admin, cần thêm tùy chọn bàn giao (mặc định trả về kho)
+			postData.handover_option = 'reclaim'; 
+			postData.target_user_id = null;
+		<?php endif; ?>
+
+		$.ajax({
+			url: apiUrl,
+			method: 'POST',
+			contentType: 'application/json',
+			data: JSON.stringify(postData),
+			success: function(response) {
+				if (response.success) {
+					showToast('Đã vô hiệu hóa tài khoản', 'success');
+					setTimeout(() => location.reload(), 1500);
+				} else {
+					showToast(response.message || 'Có lỗi xảy ra', 'error');
+				}
+			},
+			error: function() {
+				showToast('Không thể kết nối máy chủ', 'error');
+			},
+			complete: function() {
+				btn.prop('disabled', false).html('<i class="fas fa-user-lock"></i>');
+			}
+		});
+	});
     // Create User
     $('#btnCreateUser').click(function() {
         const btn = $(this);

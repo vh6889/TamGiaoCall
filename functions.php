@@ -579,3 +579,239 @@ function get_overdue_reminders($grace_minutes = 5) {
     $grace_time = date('Y-m-d H:i:s', strtotime("-$grace_minutes minutes"));
     return db_get_results("SELECT * FROM reminders WHERE status IN ('pending', 'sent') AND due_time < ?", [$grace_time]);
 }
+/* =============================================
+// ROLE & PERMISSION FUNCTIONS
+// =============================================
+
+/**
+ * Check if user is a manager
+ */
+function is_manager() {
+    $user = get_logged_user();
+    return $user && is_array($user) && isset($user['role']) && $user['role'] === 'manager';
+}
+
+/**
+ * Check if user has specific permission
+ */
+function has_permission($permission) {
+    $user = get_logged_user();
+    if (!$user) return false;
+    
+    // Admin có tất cả quyền
+    if ($user['role'] === 'admin') return true;
+    
+    // Check permission từ database
+    $has_perm = db_get_var(
+        "SELECT COUNT(*) FROM role_permissions WHERE role = ? AND permission = ?",
+        [$user['role'], $permission]
+    );
+    
+    return $has_perm > 0;
+}
+
+/**
+ * Require specific permission
+ */
+function require_permission($permission) {
+    if (!has_permission($permission)) {
+        redirect('dashboard.php?error=permission_denied');
+        exit;
+    }
+}
+
+/**
+ * Check if user can manage another user
+ * Admin can manage all, Manager can manage assigned telesales
+ */
+function can_manage_user($target_user_id) {
+    $current_user = get_logged_user();
+    if (!$current_user) return false;
+    
+    // Admin can manage all
+    if ($current_user['role'] === 'admin') return true;
+    
+    // Manager can manage assigned telesales
+    if ($current_user['role'] === 'manager') {
+        $is_assigned = db_get_var(
+            "SELECT COUNT(*) FROM manager_assignments 
+             WHERE manager_id = ? AND telesale_id = ?",
+            [$current_user['id'], $target_user_id]
+        );
+        return $is_assigned > 0;
+    }
+    
+    return false;
+}
+
+/**
+ * Get telesales assigned to a manager
+ */
+function get_manager_telesales($manager_id) {
+    return db_get_results(
+        "SELECT u.* FROM users u
+         INNER JOIN manager_assignments ma ON u.id = ma.telesale_id
+         WHERE ma.manager_id = ? AND u.status = 'active'
+         ORDER BY u.full_name",
+        [$manager_id]
+    );
+}
+
+/**
+ * Check if manager can receive this order
+ */
+function can_receive_handover($order_id) {
+    $current_user = get_logged_user();
+    if (!$current_user) return false;
+    
+    // Admin always can
+    if ($current_user['role'] === 'admin') return true;
+    
+    // Manager can receive if:
+    // 1. Order is from their assigned telesale
+    // 2. Order is being handed over by system
+    if ($current_user['role'] === 'manager') {
+        $order = get_order($order_id);
+        if (!$order) return false;
+        
+        // Check if the order's assigned telesale is managed by this manager
+        if ($order['assigned_to']) {
+            $is_managed = db_get_var(
+                "SELECT COUNT(*) FROM manager_assignments 
+                 WHERE manager_id = ? AND telesale_id = ?",
+                [$current_user['id'], $order['assigned_to']]
+            );
+            return $is_managed > 0;
+        }
+        
+        return true; // Can receive system handover
+    }
+    
+    return false;
+}
+
+/**
+ * Get managers for dropdown (for admin to assign)
+ */
+function get_managers($status = 'active') {
+    return db_get_results(
+        "SELECT * FROM users WHERE role = 'manager' AND status = ? ORDER BY full_name",
+        [$status]
+    );
+}
+
+/**
+ * Assign telesales to manager
+ */
+function assign_telesales_to_manager($manager_id, $telesale_ids, $assigned_by) {
+    if (!is_array($telesale_ids)) {
+        $telesale_ids = [$telesale_ids];
+    }
+    
+    foreach ($telesale_ids as $telesale_id) {
+        // Check if already assigned
+        $exists = db_get_var(
+            "SELECT COUNT(*) FROM manager_assignments 
+             WHERE manager_id = ? AND telesale_id = ?",
+            [$manager_id, $telesale_id]
+        );
+        
+        if (!$exists) {
+            db_insert('manager_assignments', [
+                'manager_id' => $manager_id,
+                'telesale_id' => $telesale_id,
+                'assigned_by' => $assigned_by
+            ]);
+        }
+    }
+}
+
+/**
+ * Remove telesale from manager
+ */
+function remove_telesale_from_manager($manager_id, $telesale_id) {
+    db_delete('manager_assignments', 
+        'manager_id = ? AND telesale_id = ?', 
+        [$manager_id, $telesale_id]
+    );
+}
+
+/**
+ * Get viewable orders based on role
+ */
+function get_viewable_orders($filters = []) {
+    $current_user = get_logged_user();
+    if (!$current_user) return [];
+    
+    // Admin sees all
+    if ($current_user['role'] === 'admin') {
+        return get_orders($filters);
+    }
+    
+    // Manager sees orders from assigned telesales
+    if ($current_user['role'] === 'manager') {
+        // Get assigned telesale IDs
+        $telesale_ids = db_get_results(
+            "SELECT telesale_id FROM manager_assignments WHERE manager_id = ?",
+            [$current_user['id']]
+        );
+        
+        if (empty($telesale_ids)) {
+            // Manager with no assigned telesales sees nothing
+            return [];
+        }
+        
+        $ids = array_column($telesale_ids, 'telesale_id');
+        $filters['assigned_to_list'] = $ids;
+        $filters['include_manager'] = $current_user['id']; // Include orders assigned to manager
+        
+        return get_orders_extended($filters);
+    }
+    
+    // Telesale sees only their orders
+    $filters['assigned_to'] = $current_user['id'];
+    return get_orders($filters);
+}
+
+/**
+ * Extended get_orders function to support manager view
+ */
+function get_orders_extended($filters = []) {
+    $where = ['1=1'];
+    $params = [];
+    
+    // Handle assigned_to_list for manager
+    if (!empty($filters['assigned_to_list'])) {
+        $placeholders = implode(',', array_fill(0, count($filters['assigned_to_list']), '?'));
+        $where[] = "(assigned_to IN ({$placeholders}) OR manager_id = ?)";
+        $params = array_merge($params, $filters['assigned_to_list']);
+        $params[] = $filters['include_manager'];
+    }
+    
+    // Copy other filters from original get_orders
+    if (!empty($filters['status'])) {
+        $where[] = "status = ?";
+        $params[] = $filters['status'];
+    }
+    
+    if (!empty($filters['search'])) {
+        $where[] = "(customer_phone LIKE ? OR customer_name LIKE ? OR order_number LIKE ?)";
+        $search_term = '%' . $filters['search'] . '%';
+        $params[] = $search_term;
+        $params[] = $search_term;
+        $params[] = $search_term;
+    }
+    
+    $page = $filters['page'] ?? 1;
+    $per_page = $filters['per_page'] ?? ITEMS_PER_PAGE;
+    $offset = ($page - 1) * $per_page;
+    
+    $sql = "SELECT o.*, u.full_name as assigned_name, m.full_name as manager_name 
+            FROM orders o
+            LEFT JOIN users u ON o.assigned_to = u.id
+            LEFT JOIN users m ON o.manager_id = m.id
+            WHERE " . implode(' AND ', $where) . 
+           " ORDER BY o.created_at DESC LIMIT {$per_page} OFFSET {$offset}";
+    
+    return db_get_results($sql, $params);
+}
