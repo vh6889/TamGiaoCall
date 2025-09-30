@@ -17,8 +17,7 @@ $system_pages = [
     'manage-order-statuses.php',
     'manage-customer-labels.php',
     'manage-user-labels.php',
-    'manage-rules.php',
-    'edit-rule.php',
+    'admin-rules.php',
     'settings.php',
 ];
 $is_system_page_active = in_array($current_page, $system_pages);
@@ -166,8 +165,8 @@ $is_system_page_active = in_array($current_page, $system_pages);
 						<li class="<?php echo ($current_page == 'manage-user-labels.php') ? 'active' : ''; ?>">
 							<a href="manage-user-labels.php"><i class="fas fa-user-shield nav-icon"></i> Nhãn Nhân Viên</a>
 						</li>
-						<li class="<?php echo ($current_page == 'manage-rules.php' || $current_page == 'edit-rule.php') ? 'active' : ''; ?>">
-							<a href="manage-rules.php"><i class="fas fa-magic nav-icon"></i> Xây dựng Quy tắc</a>
+						<li class="<?php echo ($current_page == 'admin-rules.php' || $current_page == 'admin-rules.php') ? 'active' : ''; ?>">
+							<a href="admin-rules.php"><i class="fas fa-magic nav-icon"></i> Xây dựng Quy tắc</a>
 						</li>
                          <li class="<?php echo ($current_page == 'settings.php') ? 'active' : ''; ?>">
                             <a href="settings.php"><i class="fas fa-tools nav-icon"></i> Cài đặt chung</a>

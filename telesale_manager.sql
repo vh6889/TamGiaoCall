@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Máy chủ: 127.0.0.1
--- Thời gian đã tạo: Th9 30, 2025 lúc 02:29 PM
+-- Thời gian đã tạo: Th9 30, 2025 lúc 04:23 PM
 -- Phiên bản máy phục vụ: 10.4.32-MariaDB
 -- Phiên bản PHP: 8.0.30
 
@@ -20,6 +20,26 @@ SET time_zone = "+00:00";
 --
 -- Cơ sở dữ liệu: `telesale_manager`
 --
+
+-- --------------------------------------------------------
+
+--
+-- Cấu trúc bảng cho bảng `action_logs`
+--
+
+CREATE TABLE `action_logs` (
+  `id` int(11) NOT NULL,
+  `entity_id` int(11) NOT NULL,
+  `entity_type` varchar(50) NOT NULL,
+  `user_id` int(10) UNSIGNED DEFAULT NULL,
+  `action_type` varchar(100) NOT NULL,
+  `action_data` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`action_data`)),
+  `old_value` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`old_value`)),
+  `new_value` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`new_value`)),
+  `ip_address` varchar(45) DEFAULT NULL,
+  `user_agent` text DEFAULT NULL,
+  `created_at` datetime DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -63,27 +83,76 @@ INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `related_
 --
 
 CREATE TABLE `customer_labels` (
+  `id` int(11) NOT NULL,
   `label_key` varchar(50) NOT NULL,
   `label_name` varchar(100) NOT NULL,
-  `color` varchar(20) NOT NULL DEFAULT '#cccccc',
-  `description` text DEFAULT NULL
+  `description` text DEFAULT NULL,
+  `color` varchar(20) DEFAULT '#17a2b8',
+  `icon` varchar(50) DEFAULT 'fa-tag',
+  `auto_assign_rules` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`auto_assign_rules`)),
+  `restrictions` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`restrictions`)),
+  `sort_order` int(11) DEFAULT 0,
+  `created_by` int(10) UNSIGNED DEFAULT NULL,
+  `created_at` datetime DEFAULT current_timestamp(),
+  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Đang đổ dữ liệu cho bảng `customer_labels`
 --
 
-INSERT INTO `customer_labels` (`label_key`, `label_name`, `color`, `description`) VALUES
-('khach-bom-hang', 'Khách bom hàng', '#c21d00', 'Bom hàng'),
-('khach-hang-rac', 'Khách hàng rác', '#626160', 'Không đặt gì hoặc thái độ khó chịu, không mua hàng'),
-('khach-hang-than-quen', 'Khách hàng thân quen', '#31c12f', 'Khách đã mua hàng ít nhất 2 lần'),
-('khach-hang-vip', 'Khách hàng VIP', '#d0bf01', 'Khách hàng mua hàng nhiều lần, giá trị lớn'),
-('n-a', 'Khách hàng tiềm năng', '#6f899f', 'Khách hàng mới đặt hàng, chưa xác nhận'),
-('n-a-1759225492', 'Khách gọi nhiều không nghe', '#978e20', 'Không từ chối nhưng gọi mãi không nghe'),
-('n-a-1759225595', 'Khách hàng đã xác nhận', '#51c8f0', 'Khách hàng đã xác nhận mua hàng chờ gửi hàng'),
-('n-a-1759225632', 'Khách hàng mới nhận', '#7ec80e', 'Khách mới nhận hàng lần đầu'),
-('n-a-1759225700', 'Khách nhận một phần', '#28b87a', 'Khách hàng chỉ nhận một phần'),
-('n-a-1759225776', 'Khách đã nhận 5 ngày', '#1b94ac', 'Khách đã nhận hàng 5 ngày cần chăm sóc lần 1');
+INSERT INTO `customer_labels` (`id`, `label_key`, `label_name`, `description`, `color`, `icon`, `auto_assign_rules`, `restrictions`, `sort_order`, `created_by`, `created_at`, `updated_at`) VALUES
+(1, 'vip', 'VIP', 'Khách hàng VIP', '#ffd700', 'fa-crown', NULL, NULL, 0, NULL, '2025-09-30 20:55:35', '2025-09-30 20:55:35'),
+(2, 'normal', 'Thường', 'Khách hàng thông thường', '#6c757d', 'fa-user', NULL, NULL, 0, NULL, '2025-09-30 20:55:35', '2025-09-30 20:55:35'),
+(3, 'potential', 'Tiềm năng', 'Khách hàng tiềm năng', '#17a2b8', 'fa-star', NULL, NULL, 0, NULL, '2025-09-30 20:55:35', '2025-09-30 20:55:35'),
+(4, 'blacklist', 'Blacklist', 'Khách hàng cần cảnh báo', '#dc3545', 'fa-ban', NULL, NULL, 0, NULL, '2025-09-30 20:55:35', '2025-09-30 20:55:35'),
+(5, 'returning', 'Quay lại', 'Khách hàng quay lại', '#28a745', 'fa-redo', NULL, NULL, 0, NULL, '2025-09-30 20:55:35', '2025-09-30 20:55:35');
+
+-- --------------------------------------------------------
+
+--
+-- Cấu trúc bảng cho bảng `customer_metrics`
+--
+
+CREATE TABLE `customer_metrics` (
+  `customer_id` int(11) NOT NULL,
+  `customer_phone` varchar(20) DEFAULT NULL,
+  `total_orders` int(11) DEFAULT 0,
+  `completed_orders` int(11) DEFAULT 0,
+  `cancelled_orders` int(11) DEFAULT 0,
+  `total_value` decimal(15,2) DEFAULT 0.00,
+  `avg_order_value` decimal(15,2) DEFAULT 0.00,
+  `first_order_date` date DEFAULT NULL,
+  `last_order_date` date DEFAULT NULL,
+  `customer_lifetime_days` int(11) DEFAULT 0,
+  `is_vip` tinyint(1) DEFAULT 0,
+  `is_blacklisted` tinyint(1) DEFAULT 0,
+  `risk_score` int(11) DEFAULT 0,
+  `labels` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`labels`)),
+  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Cấu trúc bảng cho bảng `employee_performance`
+--
+
+CREATE TABLE `employee_performance` (
+  `user_id` int(10) UNSIGNED NOT NULL,
+  `total_orders_handled` int(11) DEFAULT 0,
+  `successful_orders` int(11) DEFAULT 0,
+  `failed_orders` int(11) DEFAULT 0,
+  `avg_handling_time` int(11) DEFAULT 0,
+  `total_revenue` decimal(15,2) DEFAULT 0.00,
+  `violation_count` int(11) DEFAULT 0,
+  `warning_count` int(11) DEFAULT 0,
+  `suspension_count` int(11) DEFAULT 0,
+  `performance_score` int(11) DEFAULT 0,
+  `last_violation_date` datetime DEFAULT NULL,
+  `labels` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`labels`)),
+  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -115,6 +184,26 @@ CREATE TABLE `manager_assignments` (
   `assigned_at` datetime DEFAULT current_timestamp(),
   `assigned_by` int(10) UNSIGNED DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Bảng phân công manager quản lý telesale';
+
+-- --------------------------------------------------------
+
+--
+-- Cấu trúc bảng cho bảng `notifications`
+--
+
+CREATE TABLE `notifications` (
+  `id` int(11) NOT NULL,
+  `user_id` int(10) UNSIGNED NOT NULL,
+  `type` varchar(50) NOT NULL,
+  `title` varchar(200) NOT NULL,
+  `message` text DEFAULT NULL,
+  `action_url` varchar(500) DEFAULT NULL,
+  `priority` enum('low','normal','high','urgent') DEFAULT 'normal',
+  `is_read` tinyint(1) DEFAULT 0,
+  `read_at` datetime DEFAULT NULL,
+  `metadata` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`metadata`)),
+  `created_at` datetime DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -189,50 +278,6 @@ CREATE TABLE `order_notes` (
 -- --------------------------------------------------------
 
 --
--- Cấu trúc bảng cho bảng `order_status_configs`
---
-
-CREATE TABLE `order_status_configs` (
-  `status_key` varchar(50) NOT NULL,
-  `label` varchar(100) NOT NULL,
-  `color` varchar(20) NOT NULL,
-  `icon` varchar(50) NOT NULL,
-  `sort_order` int(11) NOT NULL DEFAULT 0,
-  `logic_json` text NOT NULL,
-  `created_by` int(10) UNSIGNED DEFAULT NULL,
-  `created_at` datetime DEFAULT current_timestamp(),
-  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Configs cho trạng thái tùy chỉnh';
-
---
--- Đang đổ dữ liệu cho bảng `order_status_configs`
---
-
-INSERT INTO `order_status_configs` (`status_key`, `label`, `color`, `icon`, `sort_order`, `logic_json`, `created_by`, `created_at`, `updated_at`) VALUES
-('bom-hang', 'Bom hàng', '#ff0000', 'fa-tag', 15, '', NULL, '2025-09-30 16:34:13', '2025-09-30 16:34:13'),
-('dang-giao', 'Đang giao', '#639419', 'fa-tag', 11, '', NULL, '2025-09-30 16:28:29', '2025-09-30 16:28:29'),
-('dang-hoan', 'Đang hoàn', '#8c460d', 'fa-tag', 16, '', NULL, '2025-09-30 16:34:44', '2025-09-30 16:34:44'),
-('dong-goi-sai', 'Đóng gói sai', '#7c3131', 'fa-tag', 12, '', NULL, '2025-09-30 16:30:16', '2025-09-30 16:30:16'),
-('giao-thanh-cong', 'Giao thành công', '#00d604', 'fa-tag', 20, '', NULL, '2025-09-30 16:37:32', '2025-09-30 16:37:32'),
-('hoan-thanh-cong', 'Hoàn thành công', '#1a1a1a', 'fa-tag', 17, '', NULL, '2025-09-30 16:35:25', '2025-09-30 16:35:25'),
-('khong-nghe', 'Không nghe', '#dfc834', 'fa-tag', 3, '', NULL, '2025-09-30 16:23:37', '2025-09-30 16:23:37'),
-('n-a', 'Đơn mới', '#08f7cf', 'fa-tag', 1, '', NULL, '2025-09-30 16:18:10', '2025-09-30 16:18:10'),
-('n-a-1759223929', 'Đang gọi', '#2a88df', 'fa-tag', 2, '', NULL, '2025-09-30 16:18:49', '2025-09-30 16:18:49'),
-('n-a-1759224057', 'Hẹn gọi lại', '#9e62a3', 'fa-tag', 4, '', NULL, '2025-09-30 16:20:57', '2025-09-30 16:20:57'),
-('n-a-1759224134', 'Sai số', '#d10000', 'fa-tag', 5, '', NULL, '2025-09-30 16:22:14', '2025-09-30 16:22:14'),
-('n-a-1759224173', 'Đơn rác', '#4c2a2a', 'fa-tag', 6, '', NULL, '2025-09-30 16:22:53', '2025-09-30 16:22:53'),
-('n-a-1759224282', 'Từ chối', '#b30036', 'fa-tag', 7, '', NULL, '2025-09-30 16:24:42', '2025-09-30 16:24:42'),
-('n-a-1759224317', 'Xác nhận', '#1d9f4b', 'fa-tag', 8, '', NULL, '2025-09-30 16:25:17', '2025-09-30 16:25:17'),
-('n-a-1759224363', 'Chờ giao', '#e1ff00', 'fa-tag', 9, '', NULL, '2025-09-30 16:26:03', '2025-09-30 16:26:03'),
-('n-a-1759224426', 'Hết hàng', '#4f2a74', 'fa-tag', 10, '', NULL, '2025-09-30 16:27:06', '2025-09-30 16:27:06'),
-('n-a-1759224683', 'Gửi đơn mới', '#624771', 'fa-tag', 13, '', NULL, '2025-09-30 16:31:23', '2025-09-30 16:31:23'),
-('n-a-1759224783', 'Giao một phần', '#15932a', 'fa-tag', 14, '', NULL, '2025-09-30 16:33:03', '2025-09-30 16:33:03'),
-('n-a-1759224985', 'Đổi hàng', '#2a4635', 'fa-tag', 18, '', NULL, '2025-09-30 16:36:25', '2025-09-30 16:36:25'),
-('n-a-1759225011', 'Trả hàng', '#7a0012', 'fa-tag', 19, '', NULL, '2025-09-30 16:36:51', '2025-09-30 16:36:51');
-
--- --------------------------------------------------------
-
---
 -- Cấu trúc bảng cho bảng `reminders`
 --
 
@@ -294,6 +339,95 @@ INSERT INTO `role_permissions` (`id`, `role`, `permission`, `created_at`) VALUES
 -- --------------------------------------------------------
 
 --
+-- Cấu trúc bảng cho bảng `rules`
+--
+
+CREATE TABLE `rules` (
+  `id` int(11) NOT NULL,
+  `rule_key` varchar(100) NOT NULL,
+  `name` varchar(200) NOT NULL,
+  `description` text DEFAULT NULL,
+  `entity_type` enum('order','customer','employee','task','system') NOT NULL,
+  `rule_type` enum('status_transition','time_based','event_based','condition_based') NOT NULL,
+  `priority` int(11) DEFAULT 50,
+  `is_active` tinyint(1) DEFAULT 1,
+  `trigger_conditions` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`trigger_conditions`)),
+  `actions` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`actions`)),
+  `metadata` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`metadata`)),
+  `created_by` int(10) UNSIGNED DEFAULT NULL,
+  `created_at` datetime DEFAULT current_timestamp(),
+  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Cấu trúc bảng cho bảng `rule_executions`
+--
+
+CREATE TABLE `rule_executions` (
+  `id` int(11) NOT NULL,
+  `rule_id` int(11) NOT NULL,
+  `entity_id` int(11) NOT NULL,
+  `entity_type` varchar(50) NOT NULL,
+  `execution_status` enum('success','failed','skipped') NOT NULL,
+  `execution_result` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`execution_result`)),
+  `error_message` text DEFAULT NULL,
+  `executed_at` datetime DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Cấu trúc bảng cho bảng `rule_templates`
+--
+
+CREATE TABLE `rule_templates` (
+  `id` int(11) NOT NULL,
+  `template_key` varchar(100) NOT NULL,
+  `name` varchar(200) NOT NULL,
+  `description` text DEFAULT NULL,
+  `category` varchar(50) DEFAULT NULL,
+  `entity_type` varchar(50) DEFAULT NULL,
+  `template_data` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`template_data`)),
+  `is_active` tinyint(1) DEFAULT 1,
+  `created_at` datetime DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Đang đổ dữ liệu cho bảng `rule_templates`
+--
+
+INSERT INTO `rule_templates` (`id`, `template_key`, `name`, `description`, `category`, `entity_type`, `template_data`, `is_active`, `created_at`) VALUES
+(1, 'auto_vip', 'Tự động nâng cấp VIP', 'Tự động gán nhãn VIP cho khách hàng đủ điều kiện', 'customer', 'customer', '{\"trigger_conditions\":{\"type\":\"AND\",\"conditions\":[{\"field\":\"customer_metrics.total_orders\",\"operator\":\"greater_than\",\"value\":3},{\"field\":\"customer_metrics.total_value\",\"operator\":\"greater_than\",\"value\":2000000}]},\"actions\":[{\"type\":\"add_label\",\"params\":{\"label\":\"vip\"}}]}', 1, '2025-09-30 21:02:04'),
+(2, 'no_answer_callback', 'Xử lý không nghe máy', 'Tạo task gọi lại khi khách không nghe máy', 'order', 'order', '{\"trigger_conditions\":{\"type\":\"AND\",\"conditions\":[{\"field\":\"order.status\",\"operator\":\"equals\",\"value\":\"no_answer\"}]},\"actions\":[{\"type\":\"create_task\",\"params\":{\"task_type\":\"callback\",\"due_in_hours\":2,\"reminder_before_minutes\":30}}]}', 1, '2025-09-30 21:02:04'),
+(3, 'overdue_warning', 'Cảnh báo task quá hạn', 'Gửi cảnh báo khi task sắp quá hạn', 'task', 'task', '{\"trigger_conditions\":{\"type\":\"AND\",\"conditions\":[{\"field\":\"task.time_until_due\",\"operator\":\"less_than\",\"value\":30}]},\"actions\":[{\"type\":\"send_notification\",\"params\":{\"priority\":\"high\"}}]}', 1, '2025-09-30 21:02:04');
+
+-- --------------------------------------------------------
+
+--
+-- Cấu trúc bảng cho bảng `scheduled_jobs`
+--
+
+CREATE TABLE `scheduled_jobs` (
+  `id` int(11) NOT NULL,
+  `job_type` varchar(50) NOT NULL,
+  `entity_id` int(11) DEFAULT NULL,
+  `entity_type` varchar(50) DEFAULT NULL,
+  `scheduled_at` datetime NOT NULL,
+  `executed_at` datetime DEFAULT NULL,
+  `status` enum('pending','processing','completed','failed','cancelled') DEFAULT 'pending',
+  `attempts` int(11) DEFAULT 0,
+  `max_attempts` int(11) DEFAULT 3,
+  `payload` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`payload`)),
+  `result` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`result`)),
+  `error_message` text DEFAULT NULL,
+  `created_at` datetime DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Cấu trúc bảng cho bảng `settings`
 --
 
@@ -315,6 +449,79 @@ INSERT INTO `settings` (`setting_key`, `setting_value`) VALUES
 -- --------------------------------------------------------
 
 --
+-- Cấu trúc bảng cho bảng `status_definitions`
+--
+
+CREATE TABLE `status_definitions` (
+  `id` int(11) NOT NULL,
+  `entity_type` enum('order','customer','employee','task') NOT NULL,
+  `status_key` varchar(50) NOT NULL,
+  `label` varchar(100) NOT NULL,
+  `description` text DEFAULT NULL,
+  `color` varchar(20) DEFAULT '#6c757d',
+  `icon` varchar(50) DEFAULT 'fa-circle',
+  `sort_order` int(11) DEFAULT 0,
+  `is_system` tinyint(1) DEFAULT 0,
+  `is_final` tinyint(1) DEFAULT 0,
+  `required_fields` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`required_fields`)),
+  `validation_rules` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`validation_rules`)),
+  `created_by` int(10) UNSIGNED DEFAULT NULL,
+  `created_at` datetime DEFAULT current_timestamp(),
+  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Đang đổ dữ liệu cho bảng `status_definitions`
+--
+
+INSERT INTO `status_definitions` (`id`, `entity_type`, `status_key`, `label`, `description`, `color`, `icon`, `sort_order`, `is_system`, `is_final`, `required_fields`, `validation_rules`, `created_by`, `created_at`, `updated_at`) VALUES
+(1, 'order', 'new', 'Đơn mới', 'Đơn hàng vừa được tạo', '#007bff', 'fa-plus-circle', 1, 1, 0, NULL, NULL, NULL, '2025-09-30 21:02:03', '2025-09-30 21:02:03'),
+(2, 'order', 'assigned', 'Đã phân công', 'Đã giao cho nhân viên', '#17a2b8', 'fa-user-check', 2, 1, 0, NULL, NULL, NULL, '2025-09-30 21:02:03', '2025-09-30 21:02:03'),
+(3, 'order', 'processing', 'Đang xử lý', 'Nhân viên đang xử lý', '#ffc107', 'fa-spinner', 3, 1, 0, NULL, NULL, NULL, '2025-09-30 21:02:03', '2025-09-30 21:02:03'),
+(4, 'order', 'calling', 'Đang gọi', 'Đang liên hệ khách hàng', '#fd7e14', 'fa-phone', 4, 0, 0, NULL, NULL, NULL, '2025-09-30 21:02:03', '2025-09-30 21:02:03'),
+(5, 'order', 'no_answer', 'Không nghe máy', 'Khách không nghe máy', '#dc3545', 'fa-phone-slash', 5, 0, 0, NULL, NULL, NULL, '2025-09-30 21:02:03', '2025-09-30 21:02:03'),
+(6, 'order', 'callback_scheduled', 'Hẹn gọi lại', 'Đã hẹn thời gian gọi lại', '#6f42c1', 'fa-clock', 6, 0, 0, NULL, NULL, NULL, '2025-09-30 21:02:03', '2025-09-30 21:02:03'),
+(7, 'order', 'confirmed', 'Đã xác nhận', 'Khách đã xác nhận đặt hàng', '#28a745', 'fa-check-circle', 7, 0, 0, NULL, NULL, NULL, '2025-09-30 21:02:03', '2025-09-30 21:02:03'),
+(8, 'order', 'shipping', 'Đang giao', 'Đơn hàng đang được giao', '#20c997', 'fa-truck', 8, 0, 0, NULL, NULL, NULL, '2025-09-30 21:02:03', '2025-09-30 21:02:03'),
+(9, 'order', 'completed', 'Hoàn thành', 'Giao hàng thành công', '#198754', 'fa-check-double', 9, 1, 0, NULL, NULL, NULL, '2025-09-30 21:02:03', '2025-09-30 21:02:03'),
+(10, 'order', 'cancelled', 'Đã hủy', 'Đơn hàng bị hủy', '#6c757d', 'fa-times-circle', 10, 1, 0, NULL, NULL, NULL, '2025-09-30 21:02:03', '2025-09-30 21:02:03'),
+(11, 'order', 'returned', 'Hoàn trả', 'Hàng bị trả lại', '#dc3545', 'fa-undo', 11, 1, 0, NULL, NULL, NULL, '2025-09-30 21:02:03', '2025-09-30 21:02:03'),
+(12, 'task', 'pending', 'Chờ xử lý', 'Task chưa bắt đầu', '#6c757d', 'fa-hourglass-start', 1, 1, 0, NULL, NULL, NULL, '2025-09-30 21:02:04', '2025-09-30 21:02:04'),
+(13, 'task', 'in_progress', 'Đang thực hiện', 'Task đang được xử lý', '#ffc107', 'fa-spinner', 2, 1, 0, NULL, NULL, NULL, '2025-09-30 21:02:04', '2025-09-30 21:02:04'),
+(14, 'task', 'completed', 'Hoàn thành', 'Task đã hoàn thành', '#28a745', 'fa-check', 3, 1, 0, NULL, NULL, NULL, '2025-09-30 21:02:04', '2025-09-30 21:02:04'),
+(15, 'task', 'overdue', 'Quá hạn', 'Task đã quá thời hạn', '#dc3545', 'fa-exclamation-triangle', 4, 1, 0, NULL, NULL, NULL, '2025-09-30 21:02:04', '2025-09-30 21:02:04'),
+(16, 'task', 'cancelled', 'Đã hủy', 'Task bị hủy', '#6c757d', 'fa-times', 5, 1, 0, NULL, NULL, NULL, '2025-09-30 21:02:04', '2025-09-30 21:02:04');
+
+-- --------------------------------------------------------
+
+--
+-- Cấu trúc bảng cho bảng `tasks`
+--
+
+CREATE TABLE `tasks` (
+  `id` int(11) NOT NULL,
+  `task_type` varchar(50) NOT NULL,
+  `entity_id` int(11) NOT NULL,
+  `entity_type` varchar(50) NOT NULL,
+  `assigned_to` int(10) UNSIGNED DEFAULT NULL,
+  `assigned_by` int(10) UNSIGNED DEFAULT NULL,
+  `title` varchar(200) NOT NULL,
+  `description` text DEFAULT NULL,
+  `priority` enum('low','normal','high','urgent') DEFAULT 'normal',
+  `status` enum('pending','in_progress','completed','cancelled','overdue') DEFAULT 'pending',
+  `due_at` datetime DEFAULT NULL,
+  `reminder_at` datetime DEFAULT NULL,
+  `reminder_sent` tinyint(1) DEFAULT 0,
+  `completed_at` datetime DEFAULT NULL,
+  `completed_by` int(10) UNSIGNED DEFAULT NULL,
+  `metadata` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`metadata`)),
+  `created_at` datetime DEFAULT current_timestamp(),
+  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Cấu trúc bảng cho bảng `users`
 --
 
@@ -331,18 +538,20 @@ CREATE TABLE `users` (
   `last_login_at` datetime DEFAULT NULL COMMENT 'Lần đăng nhập cuối',
   `last_login_ip` varchar(45) DEFAULT NULL COMMENT 'IP đăng nhập cuối',
   `created_at` datetime DEFAULT current_timestamp(),
-  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `suspension_reason` text DEFAULT NULL,
+  `suspension_until` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Bảng người dùng';
 
 --
 -- Đang đổ dữ liệu cho bảng `users`
 --
 
-INSERT INTO `users` (`id`, `username`, `password`, `full_name`, `email`, `phone`, `role`, `status`, `avatar`, `last_login_at`, `last_login_ip`, `created_at`, `updated_at`) VALUES
-(1, 'admin', '$2y$10$5EzgChCuFM.LG/yVCMbuseZFP2fxECDOQJb8FzEmssX4iev/sjbVi', 'Administrator', 'admin@example.com', NULL, 'admin', 'active', NULL, '2025-09-30 11:06:54', '::1', '2025-09-30 09:36:19', '2025-09-30 11:06:54'),
-(2, 'telesale1', '$2y$10$lkpRcTFFgJVlNIawkjprY.n7mubXpkH1/Sa0TOf4pl7rZQw6DVuqa', 'Nguyễn Văn Ad', 'vh6889@gmail.com', '0963470944', 'telesale', 'active', NULL, NULL, NULL, '2025-09-30 09:36:19', '2025-09-30 12:46:43'),
-(3, 'telesale2', '$2y$10$lkpRcTFFgJVlNIawkjprY.n7mubXpkH1/Sa0TOf4pl7rZQw6DVuqa', 'Trần Thị Booo', 'telesale2@example.com', '', 'telesale', 'active', NULL, NULL, NULL, '2025-09-30 09:36:19', '2025-09-30 12:54:32'),
-(4, 'oigioioi', '$2y$10$AxE8XaE9rkf9G7nvTyTFgu1xQNGMAKItLU/tkocwj2ZTJv/JmGppq', 'Hai Vu', 'raintl07@gmail.com', '0963470944', 'manager', 'active', NULL, NULL, NULL, '2025-09-30 18:50:59', '2025-09-30 18:50:59');
+INSERT INTO `users` (`id`, `username`, `password`, `full_name`, `email`, `phone`, `role`, `status`, `avatar`, `last_login_at`, `last_login_ip`, `created_at`, `updated_at`, `suspension_reason`, `suspension_until`) VALUES
+(1, 'admin', '$2y$10$5EzgChCuFM.LG/yVCMbuseZFP2fxECDOQJb8FzEmssX4iev/sjbVi', 'Administrator', 'admin@example.com', NULL, 'admin', 'active', NULL, '2025-09-30 11:06:54', '::1', '2025-09-30 09:36:19', '2025-09-30 11:06:54', NULL, NULL),
+(2, 'telesale1', '$2y$10$lkpRcTFFgJVlNIawkjprY.n7mubXpkH1/Sa0TOf4pl7rZQw6DVuqa', 'Nguyễn Văn Ad', 'vh6889@gmail.com', '0963470944', 'telesale', 'active', NULL, NULL, NULL, '2025-09-30 09:36:19', '2025-09-30 12:46:43', NULL, NULL),
+(3, 'telesale2', '$2y$10$lkpRcTFFgJVlNIawkjprY.n7mubXpkH1/Sa0TOf4pl7rZQw6DVuqa', 'Trần Thị Booo', 'telesale2@example.com', '', 'telesale', 'active', NULL, NULL, NULL, '2025-09-30 09:36:19', '2025-09-30 12:54:32', NULL, NULL),
+(4, 'oigioioi', '$2y$10$AxE8XaE9rkf9G7nvTyTFgu1xQNGMAKItLU/tkocwj2ZTJv/JmGppq', 'Hai Vu', 'raintl07@gmail.com', '0963470944', 'manager', 'active', NULL, NULL, NULL, '2025-09-30 18:50:59', '2025-09-30 18:50:59', NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -381,26 +590,43 @@ INSERT INTO `user_actions` (`action_key`, `action_name`, `icon`, `color`) VALUES
 --
 
 CREATE TABLE `user_labels` (
+  `id` int(11) NOT NULL,
   `label_key` varchar(50) NOT NULL,
   `label_name` varchar(100) NOT NULL,
-  `color` varchar(20) NOT NULL DEFAULT '#cccccc',
-  `description` text DEFAULT NULL
+  `description` text DEFAULT NULL,
+  `color` varchar(20) DEFAULT '#28a745',
+  `icon` varchar(50) DEFAULT 'fa-user-tag',
+  `permissions` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`permissions`)),
+  `auto_assign_rules` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`auto_assign_rules`)),
+  `sort_order` int(11) DEFAULT 0,
+  `created_by` int(10) UNSIGNED DEFAULT NULL,
+  `created_at` datetime DEFAULT current_timestamp(),
+  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Đang đổ dữ liệu cho bảng `user_labels`
 --
 
-INSERT INTO `user_labels` (`label_key`, `label_name`, `color`, `description`) VALUES
-('n-a', 'Nhân viên yếu kém', '#383838', 'Nhân viên có tỉ lệ chốt đơn dưới 50% trong tháng'),
-('n-a-1759229091', 'Nhân viên gương mẫu', '#0b74d5', 'Nhân viên dưới 80%'),
-('n-a-1759229123', 'Nhân viên xuất sắc', '#ffbb00', 'Nhân viên trên 90%'),
-('n-a-1759229353', 'Nhân viên mới', '#04ff00', 'Nhân viên mới gia nhập'),
-('nhan-vien-trung-binh', 'Nhân viên trung bình', '#9a972d', 'Nhân viên có tỉ lệ trung bình dưới 60%');
+INSERT INTO `user_labels` (`id`, `label_key`, `label_name`, `description`, `color`, `icon`, `permissions`, `auto_assign_rules`, `sort_order`, `created_by`, `created_at`, `updated_at`) VALUES
+(1, 'top_performer', 'Xuất sắc', 'Nhân viên xuất sắc', '#ffd700', 'fa-trophy', NULL, NULL, 0, NULL, '2025-09-30 20:55:35', '2025-09-30 20:55:35'),
+(2, 'warning', 'Cảnh báo', 'Đang bị cảnh báo', '#ffc107', 'fa-exclamation-triangle', NULL, NULL, 0, NULL, '2025-09-30 20:55:35', '2025-09-30 20:55:35'),
+(3, 'suspended', 'Tạm khóa', 'Tài khoản bị tạm khóa', '#dc3545', 'fa-lock', NULL, NULL, 0, NULL, '2025-09-30 20:55:35', '2025-09-30 20:55:35'),
+(4, 'training', 'Đào tạo', 'Đang trong giai đoạn đào tạo', '#17a2b8', 'fa-graduation-cap', NULL, NULL, 0, NULL, '2025-09-30 20:55:35', '2025-09-30 20:55:35'),
+(5, 'probation', 'Thử việc', 'Nhân viên thử việc', '#6f42c1', 'fa-user-clock', NULL, NULL, 0, NULL, '2025-09-30 20:55:35', '2025-09-30 20:55:35');
 
 --
 -- Chỉ mục cho các bảng đã đổ
 --
+
+--
+-- Chỉ mục cho bảng `action_logs`
+--
+ALTER TABLE `action_logs`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_entity` (`entity_id`,`entity_type`),
+  ADD KEY `idx_user_action` (`user_id`,`action_type`),
+  ADD KEY `idx_created_at` (`created_at`);
 
 --
 -- Chỉ mục cho bảng `activity_logs`
@@ -414,7 +640,26 @@ ALTER TABLE `activity_logs`
 -- Chỉ mục cho bảng `customer_labels`
 --
 ALTER TABLE `customer_labels`
-  ADD PRIMARY KEY (`label_key`);
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `label_key` (`label_key`),
+  ADD KEY `created_by` (`created_by`);
+
+--
+-- Chỉ mục cho bảng `customer_metrics`
+--
+ALTER TABLE `customer_metrics`
+  ADD PRIMARY KEY (`customer_id`),
+  ADD UNIQUE KEY `customer_phone` (`customer_phone`),
+  ADD KEY `idx_vip` (`is_vip`),
+  ADD KEY `idx_blacklist` (`is_blacklisted`),
+  ADD KEY `idx_phone` (`customer_phone`);
+
+--
+-- Chỉ mục cho bảng `employee_performance`
+--
+ALTER TABLE `employee_performance`
+  ADD PRIMARY KEY (`user_id`),
+  ADD KEY `idx_performance` (`performance_score`);
 
 --
 -- Chỉ mục cho bảng `kpis`
@@ -432,6 +677,14 @@ ALTER TABLE `manager_assignments`
   ADD KEY `idx_manager` (`manager_id`),
   ADD KEY `idx_telesale` (`telesale_id`),
   ADD KEY `assigned_by` (`assigned_by`);
+
+--
+-- Chỉ mục cho bảng `notifications`
+--
+ALTER TABLE `notifications`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_user_unread` (`user_id`,`is_read`),
+  ADD KEY `idx_created_at` (`created_at`);
 
 --
 -- Chỉ mục cho bảng `orders`
@@ -456,12 +709,6 @@ ALTER TABLE `order_notes`
   ADD KEY `user_id` (`user_id`);
 
 --
--- Chỉ mục cho bảng `order_status_configs`
---
-ALTER TABLE `order_status_configs`
-  ADD PRIMARY KEY (`status_key`);
-
---
 -- Chỉ mục cho bảng `reminders`
 --
 ALTER TABLE `reminders`
@@ -477,10 +724,62 @@ ALTER TABLE `role_permissions`
   ADD UNIQUE KEY `uk_role_permission` (`role`,`permission`);
 
 --
+-- Chỉ mục cho bảng `rules`
+--
+ALTER TABLE `rules`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `rule_key` (`rule_key`),
+  ADD KEY `idx_entity_active` (`entity_type`,`is_active`),
+  ADD KEY `idx_priority` (`priority`);
+
+--
+-- Chỉ mục cho bảng `rule_executions`
+--
+ALTER TABLE `rule_executions`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_rule_entity` (`rule_id`,`entity_id`,`entity_type`),
+  ADD KEY `idx_executed_at` (`executed_at`);
+
+--
+-- Chỉ mục cho bảng `rule_templates`
+--
+ALTER TABLE `rule_templates`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `template_key` (`template_key`);
+
+--
+-- Chỉ mục cho bảng `scheduled_jobs`
+--
+ALTER TABLE `scheduled_jobs`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_scheduled_status` (`scheduled_at`,`status`),
+  ADD KEY `idx_entity` (`entity_id`,`entity_type`);
+
+--
 -- Chỉ mục cho bảng `settings`
 --
 ALTER TABLE `settings`
   ADD PRIMARY KEY (`setting_key`);
+
+--
+-- Chỉ mục cho bảng `status_definitions`
+--
+ALTER TABLE `status_definitions`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `entity_status` (`entity_type`,`status_key`),
+  ADD KEY `idx_entity_type` (`entity_type`),
+  ADD KEY `created_by` (`created_by`);
+
+--
+-- Chỉ mục cho bảng `tasks`
+--
+ALTER TABLE `tasks`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `assigned_by` (`assigned_by`),
+  ADD KEY `completed_by` (`completed_by`),
+  ADD KEY `idx_assigned_status` (`assigned_to`,`status`),
+  ADD KEY `idx_due_at` (`due_at`),
+  ADD KEY `idx_entity` (`entity_id`,`entity_type`);
 
 --
 -- Chỉ mục cho bảng `users`
@@ -503,17 +802,31 @@ ALTER TABLE `user_actions`
 -- Chỉ mục cho bảng `user_labels`
 --
 ALTER TABLE `user_labels`
-  ADD PRIMARY KEY (`label_key`);
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `label_key` (`label_key`),
+  ADD KEY `created_by` (`created_by`);
 
 --
 -- AUTO_INCREMENT cho các bảng đã đổ
 --
 
 --
+-- AUTO_INCREMENT cho bảng `action_logs`
+--
+ALTER TABLE `action_logs`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT cho bảng `activity_logs`
 --
 ALTER TABLE `activity_logs`
   MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
+
+--
+-- AUTO_INCREMENT cho bảng `customer_labels`
+--
+ALTER TABLE `customer_labels`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT cho bảng `kpis`
@@ -526,6 +839,12 @@ ALTER TABLE `kpis`
 --
 ALTER TABLE `manager_assignments`
   MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT cho bảng `notifications`
+--
+ALTER TABLE `notifications`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT cho bảng `orders`
@@ -552,10 +871,52 @@ ALTER TABLE `role_permissions`
   MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=25;
 
 --
+-- AUTO_INCREMENT cho bảng `rules`
+--
+ALTER TABLE `rules`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT cho bảng `rule_executions`
+--
+ALTER TABLE `rule_executions`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT cho bảng `rule_templates`
+--
+ALTER TABLE `rule_templates`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+
+--
+-- AUTO_INCREMENT cho bảng `scheduled_jobs`
+--
+ALTER TABLE `scheduled_jobs`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT cho bảng `status_definitions`
+--
+ALTER TABLE `status_definitions`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
+
+--
+-- AUTO_INCREMENT cho bảng `tasks`
+--
+ALTER TABLE `tasks`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT cho bảng `users`
 --
 ALTER TABLE `users`
   MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+
+--
+-- AUTO_INCREMENT cho bảng `user_labels`
+--
+ALTER TABLE `user_labels`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- Các ràng buộc cho các bảng đã đổ
@@ -566,6 +927,18 @@ ALTER TABLE `users`
 --
 ALTER TABLE `activity_logs`
   ADD CONSTRAINT `activity_logs_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL;
+
+--
+-- Các ràng buộc cho bảng `customer_labels`
+--
+ALTER TABLE `customer_labels`
+  ADD CONSTRAINT `customer_labels_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL;
+
+--
+-- Các ràng buộc cho bảng `employee_performance`
+--
+ALTER TABLE `employee_performance`
+  ADD CONSTRAINT `employee_performance_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 --
 -- Các ràng buộc cho bảng `kpis`
@@ -603,6 +976,26 @@ ALTER TABLE `order_notes`
 ALTER TABLE `reminders`
   ADD CONSTRAINT `reminders_ibfk_1` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `reminders_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+
+--
+-- Các ràng buộc cho bảng `status_definitions`
+--
+ALTER TABLE `status_definitions`
+  ADD CONSTRAINT `status_definitions_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL;
+
+--
+-- Các ràng buộc cho bảng `tasks`
+--
+ALTER TABLE `tasks`
+  ADD CONSTRAINT `tasks_ibfk_1` FOREIGN KEY (`assigned_to`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `tasks_ibfk_2` FOREIGN KEY (`assigned_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `tasks_ibfk_3` FOREIGN KEY (`completed_by`) REFERENCES `users` (`id`) ON DELETE SET NULL;
+
+--
+-- Các ràng buộc cho bảng `user_labels`
+--
+ALTER TABLE `user_labels`
+  ADD CONSTRAINT `user_labels_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
