@@ -1,11 +1,7 @@
 <?php
 /**
- * API: End Call
- * Kết thúc cuộc gọi
- * 
- * ✅ FIXED VERSION:
- * - Sửa call_logs.primary_label → status
- * - Sửa query order_labels đúng cú pháp
+ * API: End Call - CRM VERSION
+ * Kết thúc cuộc gọi - BẮT BUỘC ghi log và có thể đổi status
  */
 define('TSM_ACCESS', true);
 require_once '../config.php';
@@ -13,7 +9,6 @@ require_once '../includes/transaction_helper.php';
 require_once '../includes/error_handler.php';
 require_once '../functions.php';
 require_once '../includes/security_helper.php';
-require_once '../includes/status_helper.php';
 
 header('Content-Type: application/json');
 
@@ -23,120 +18,146 @@ if (!is_logged_in()) {
     json_error('Unauthorized', 401);
 }
 
-check_rate_limit('end-call', get_logged_user()['id']);
-
-$input = get_json_input(["order_id", "notes"]);
+$input = get_json_input(["order_id", "call_note"]); // call_note BẮT BUỘC
 $order_id = (int)$input['order_id'];
-$notes = trim($input['notes'] ?? '');
-$callback_time = $input['callback_time'] ?? null;
+$call_note = trim($input['call_note'] ?? '');
+$new_status = $input['status'] ?? null; // optional
+$callback_time = $input['callback_time'] ?? null; // optional
 
-if (!$order_id || $order_id <= 0) {
-    json_error('Invalid order ID', 400);
-}
-
-if (empty($notes)) {
+if (!$order_id || empty($call_note)) {
     json_error('Vui lòng nhập ghi chú cuộc gọi', 400);
 }
 
 $user = get_logged_user();
 
 try {
-    $order = get_order($order_id);
+    begin_transaction();
     
-    if (!$order) {
-        json_error('Không tìm thấy đơn hàng', 404);
-    }
-    
-    if ($order['assigned_to'] != $user['id'] && !is_admin()) {
-        json_error('Bạn không có quyền kết thúc cuộc gọi này', 403);
-    }
-    
-    // Find active call
-    $call = db_get_row(
+    // 1. Tìm cuộc gọi active
+    $active_call = db_get_row(
         "SELECT * FROM call_logs 
          WHERE order_id = ? AND user_id = ? AND end_time IS NULL
-         ORDER BY start_time DESC
-         LIMIT 1",
+         FOR UPDATE",
         [$order_id, $user['id']]
     );
     
-    if (!$call) {
-        json_error('Không tìm thấy cuộc gọi đang hoạt động', 404);
+    if (!$active_call) {
+        throw new Exception('Không tìm thấy cuộc gọi đang hoạt động');
     }
     
-    begin_transaction();
+    // 2. Tính thời gian gọi
+    $end_time = date('Y-m-d H:i:s');
+    $duration = strtotime($end_time) - strtotime($active_call['start_time']);
     
-    // ✅ FIX: Update call log - thay "primary_label" → "status"
+    // 3. Cập nhật call log - GHI ĐẦY ĐỦ THÔNG TIN
+    $final_note = $active_call['note'] ?? '';
+    $final_note .= "\n\n=== KẾT THÚC CUỘC GỌI ===\n";
+    $final_note .= "Nội dung chính: " . $call_note;
+    
     db_update('call_logs', [
-        'end_time' => date('Y-m-d H:i:s'),
-        'note' => sanitize($notes),
-        'status' => 'completed'  // ✅ FIXED: Dùng đúng cột 'status'
-    ], 'id = ?', [$call['id']]);
+        'end_time' => $end_time,
+        'duration' => $duration,
+        'note' => $final_note,
+        'status' => 'completed'
+    ], 'id = ?', [$active_call['id']]);
     
-    // Calculate new call count
-    $new_call_count = intval($order['call_count'] ?? 0) + 1;
+    // 4. Lấy thông tin đơn
+    $order = db_get_row("SELECT * FROM orders WHERE id = ?", [$order_id]);
     
-    // Prepare order update data
-    $update_data = [
-        'call_count' => $new_call_count,
-        'last_call_at' => date('Y-m-d H:i:s')
-    ];
+    // 5. Xử lý cập nhật status (nếu có)
+    $status_changed = false;
+    $old_status = $order['primary_label'];
+    $new_label_name = '';
     
-    // If callback time is set, update it
-    if ($callback_time) {
-        $update_data['callback_time'] = date('Y-m-d H:i:s', strtotime($callback_time));
+    if ($new_status && $new_status !== $old_status) {
+        $label_info = db_get_row(
+            "SELECT * FROM order_labels WHERE label_key = ?",
+            [$new_status]
+        );
         
-        // ✅ ALREADY FIXED: Query nhãn "gọi lại" đúng cú pháp
-        $callback_label = db_get_var("
-            SELECT label_key 
-            FROM order_labels 
-            WHERE label_name LIKE '%gọi lại%' 
-               OR label_name LIKE '%callback%' 
-               OR label_name LIKE '%hẹn%'
-            ORDER BY sort_order 
-            LIMIT 1
-        ");
-        
-        if ($callback_label) {
-            $update_data['primary_label'] = $callback_label;
+        if ($label_info) {
+            $update_order = [
+                'primary_label' => $new_status,
+                'core_status' => $label_info['core_status']
+            ];
+            
+            // Khóa đơn nếu core_status = 'success'
+            if ($label_info['core_status'] === 'success') {
+                $update_order['is_locked'] = 1;
+                $update_order['locked_at'] = date('Y-m-d H:i:s');
+                $update_order['locked_by'] = $user['id'];
+                $update_order['completed_at'] = date('Y-m-d H:i:s');
+            }
+            
+            db_update('orders', $update_order, 'id = ?', [$order_id]);
+            $status_changed = true;
+            $new_label_name = $label_info['label_name'];
         }
     }
     
-    // Update order
-    db_update('orders', $update_data, 'id = ?', [$order_id]);
+    // 6. Xử lý hẹn gọi lại (nếu có)
+    if ($callback_time) {
+        db_update('orders', 
+            ['callback_time' => $callback_time],
+            'id = ?', 
+            [$order_id]
+        );
+        
+        // Tạo reminder
+        db_insert('reminders', [
+            'order_id' => $order_id,
+            'user_id' => $user['id'],
+            'type' => 'callback',
+            'due_time' => $callback_time,
+            'status' => 'pending'
+        ]);
+    }
     
-    // Add note
+    // 7. Ghi log tổng hợp vào order_notes
+    $log_content = "=== CUỘC GỌI LẦN {$order['call_count']} ===\n";
+    $log_content .= "Thời lượng: " . gmdate("H:i:s", $duration) . "\n";
+    $log_content .= "Nội dung: " . $call_note;
+    
+    if ($status_changed) {
+        $log_content .= "\nĐổi trạng thái: {$old_status} → {$new_status} ({$new_label_name})";
+    }
+    
+    if ($callback_time) {
+        $log_content .= "\nHẹn gọi lại: " . date('d/m/Y H:i', strtotime($callback_time));
+    }
+    
     db_insert('order_notes', [
         'order_id' => $order_id,
         'user_id' => $user['id'],
         'note_type' => 'manual',
-        'content' => $notes
+        'content' => $log_content
     ]);
     
-    // Calculate duration for logging
-    $duration_seconds = strtotime(date('Y-m-d H:i:s')) - strtotime($call['start_time']);
-    $duration_minutes = round($duration_seconds / 60, 1);
-    
-    // Log activity
+    // 8. Log activity
     log_activity(
-        'end_call', 
-        "Ended call for order #{$order['order_number']} (Duration: {$duration_minutes} minutes)", 
-        'order', 
+        'end_call',
+        sprintf("Call #%d ended - Duration: %s - Status: %s", 
+            $order['call_count'],
+            gmdate("H:i:s", $duration),
+            $new_status ?: 'unchanged'
+        ),
+        'order',
         $order_id
     );
     
     commit_transaction();
     
-    json_success('Đã kết thúc cuộc gọi!', [
-        'order_id' => $order_id,
-        'call_count' => $new_call_count,
-        'duration_seconds' => $duration_seconds,
+    json_success('Đã kết thúc cuộc gọi', [
+        'duration' => $duration,
+        'formatted_duration' => gmdate("H:i:s", $duration),
+        'call_count' => $order['call_count'],
+        'status_changed' => $status_changed,
+        'new_status' => $new_status,
         'callback_scheduled' => !empty($callback_time)
     ]);
     
 } catch (Exception $e) {
     rollback_transaction();
-    
-    error_log('[END_CALL] Error: ' . $e->getMessage());
-    json_error($e->getMessage(), 500);
+    json_error($e->getMessage());
 }
+?>

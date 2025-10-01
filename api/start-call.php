@@ -1,11 +1,7 @@
 <?php
 /**
- * API: Start Call
- * Bắt đầu cuộc gọi cho đơn hàng
- * 
- * ✅ FIXED VERSION:
- * - Sửa call_logs.primary_label → status
- * - Sửa query order_labels: label → label_name
+ * API: Start Call - CRM VERSION
+ * Bắt đầu cuộc gọi, mở khóa edit, bắt đầu tính giờ
  */
 define('TSM_ACCESS', true);
 require_once '../config.php';
@@ -13,45 +9,49 @@ require_once '../includes/transaction_helper.php';
 require_once '../includes/error_handler.php';
 require_once '../functions.php';
 require_once '../includes/security_helper.php';
-require_once '../includes/status_helper.php';
 
 header('Content-Type: application/json');
 
-// CSRF Protection
 require_csrf();
 
-// Authentication
 if (!is_logged_in()) {
     json_error('Unauthorized', 401);
 }
 
-// Rate limiting
 check_rate_limit('start-call', get_logged_user()['id']);
 
-// Get input
 $input = get_json_input(["order_id"]);
 $order_id = (int)$input['order_id'];
 
-if (!$order_id || $order_id <= 0) {
+if (!$order_id) {
     json_error('Invalid order ID', 400);
 }
 
 $user = get_logged_user();
 
 try {
-    // Get order
-    $order = get_order($order_id);
+    begin_transaction();
+    
+    // 1. Lấy đơn hàng
+    $order = db_get_row(
+        "SELECT * FROM orders WHERE id = ? FOR UPDATE",
+        [$order_id]
+    );
     
     if (!$order) {
-        json_error('Không tìm thấy đơn hàng', 404);
+        throw new Exception('Không tìm thấy đơn hàng');
     }
     
-    // Check permission - must be assigned to current user
+    // 2. Kiểm tra quyền
     if ($order['assigned_to'] != $user['id']) {
-        json_error('Bạn không có quyền gọi đơn này', 403);
+        throw new Exception('Bạn không có quyền gọi đơn này');
     }
     
-    // Check if there's already an active call
+    if ($order['is_locked']) {
+        throw new Exception('Đơn hàng đã bị khóa');
+    }
+    
+    // 3. Kiểm tra cuộc gọi đang active
     $active_call = db_get_row(
         "SELECT * FROM call_logs 
          WHERE order_id = ? AND user_id = ? AND end_time IS NULL",
@@ -59,62 +59,63 @@ try {
     );
     
     if ($active_call) {
-        json_error('Cuộc gọi đang hoạt động. Vui lòng kết thúc trước khi bắt đầu cuộc mới.', 400);
+        // Trả về call đang active thay vì lỗi
+        json_success('Đang trong cuộc gọi', [
+            'call_id' => $active_call['id'],
+            'start_time' => $active_call['start_time'],
+            'duration' => time() - strtotime($active_call['start_time']),
+            'can_edit' => true
+        ]);
+        exit;
     }
     
-    // Begin transaction
-    begin_transaction();
-    
-    // ✅ FIX: Sửa query - thay "label LIKE" → "label_name LIKE"
-    $calling_status = db_get_var(
-        "SELECT label_key FROM order_labels 
-         WHERE label_name LIKE '%gọi%' 
-            OR label_name LIKE '%calling%' 
-            OR label_name LIKE '%đang gọi%'
-         ORDER BY sort_order 
-         LIMIT 1"
-    );
-    
-    // Fallback - nếu không tìm thấy nhãn "đang gọi", giữ nguyên nhãn hiện tại
-    if (!$calling_status) {
-        $calling_status = $order['primary_label'];
-    }
-    
-    // ✅ FIX: Create call log - thay "primary_label" → "status"
+    // 4. Tạo call log mới
     $call_id = db_insert('call_logs', [
         'order_id' => $order_id,
         'user_id' => $user['id'],
         'user_name' => $user['full_name'],
         'start_time' => date('Y-m-d H:i:s'),
-        'status' => 'active'  // ✅ FIXED: Dùng đúng cột 'status'
+        'status' => 'active'
     ]);
     
-    // Update order status
+    // 5. Update order - tăng call_count và ghi last_call_at
     db_update('orders', [
-        'primary_label' => $calling_status,
+        'call_count' => $order['call_count'] + 1,
         'last_call_at' => date('Y-m-d H:i:s')
     ], 'id = ?', [$order_id]);
     
-    // Add system note
+    // 6. Ghi log activity
     db_insert('order_notes', [
         'order_id' => $order_id,
         'user_id' => $user['id'],
         'note_type' => 'system',
-        'content' => 'Bắt đầu cuộc gọi'
+        'content' => "Bắt đầu cuộc gọi lần thứ " . ($order['call_count'] + 1)
     ]);
     
-    // Log activity
-    log_activity('start_call', "Started call for order #{$order['order_number']}", 'order', $order_id);
+    log_activity(
+        'start_call',
+        "Started call #{$order['call_count'] + 1} for order #{$order['order_number']}",
+        'order',
+        $order_id
+    );
     
-    // Commit transaction
     commit_transaction();
     
-    json_success('Đã bắt đầu cuộc gọi!', ['call_id' => $call_id]);
+    // 7. Trả về thông tin để UI hiển thị
+    json_success('Đã bắt đầu cuộc gọi', [
+        'call_id' => $call_id,
+        'start_time' => date('Y-m-d H:i:s'),
+        'call_number' => $order['call_count'] + 1,
+        'can_edit' => true, // Cho phép sửa trong cuộc gọi
+        'customer' => [
+            'name' => $order['customer_name'],
+            'phone' => $order['customer_phone'],
+            'address' => $order['customer_address']
+        ]
+    ]);
     
 } catch (Exception $e) {
-    // Rollback on error
     rollback_transaction();
-    
-    error_log('[START_CALL] Error: ' . $e->getMessage());
-    json_error($e->getMessage(), 500);
+    json_error($e->getMessage());
 }
+?>

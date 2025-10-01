@@ -1,13 +1,12 @@
 <?php
 /**
- * Order Detail Page - FIXED VERSION
- * Sửa lỗi phân công và hiển thị nút
+ * Order Detail Page - CRM VERSION
+ * Tích hợp đầy đủ tính năng CRM với timer cuộc gọi
  */
 define('TSM_ACCESS', true);
 require_once 'config.php';
 require_once 'functions.php';
 require_once 'includes/status_helper.php';
-// Removed security_helper to avoid duplicate function declaration
 
 require_login();
 
@@ -34,6 +33,16 @@ if (!$can_view) {
     redirect('orders.php');
 }
 
+// Get call history & timeline
+$call_history = db_get_results(
+    "SELECT c.*, u.full_name as caller_name
+     FROM call_logs c
+     LEFT JOIN users u ON c.user_id = u.id
+     WHERE c.order_id = ?
+     ORDER BY c.start_time DESC",
+    [$order_id]
+);
+
 // Get order notes
 $notes = db_get_results(
     "SELECT n.*, u.full_name, u.username 
@@ -44,31 +53,8 @@ $notes = db_get_results(
     [$order_id]
 );
 
-// Get reminders
-$reminders = db_get_results(
-    "SELECT * FROM reminders 
-     WHERE order_id = ? AND status = 'pending' 
-     ORDER BY due_time ASC", 
-    [$order_id]
-);
-
 // Parse products
 $products = json_decode($order['products'], true) ?? [];
-
-// Enhance product data
-foreach ($products as &$product) {
-    $product['sku'] = $product['sku'] ?? 'N/A';
-    $product['regular_price'] = floatval($product['regular_price'] ?? $product['price'] ?? 0);
-    $product['sale_price'] = floatval($product['sale_price'] ?? $product['price'] ?? 0);
-    $product['attributes'] = $product['attributes'] ?? [];
-    $product['qty'] = intval($product['qty'] ?? 1);
-    $product['line_total'] = $product['sale_price'] * $product['qty'];
-}
-
-// Calculate totals
-$subtotal = array_sum(array_column($products, 'line_total'));
-$discount = max(0, $subtotal - floatval($order['total_amount']));
-$shipping = floatval($order['shipping_cost'] ?? 0);
 
 // Check states
 $is_locked = (bool)($order['is_locked'] ?? false);
@@ -85,62 +71,86 @@ if ($is_my_order) {
     );
 }
 
-// Can edit during active call
-$can_edit = !$is_locked && $active_call && $is_my_order;
+// Calculate totals
+$subtotal = array_sum(array_map(function($p) {
+    return ($p['price'] ?? 0) * ($p['qty'] ?? 1);
+}, $products));
 
-// Get telesales list for admin/manager
+// Get status options
+$status_options = db_get_results(
+    "SELECT label_key, label_name, color, icon, core_status
+     FROM order_labels 
+     ORDER BY sort_order, label_name"
+);
+
+// Get telesales for admin
 $telesales_list = [];
 if (is_admin() || is_manager()) {
     $telesales_list = get_telesales('active');
 }
-
-// Get status options
-$status_options = db_get_results(
-    "SELECT label_key, label_name, color, icon, label_value 
-     FROM order_labels 
-     WHERE label_key NOT IN ('pending_approval', 'free')
-     ORDER BY sort_order, label_name"
-);
-
-// Get current label name
-$current_status_label = $order['label_name'] ?? 'Đơn mới';
 
 $page_title = 'Chi tiết đơn hàng #' . $order['order_number'];
 include 'includes/header.php';
 ?>
 
 <style>
-.timeline { max-height: 400px; overflow-y: auto; }
-.qty-input { width: 60px; }
-.table td { vertical-align: middle; }
-#callTimer { font-family: monospace; font-size: 1.2em; }
-</style>
+.timeline { 
+    max-height: 500px; 
+    overflow-y: auto;
+    border-left: 3px solid #dee2e6;
+    padding-left: 20px;
+}
+.timeline-item {
+    position: relative;
+    padding-bottom: 20px;
+}
+.timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -27px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #6c757d;
+    border: 3px solid #fff;
+}
+.timeline-item.call::before { background: #28a745; }
+.timeline-item.note::before { background: #17a2b8; }
+.timeline-item.status::before { background: #ffc107; }
 
-<!-- Alerts Section -->
-<?php if (!empty($reminders)): ?>
-<div class="alert alert-warning alert-dismissible fade show mb-3">
-    <h6 class="alert-heading"><i class="fas fa-bell"></i> Nhắc nhở quan trọng</h6>
-    <ul class="mb-0">
-    <?php foreach ($reminders as $reminder): ?>
-        <li><?php echo htmlspecialchars($reminder['message'] ?? ''); ?></li>
-    <?php endforeach; ?>
-    </ul>
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-</div>
-<?php endif; ?>
+#callTimer {
+    font-family: 'Courier New', monospace;
+    font-size: 2rem;
+    font-weight: bold;
+    color: #dc3545;
+    text-align: center;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 5px;
+}
+
+.edit-mode input, .edit-mode textarea {
+    background-color: #fffbf0;
+    border-color: #ffc107;
+}
+
+.product-row.editing {
+    background-color: #fff3cd;
+}
+</style>
 
 <div class="row g-4">
     <!-- Left Column -->
     <div class="col-lg-8">
-        <!-- Header -->
+        <!-- Header với Timer -->
         <div class="table-card mb-3">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
                     <h5 class="mb-0">
-                        Đơn hàng #<?php echo htmlspecialchars($order['order_number']); ?>
+                        Đơn hàng #<?= htmlspecialchars($order['order_number']) ?>
                     </h5>
-                    <span class="badge mt-2" style="background-color: <?php echo $order['label_color'] ?? '#6c757d'; ?>">
-                        <?php echo htmlspecialchars($current_status_label); ?>
+                    <span class="badge mt-2" style="background-color: <?= $order['label_color'] ?? '#6c757d' ?>">
+                        <?= htmlspecialchars($order['label_name'] ?? 'Đơn mới') ?>
                     </span>
                     <?php if ($is_locked): ?>
                         <span class="badge bg-secondary ms-2">
@@ -149,543 +159,529 @@ include 'includes/header.php';
                     <?php endif; ?>
                 </div>
                 
-                <!-- Action Buttons -->
-                <div>
-                    <?php if (!$is_locked): ?>
-                        <?php if ($is_free && !is_admin()): ?>
-                            <!-- Nút Nhận đơn cho Telesale/Manager -->
-                            <button class="btn btn-primary" onclick="claimOrder()">
-                                <i class="fas fa-hand-paper"></i> Nhận đơn này
-                            </button>
-                        <?php elseif ($is_my_order): ?>
-                            <?php if (!$active_call): ?>
-                                <button class="btn btn-success" onclick="startCall()">
-                                    <i class="fas fa-phone"></i> Bắt đầu gọi
-                                </button>
+                <!-- Call Controls with Timer -->
+                <div class="text-center">
+                    <?php if ($active_call): ?>
+                        <!-- Đang gọi - Hiện timer -->
+                        <div id="callTimer" data-start="<?= $active_call['start_time'] ?>">00:00:00</div>
+                        <button class="btn btn-danger mt-2" onclick="showEndCallModal()">
+                            <i class="fas fa-phone-slash"></i> Kết thúc cuộc gọi
+                        </button>
+                    <?php elseif ($is_my_order && !$is_locked): ?>
+                        <!-- Chưa gọi -->
+                        <button class="btn btn-success btn-lg" onclick="startCall()">
+                            <i class="fas fa-phone"></i> Bắt đầu gọi
+                        </button>
+                    <?php elseif ($is_free && !is_admin()): ?>
+                        <!-- Đơn free -->
+                        <button class="btn btn-primary" onclick="claimOrder()">
+                            <i class="fas fa-hand-paper"></i> Nhận đơn này
+                        </button>
+                    <?php endif; ?>
+                    
+                    <!-- Admin Menu -->
+                    <?php if (is_admin()): ?>
+                        <button class="btn btn-outline-secondary ms-2" data-bs-toggle="dropdown">
+                            <i class="fas fa-cog"></i> Quản lý
+                        </button>
+                        <ul class="dropdown-menu">
+                            <?php if ($is_free): ?>
+                                <li><a class="dropdown-item" href="#" onclick="showAssignModal()">
+                                    <i class="fas fa-user-plus"></i> Phân công
+                                </a></li>
                             <?php else: ?>
-                                <button class="btn btn-danger" onclick="endCall()">
-                                    <i class="fas fa-phone-slash"></i> Kết thúc gọi
-                                </button>
+                                <li><a class="dropdown-item" href="#" onclick="showTransferModal()">
+                                    <i class="fas fa-exchange-alt"></i> Chuyển giao
+                                </a></li>
+                                <li><a class="dropdown-item" href="#" onclick="reclaimOrder()">
+                                    <i class="fas fa-undo"></i> Thu hồi
+                                </a></li>
                             <?php endif; ?>
-                        <?php endif; ?>
-                        
-                        <?php if (is_admin()): ?>
-                            <button class="btn btn-outline-secondary ms-2" 
-                                    data-bs-toggle="dropdown">
-                                <i class="fas fa-cog"></i> Quản lý
-                            </button>
-                            <ul class="dropdown-menu">
-                                <?php if ($is_free): ?>
-                                    <li><a class="dropdown-item" href="#" 
-                                           data-bs-toggle="modal" data-bs-target="#assignModal">
-                                        <i class="fas fa-user-plus"></i> Phân công
-                                    </a></li>
-                                <?php else: ?>
-                                    <li><a class="dropdown-item" href="#" 
-                                           data-bs-toggle="modal" data-bs-target="#transferModal">
-                                        <i class="fas fa-exchange-alt"></i> Chuyển giao
-                                    </a></li>
-                                    <li><a class="dropdown-item" href="#" onclick="reclaimOrder()">
-                                        <i class="fas fa-undo"></i> Thu hồi
-                                    </a></li>
-                                <?php endif; ?>
-                            </ul>
-                        <?php endif; ?>
+                        </ul>
                     <?php endif; ?>
                 </div>
             </div>
         </div>
         
-        <!-- Customer Info -->
-        <div class="table-card mb-3">
-            <h6 class="mb-3"><i class="fas fa-user me-2"></i>Thông tin khách hàng</h6>
+        <!-- Customer Info (Editable during call) -->
+        <div class="table-card mb-3 <?= $active_call ? 'edit-mode' : '' ?>">
+            <h6 class="mb-3">
+                <i class="fas fa-user me-2"></i>Thông tin khách hàng
+                <?php if ($active_call): ?>
+                    <span class="badge bg-warning ms-2">Có thể sửa</span>
+                <?php endif; ?>
+            </h6>
             <div class="row">
                 <div class="col-md-6">
-                    <p><strong>Họ tên:</strong> <?php echo htmlspecialchars($order['customer_name']); ?></p>
-                    <p><strong>Điện thoại:</strong> 
-                        <a href="tel:<?php echo $order['customer_phone']; ?>">
-                            <?php echo htmlspecialchars($order['customer_phone']); ?>
-                        </a>
-                        <button class="btn btn-sm btn-link" onclick="copyToClipboard('<?php echo $order['customer_phone']; ?>')">
-                            <i class="fas fa-copy"></i>
-                        </button>
-                    </p>
+                    <div class="mb-3">
+                        <label>Họ tên:</label>
+                        <input type="text" class="form-control" id="customer_name" 
+                               value="<?= htmlspecialchars($order['customer_name']) ?>"
+                               <?= !$active_call ? 'readonly' : '' ?>>
+                    </div>
+                    <div class="mb-3">
+                        <label>Điện thoại:</label>
+                        <input type="text" class="form-control" id="customer_phone"
+                               value="<?= htmlspecialchars($order['customer_phone']) ?>"
+                               <?= !$active_call ? 'readonly' : '' ?>>
+                    </div>
                 </div>
                 <div class="col-md-6">
-                    <p><strong>Email:</strong> <?php echo htmlspecialchars($order['customer_email'] ?: 'N/A'); ?></p>
-                    <p><strong>Địa chỉ:</strong> <?php echo htmlspecialchars($order['customer_address'] ?: 'N/A'); ?></p>
+                    <div class="mb-3">
+                        <label>Email:</label>
+                        <input type="email" class="form-control" id="customer_email"
+                               value="<?= htmlspecialchars($order['customer_email'] ?? '') ?>"
+                               <?= !$active_call ? 'readonly' : '' ?>>
+                    </div>
+                    <div class="mb-3">
+                        <label>Địa chỉ:</label>
+                        <textarea class="form-control" id="customer_address" rows="2"
+                                  <?= !$active_call ? 'readonly' : '' ?>><?= htmlspecialchars($order['customer_address'] ?? '') ?></textarea>
+                    </div>
                 </div>
             </div>
+            <?php if ($active_call): ?>
+                <button class="btn btn-primary" onclick="updateCustomerInfo()">
+                    <i class="fas fa-save"></i> Lưu thông tin khách hàng
+                </button>
+            <?php endif; ?>
         </div>
         
-        <!-- Products -->
+        <!-- Products (Editable during call) -->
         <div class="table-card mb-3">
-            <h6 class="mb-3"><i class="fas fa-box me-2"></i>Sản phẩm</h6>
+            <h6 class="mb-3">
+                <i class="fas fa-box me-2"></i>Sản phẩm
+                <?php if ($active_call): ?>
+                    <button class="btn btn-sm btn-success float-end" onclick="addProductRow()">
+                        <i class="fas fa-plus"></i> Thêm sản phẩm
+                    </button>
+                <?php endif; ?>
+            </h6>
             <div class="table-responsive">
-                <table class="table">
+                <table class="table" id="productsTable">
                     <thead>
                         <tr>
-                            <th>SKU</th>
                             <th>Tên sản phẩm</th>
-                            <th>SL</th>
-                            <th>Đơn giá</th>
-                            <th>Thành tiền</th>
+                            <th width="100">SL</th>
+                            <th width="150">Đơn giá</th>
+                            <th width="150">Thành tiền</th>
+                            <?php if ($active_call): ?>
+                                <th width="50"></th>
+                            <?php endif; ?>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($products as $product): ?>
-                        <tr>
-                            <td><?php echo htmlspecialchars($product['sku']); ?></td>
-                            <td><?php echo htmlspecialchars($product['name'] ?? 'Unknown Product'); ?></td>
-                            <td><?php echo $product['qty']; ?></td>
-                            <td><?php echo format_money($product['sale_price']); ?></td>
-                            <td><?php echo format_money($product['line_total']); ?></td>
+                        <?php foreach ($products as $idx => $product): ?>
+                        <tr class="product-row" data-index="<?= $idx ?>">
+                            <td>
+                                <input type="text" class="form-control product-name" 
+                                       value="<?= htmlspecialchars($product['name'] ?? '') ?>"
+                                       <?= !$active_call ? 'readonly' : '' ?>>
+                            </td>
+                            <td>
+                                <input type="number" class="form-control product-qty" min="1"
+                                       value="<?= $product['qty'] ?? 1 ?>"
+                                       <?= !$active_call ? 'readonly' : '' ?>>
+                            </td>
+                            <td>
+                                <input type="number" class="form-control product-price" 
+                                       value="<?= $product['price'] ?? 0 ?>"
+                                       <?= !$active_call ? 'readonly' : '' ?>>
+                            </td>
+                            <td class="product-total">
+                                <?= format_money(($product['price'] ?? 0) * ($product['qty'] ?? 1)) ?>
+                            </td>
+                            <?php if ($active_call): ?>
+                                <td>
+                                    <button class="btn btn-sm btn-danger" onclick="removeProductRow(this)">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </td>
+                            <?php endif; ?>
                         </tr>
                         <?php endforeach; ?>
                     </tbody>
                     <tfoot>
-                        <tr>
-                            <td colspan="4" class="text-end"><strong>Tạm tính:</strong></td>
-                            <td><strong><?php echo format_money($subtotal); ?></strong></td>
-                        </tr>
                         <tr class="table-active">
-                            <td colspan="4" class="text-end"><h5>Tổng cộng:</h5></td>
-                            <td><h5 class="text-danger"><?php echo format_money($order['total_amount']); ?></h5></td>
+                            <td colspan="3" class="text-end"><h5>Tổng cộng:</h5></td>
+                            <td colspan="2">
+                                <h5 class="text-danger" id="grandTotal">
+                                    <?= format_money($order['total_amount']) ?>
+                                </h5>
+                            </td>
                         </tr>
                     </tfoot>
                 </table>
             </div>
+            <?php if ($active_call): ?>
+                <button class="btn btn-primary mt-2" onclick="updateProducts()">
+                    <i class="fas fa-save"></i> Lưu danh sách sản phẩm
+                </button>
+            <?php endif; ?>
         </div>
         
-        <!-- Notes -->
+        <!-- Call Timeline -->
         <div class="table-card">
-            <h6 class="mb-3"><i class="fas fa-comments me-2"></i>Lịch sử ghi chú</h6>
-            <?php if (!empty($notes)): ?>
-                <?php foreach ($notes as $note): ?>
-                <div class="mb-3 border-start border-3 ps-3">
+            <h6 class="mb-3">
+                <i class="fas fa-history me-2"></i>Lịch sử hoạt động
+                <span class="badge bg-secondary"><?= count($call_history) ?> cuộc gọi</span>
+            </h6>
+            <div class="timeline">
+                <?php 
+                // Merge calls and notes into timeline
+                $timeline = [];
+                
+                foreach ($call_history as $call) {
+                    $timeline[] = [
+                        'type' => 'call',
+                        'datetime' => $call['start_time'],
+                        'user' => $call['caller_name'],
+                        'content' => 'Cuộc gọi ' . ($call['duration'] ? gmdate("H:i:s", $call['duration']) : '(đang gọi)'),
+                        'note' => $call['note']
+                    ];
+                }
+                
+                foreach ($notes as $note) {
+                    $timeline[] = [
+                        'type' => $note['note_type'],
+                        'datetime' => $note['created_at'],
+                        'user' => $note['full_name'] ?? 'Hệ thống',
+                        'content' => $note['content']
+                    ];
+                }
+                
+                // Sort by datetime DESC
+                usort($timeline, function($a, $b) {
+                    return strtotime($b['datetime']) - strtotime($a['datetime']);
+                });
+                
+                foreach ($timeline as $event): 
+                ?>
+                <div class="timeline-item <?= $event['type'] ?>">
                     <div class="d-flex justify-content-between">
-                        <strong><?php echo htmlspecialchars($note['full_name'] ?? 'Hệ thống'); ?></strong>
-                        <small class="text-muted"><?php echo time_ago($note['created_at']); ?></small>
+                        <strong><?= htmlspecialchars($event['user']) ?></strong>
+                        <small class="text-muted"><?= time_ago($event['datetime']) ?></small>
                     </div>
-                    <p class="mb-0"><?php echo nl2br(htmlspecialchars($note['content'])); ?></p>
+                    <p class="mb-0"><?= nl2br(htmlspecialchars($event['content'])) ?></p>
+                    <?php if (!empty($event['note'])): ?>
+                        <div class="mt-2 p-2 bg-light rounded">
+                            <small><?= nl2br(htmlspecialchars($event['note'])) ?></small>
+                        </div>
+                    <?php endif; ?>
                 </div>
                 <?php endforeach; ?>
-            <?php else: ?>
-                <p class="text-muted">Chưa có ghi chú</p>
-            <?php endif; ?>
+            </div>
         </div>
     </div>
     
     <!-- Right Column -->
     <div class="col-lg-4">
-        <!-- Order Info -->
+        <!-- Order Stats -->
         <div class="card mb-3">
             <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-info-circle"></i> Thông tin đơn</h6>
+                <h6 class="card-title"><i class="fas fa-chart-bar"></i> Thống kê</h6>
                 <table class="table table-sm">
                     <tr>
-                        <td>Nguồn:</td>
+                        <td>Số cuộc gọi:</td>
+                        <td class="text-end"><strong><?= $order['call_count'] ?? 0 ?></strong> lần</td>
+                    </tr>
+                    <tr>
+                        <td>Tổng thời gian:</td>
                         <td class="text-end">
-                            <span class="badge bg-<?php echo $order['source'] == 'manual' ? 'warning' : 'info'; ?>">
-                                <?php echo $order['source'] == 'manual' ? 'Thủ công' : 'WooCommerce'; ?>
-                            </span>
+                            <strong>
+                                <?php
+                                $total_duration = array_sum(array_column($call_history, 'duration'));
+                                echo gmdate("H:i:s", $total_duration);
+                                ?>
+                            </strong>
                         </td>
                     </tr>
                     <tr>
-                        <td>Ngày tạo:</td>
-                        <td class="text-end"><?php echo format_date($order['created_at']); ?></td>
+                        <td>Lần gọi cuối:</td>
+                        <td class="text-end">
+                            <?= $order['last_call_at'] ? time_ago($order['last_call_at']) : 'Chưa gọi' ?>
+                        </td>
                     </tr>
                     <tr>
                         <td>Người xử lý:</td>
                         <td class="text-end">
-                            <?php echo htmlspecialchars($order['assigned_to_name'] ?? 'Chưa phân công'); ?>
+                            <?= htmlspecialchars($order['assigned_to_name'] ?? 'Chưa phân công') ?>
                         </td>
-                    </tr>
-                    <tr>
-                        <td>Số cuộc gọi:</td>
-                        <td class="text-end"><?php echo $order['call_count'] ?? 0; ?> lần</td>
                     </tr>
                 </table>
             </div>
         </div>
         
-        <!-- Status Update -->
-        <?php 
-        $can_update_status = (is_admin() && !$is_locked) || ($can_edit);
-        if ($can_update_status): 
-        ?>
-        <div class="card mb-3">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-sync"></i> Cập nhật trạng thái</h6>
-                <select class="form-select" id="statusSelect">
-                    <option value="">-- Chọn trạng thái --</option>
-                    <?php foreach ($status_options as $opt): ?>
-                    <option value="<?php echo $opt['label_key']; ?>"
-                            <?php echo $opt['label_key'] == $order['primary_label'] ? 'selected' : ''; ?>>
-                        <?php echo htmlspecialchars($opt['label_name']); ?>
-                    </option>
-                    <?php endforeach; ?>
-                </select>
-                <button class="btn btn-primary w-100 mt-2" onclick="updateStatus()">
-                    <i class="fas fa-save"></i> Lưu trạng thái
-                </button>
-            </div>
-        </div>
-        <?php endif; ?>
-        
-        <!-- Add Note -->
-        <?php if (is_admin() || $is_my_order): ?>
+        <!-- Quick Actions -->
         <div class="card">
             <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-sticky-note"></i> Ghi chú nội bộ</h6>
-                <textarea class="form-control mb-2" id="newNote" rows="3" 
-                          placeholder="Thêm ghi chú mới..."></textarea>
-                <button class="btn btn-sm btn-primary" onclick="addNote()">
-                    <i class="fas fa-plus"></i> Thêm ghi chú
-                </button>
+                <h6 class="card-title"><i class="fas fa-bolt"></i> Thao tác nhanh</h6>
+                
+                <?php if (!$is_locked && $is_my_order): ?>
+                    <!-- Status Update -->
+                    <div class="mb-3">
+                        <label>Cập nhật trạng thái:</label>
+                        <select class="form-select" id="quickStatus">
+                            <option value="">-- Chọn trạng thái --</option>
+                            <?php foreach ($status_options as $opt): ?>
+                                <?php if ($opt['core_status'] !== 'new'): ?>
+                                <option value="<?= $opt['label_key'] ?>"
+                                        data-core="<?= $opt['core_status'] ?>"
+                                        <?= $opt['label_key'] == $order['primary_label'] ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($opt['label_name']) ?>
+                                    <?= $opt['core_status'] == 'success' ? '(Hoàn thành)' : '' ?>
+                                    <?= $opt['core_status'] == 'failed' ? '(Thất bại)' : '' ?>
+                                </option>
+                                <?php endif; ?>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    
+                    <!-- Callback Schedule -->
+                    <div class="mb-3">
+                        <label>Hẹn gọi lại:</label>
+                        <input type="datetime-local" class="form-control" id="callbackTime">
+                    </div>
+                    
+                    <!-- Quick Note -->
+                    <div class="mb-3">
+                        <label>Ghi chú nhanh:</label>
+                        <textarea class="form-control" id="quickNote" rows="3"></textarea>
+                    </div>
+                    
+                    <button class="btn btn-primary w-100" onclick="quickSave()">
+                        <i class="fas fa-save"></i> Lưu nhanh
+                    </button>
+                <?php endif; ?>
             </div>
         </div>
-        <?php endif; ?>
     </div>
 </div>
 
-<!-- Assign Modal -->
-<?php if (is_admin() && $is_free): ?>
-<div class="modal fade" id="assignModal" tabindex="-1">
+<!-- End Call Modal -->
+<div class="modal fade" id="endCallModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Phân công đơn hàng</h5>
+                <h5 class="modal-title">Kết thúc cuộc gọi</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <div class="mb-3">
-                    <label>Chọn nhân viên để phân công:</label>
-                    <select class="form-select" id="assignUserId">
-                        <option value="">-- Chọn nhân viên --</option>
-                        <?php foreach ($telesales_list as $ts): ?>
-                        <option value="<?php echo $ts['id']; ?>">
-                            <?php echo htmlspecialchars($ts['full_name']); ?>
-                        </option>
+                    <label>Nội dung cuộc gọi: <span class="text-danger">*</span></label>
+                    <textarea class="form-control" id="callNote" rows="4" 
+                              placeholder="Tóm tắt nội dung trao đổi với khách..." required></textarea>
+                </div>
+                <div class="mb-3">
+                    <label>Cập nhật trạng thái:</label>
+                    <select class="form-select" id="callStatus">
+                        <option value="">-- Giữ nguyên --</option>
+                        <?php foreach ($status_options as $opt): ?>
+                            <?php if ($opt['core_status'] !== 'new'): ?>
+                            <option value="<?= $opt['label_key'] ?>">
+                                <?= htmlspecialchars($opt['label_name']) ?>
+                            </option>
+                            <?php endif; ?>
                         <?php endforeach; ?>
                     </select>
                 </div>
                 <div class="mb-3">
-                    <label>Ghi chú (tùy chọn):</label>
-                    <textarea class="form-control" id="assignNote" rows="3"></textarea>
+                    <label>Hẹn gọi lại:</label>
+                    <input type="datetime-local" class="form-control" id="callbackTimeModal">
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
-                <button type="button" class="btn btn-primary" onclick="confirmAssign()">
-                    <i class="fas fa-check"></i> Lưu phân công
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-<?php endif; ?>
-
-<!-- Transfer Modal -->
-<?php if (is_admin() && !$is_free): ?>
-<div class="modal fade" id="transferModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Chuyển giao đơn hàng</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <select class="form-select" id="transferUserId">
-                    <option value="">-- Chọn nhân viên --</option>
-                    <?php foreach ($telesales_list as $ts): ?>
-                    <?php if ($ts['id'] != $order['assigned_to']): ?>
-                    <option value="<?php echo $ts['id']; ?>">
-                        <?php echo htmlspecialchars($ts['full_name']); ?>
-                    </option>
-                    <?php endif; ?>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
-                <button type="button" class="btn btn-primary" onclick="confirmTransfer()">
-                    Chuyển giao
+                <button type="button" class="btn btn-danger" onclick="endCall()">
+                    <i class="fas fa-phone-slash"></i> Kết thúc cuộc gọi
                 </button>
             </div>
         </div>
     </div>
 </div>
-<?php endif; ?>
 
 <script>
-// Constants
-const orderId = <?php echo $order_id; ?>;
-const csrfToken = '<?php echo generate_csrf_token(); ?>';
+const orderId = <?= $order_id ?>;
+const csrfToken = '<?= generate_csrf_token() ?>';
+let callTimer = null;
 
-// Copy to clipboard
-function copyToClipboard(text) {
-    navigator.clipboard.writeText(text).then(() => {
-        showToast('Đã copy!', 'success');
-    });
-}
-
-// Claim order (for telesale)
-function claimOrder() {
-    if (!confirm('Nhận đơn hàng này?')) return;
+// Timer for active call
+<?php if ($active_call): ?>
+$(document).ready(function() {
+    const startTime = new Date('<?= $active_call['start_time'] ?>').getTime();
     
-    $.ajax({
-        url: 'api/claim-order.php',
-        method: 'POST',
-        contentType: 'application/json',
-        data: JSON.stringify({
-            csrf_token: csrfToken,
-            order_id: orderId
-        }),
-        success: function(response) {
-            if (response.success) {
-                showToast('Đã nhận đơn hàng!', 'success');
-                setTimeout(() => location.reload(), 1000);
-            } else {
-                showToast(response.message || 'Có lỗi xảy ra', 'error');
-            }
-        },
-        error: function(xhr) {
-            console.error('Error:', xhr);
-            showToast('Lỗi kết nối server', 'error');
-        }
-    });
-}
+    function updateTimer() {
+        const now = new Date().getTime();
+        const elapsed = Math.floor((now - startTime) / 1000);
+        
+        const hours = Math.floor(elapsed / 3600);
+        const minutes = Math.floor((elapsed % 3600) / 60);
+        const seconds = elapsed % 60;
+        
+        $('#callTimer').text(
+            String(hours).padStart(2, '0') + ':' +
+            String(minutes).padStart(2, '0') + ':' +
+            String(seconds).padStart(2, '0')
+        );
+    }
+    
+    updateTimer();
+    callTimer = setInterval(updateTimer, 1000);
+});
+<?php endif; ?>
 
-// Start call
+// Start Call
 function startCall() {
-    $.ajax({
-        url: 'api/start-call.php',
-        method: 'POST',
-        contentType: 'application/json',
-        data: JSON.stringify({
-            csrf_token: csrfToken,
-            order_id: orderId
-        }),
-        success: function(response) {
-            if (response.success) {
-                showToast('Đã bắt đầu cuộc gọi', 'success');
-                setTimeout(() => location.reload(), 1000);
-            } else {
-                showToast(response.message || 'Có lỗi xảy ra', 'error');
-            }
-        },
-        error: function(xhr) {
-            console.error('Error:', xhr);
-            showToast('Lỗi kết nối server', 'error');
+    $.post('api/start-call.php', {
+        csrf_token: csrfToken,
+        order_id: orderId
+    }, function(response) {
+        if (response.success) {
+            showToast('Đã bắt đầu cuộc gọi', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showToast(response.message || 'Có lỗi xảy ra', 'error');
         }
     });
 }
 
-// End call
+// Show End Call Modal
+function showEndCallModal() {
+    $('#endCallModal').modal('show');
+}
+
+// End Call
 function endCall() {
-    const note = prompt('Ghi chú cuộc gọi:');
+    const note = $('#callNote').val().trim();
+    const status = $('#callStatus').val();
+    const callback = $('#callbackTimeModal').val();
+    
     if (!note) {
-        showToast('Vui lòng nhập ghi chú', 'warning');
+        showToast('Vui lòng nhập nội dung cuộc gọi', 'warning');
         return;
     }
     
-    $.ajax({
-        url: 'api/end-call.php',
-        method: 'POST',
-        contentType: 'application/json',
-        data: JSON.stringify({
-            csrf_token: csrfToken,
-            order_id: orderId,
-            note: note
-        }),
-        success: function(response) {
-            if (response.success) {
-                showToast('Đã kết thúc cuộc gọi', 'success');
-                setTimeout(() => location.reload(), 1000);
-            } else {
-                showToast(response.message || 'Có lỗi xảy ra', 'error');
-            }
-        },
-        error: function(xhr) {
-            console.error('Error:', xhr);
-            showToast('Lỗi kết nối server', 'error');
+    $.post('api/end-call.php', {
+        csrf_token: csrfToken,
+        order_id: orderId,
+        call_note: note,
+        status: status,
+        callback_time: callback
+    }, function(response) {
+        if (response.success) {
+            $('#endCallModal').modal('hide');
+            showToast('Đã kết thúc cuộc gọi', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showToast(response.message || 'Có lỗi xảy ra', 'error');
         }
     });
 }
 
-// Add note
-function addNote() {
-    const content = $('#newNote').val().trim();
-    if (!content) {
-        showToast('Vui lòng nhập nội dung', 'warning');
-        return;
-    }
+// Update Customer Info
+function updateCustomerInfo() {
+    const data = {
+        csrf_token: csrfToken,
+        order_id: orderId,
+        update_type: 'customer',
+        customer_name: $('#customer_name').val(),
+        customer_phone: $('#customer_phone').val(),
+        customer_email: $('#customer_email').val(),
+        customer_address: $('#customer_address').val()
+    };
     
-    $.ajax({
-        url: 'api/add-note.php',
-        method: 'POST',
-        contentType: 'application/json',
-        data: JSON.stringify({
-            csrf_token: csrfToken,
-            order_id: orderId,
-            content: content
-        }),
-        success: function(response) {
-            if (response.success) {
-                showToast('Đã thêm ghi chú', 'success');
-                setTimeout(() => location.reload(), 1000);
-            } else {
-                showToast(response.message || 'Có lỗi xảy ra', 'error');
-            }
-        },
-        error: function(xhr) {
-            console.error('Error:', xhr);
-            showToast('Lỗi kết nối server', 'error');
+    $.post('api/update-during-call.php', data, function(response) {
+        if (response.success) {
+            showToast('Đã cập nhật thông tin khách hàng', 'success');
+        } else {
+            showToast(response.message || 'Có lỗi xảy ra', 'error');
         }
     });
 }
 
-// Update status
-function updateStatus() {
-    const status = $('#statusSelect').val();
-    if (!status) {
-        showToast('Vui lòng chọn trạng thái', 'warning');
-        return;
-    }
+// Product Functions
+function addProductRow() {
+    const newRow = `
+        <tr class="product-row">
+            <td><input type="text" class="form-control product-name" placeholder="Tên sản phẩm"></td>
+            <td><input type="number" class="form-control product-qty" min="1" value="1"></td>
+            <td><input type="number" class="form-control product-price" value="0"></td>
+            <td class="product-total">0 đ</td>
+            <td>
+                <button class="btn btn-sm btn-danger" onclick="removeProductRow(this)">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        </tr>
+    `;
+    $('#productsTable tbody').append(newRow);
+    updateProductTotals();
+}
+
+function removeProductRow(btn) {
+    $(btn).closest('tr').remove();
+    updateProductTotals();
+}
+
+function updateProductTotals() {
+    let grandTotal = 0;
     
-    if (!confirm('Cập nhật trạng thái?\nĐơn hàng sẽ bị khóa sau khi lưu.')) return;
+    $('.product-row').each(function() {
+        const qty = parseInt($(this).find('.product-qty').val()) || 0;
+        const price = parseInt($(this).find('.product-price').val()) || 0;
+        const total = qty * price;
+        
+        $(this).find('.product-total').text(formatMoney(total));
+        grandTotal += total;
+    });
     
-    $.ajax({
-        url: 'api/update-status.php',
-        method: 'POST',
-        contentType: 'application/json',
-        data: JSON.stringify({
-            csrf_token: csrfToken,
-            order_id: orderId,
-            status: status
-        }),
-        success: function(response) {
-            if (response.success) {
-                showToast('Đã cập nhật trạng thái', 'success');
-                setTimeout(() => location.reload(), 1500);
-            } else {
-                showToast(response.message || 'Có lỗi xảy ra', 'error');
-            }
-        },
-        error: function(xhr) {
-            console.error('Error:', xhr);
-            showToast('Lỗi kết nối server', 'error');
+    $('#grandTotal').text(formatMoney(grandTotal));
+}
+
+function updateProducts() {
+    const products = [];
+    
+    $('.product-row').each(function() {
+        const name = $(this).find('.product-name').val();
+        if (name) {
+            products.push({
+                name: name,
+                qty: parseInt($(this).find('.product-qty').val()) || 1,
+                price: parseInt($(this).find('.product-price').val()) || 0
+            });
+        }
+    });
+    
+    $.post('api/update-during-call.php', {
+        csrf_token: csrfToken,
+        order_id: orderId,
+        update_type: 'products',
+        products: products
+    }, function(response) {
+        if (response.success) {
+            showToast('Đã cập nhật sản phẩm', 'success');
+        } else {
+            showToast(response.message || 'Có lỗi xảy ra', 'error');
         }
     });
 }
 
-// Assign order (admin)
-function confirmAssign() {
-    const userId = $('#assignUserId').val();
-    const note = $('#assignNote').val();
-    
-    if (!userId) {
-        showToast('Vui lòng chọn nhân viên', 'error');
-        return;
-    }
-    
-    $.ajax({
-        url: 'api/assign-order.php',
-        method: 'POST',
-        contentType: 'application/json',
-        data: JSON.stringify({
-            csrf_token: csrfToken,
-            order_id: orderId,
-            user_id: userId,
-            note: note
-        }),
-        success: function(response) {
-            if (response.success) {
-                $('#assignModal').modal('hide');
-                showToast('Đã phân công thành công!', 'success');
-                setTimeout(() => location.reload(), 1500);
-            } else {
-                showToast(response.message || 'Có lỗi xảy ra', 'error');
-            }
-        },
-        error: function(xhr) {
-            console.error('Error:', xhr);
-            showToast('Lỗi kết nối server', 'error');
-        }
-    });
+// Calculate on change
+$(document).on('input', '.product-qty, .product-price', function() {
+    updateProductTotals();
+});
+
+// Helper functions
+function formatMoney(amount) {
+    return new Intl.NumberFormat('vi-VN', {
+        style: 'currency',
+        currency: 'VND'
+    }).format(amount);
 }
 
-// Transfer order (admin)
-function confirmTransfer() {
-    const targetId = $('#transferUserId').val();
-    if (!targetId) {
-        showToast('Vui lòng chọn nhân viên', 'error');
-        return;
-    }
-    
-    $.ajax({
-        url: 'api/transfer-order.php',
-        method: 'POST',
-        contentType: 'application/json',
-        data: JSON.stringify({
-            csrf_token: csrfToken,
-            order_id: orderId,
-            target_user_id: targetId
-        }),
-        success: function(response) {
-            if (response.success) {
-                $('#transferModal').modal('hide');
-                showToast('Đã chuyển giao', 'success');
-                setTimeout(() => location.reload(), 1500);
-            } else {
-                showToast(response.message || 'Có lỗi xảy ra', 'error');
-            }
-        },
-        error: function(xhr) {
-            console.error('Error:', xhr);
-            showToast('Lỗi kết nối server', 'error');
-        }
-    });
-}
-
-// Reclaim order (admin)
-function reclaimOrder() {
-    if (!confirm('Thu hồi đơn hàng về kho chung?')) return;
-    
-    $.ajax({
-        url: 'api/reclaim-order.php',
-        method: 'POST',
-        contentType: 'application/json',
-        data: JSON.stringify({
-            csrf_token: csrfToken,
-            order_id: orderId
-        }),
-        success: function(response) {
-            if (response.success) {
-                showToast('Đã thu hồi đơn', 'success');
-                setTimeout(() => location.reload(), 1500);
-            } else {
-                showToast(response.message || 'Có lỗi xảy ra', 'error');
-            }
-        },
-        error: function(xhr) {
-            console.error('Error:', xhr);
-            showToast('Lỗi kết nối server', 'error');
-        }
-    });
-}
-
-// Toast function
 function showToast(message, type = 'info') {
-    // Simple alert for now
-    if (type === 'error') {
-        alert('❌ ' + message);
-    } else if (type === 'success') {
-        alert('✅ ' + message);
-    } else {
-        alert('ℹ️ ' + message);
-    }
+    // You can use a toast library here
+    alert(message);
 }
 </script>
 

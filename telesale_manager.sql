@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Máy chủ: 127.0.0.1
--- Thời gian đã tạo: Th10 01, 2025 lúc 08:02 PM
+-- Thời gian đã tạo: Th10 01, 2025 lúc 09:27 PM
 -- Phiên bản máy phục vụ: 10.4.32-MariaDB
 -- Phiên bản PHP: 8.0.30
 
@@ -336,8 +336,7 @@ INSERT INTO `orders` (`id`, `woo_order_id`, `order_number`, `customer_name`, `cu
 CREATE TABLE `order_labels` (
   `label_key` varchar(50) NOT NULL,
   `label_name` varchar(100) NOT NULL,
-  `label_value` tinyint(1) NOT NULL DEFAULT 0 COMMENT '0=không tính doanh thu, 1=hoàn thành (tính doanh thu)',
-  `core_status` enum('new','processing','success','failed') NOT NULL DEFAULT 'processing' COMMENT 'Nhãn này thuộc core status nào - BẮT BUỘC PHẢI CHỌN',
+  `core_status` enum('new','processing','success','failed') NOT NULL DEFAULT 'processing' COMMENT 'Nhãn thuộc nhóm nào (do Admin setup). Khi = success -> TỰ ĐỘNG KHÓA ĐƠN',
   `description` text DEFAULT NULL,
   `color` varchar(20) NOT NULL DEFAULT '#6c757d',
   `icon` varchar(50) NOT NULL DEFAULT 'fa-tag',
@@ -349,19 +348,19 @@ CREATE TABLE `order_labels` (
   `created_by` int(10) UNSIGNED DEFAULT NULL,
   `created_at` datetime DEFAULT current_timestamp(),
   `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Nhãn đơn hàng - Mỗi nhãn PHẢI thuộc 1 core_status. HỆ THỐNG KHÔNG TỰ QUYẾT ĐỊNH, chỉ lưu theo user chọn';
 
 --
 -- Đang đổ dữ liệu cho bảng `order_labels`
 --
 
-INSERT INTO `order_labels` (`label_key`, `label_name`, `label_value`, `core_status`, `description`, `color`, `icon`, `sort_order`, `is_system`, `is_default`, `auto_lock`, `metadata`, `created_by`, `created_at`, `updated_at`) VALUES
-('lbl_callback', 'Hẹn gọi lại', 0, 'processing', 'Khách yêu cầu gọi lại sau', '#FFC107', 'fa-phone-alt', 5, 0, 0, 0, NULL, NULL, '2025-10-01 21:29:24', '2025-10-01 21:29:24'),
-('lbl_cancelled', 'Thất bại', 0, 'failed', NULL, '#dc3545', 'fa-times-circle', 9998, 1, 1, 0, NULL, NULL, '2025-10-02 00:23:59', '2025-10-02 00:23:59'),
-('lbl_completed', 'Hoàn thành', 1, 'success', NULL, '#28a745', 'fa-check-circle', 9999, 1, 1, 0, NULL, NULL, '2025-10-02 00:23:59', '2025-10-02 00:23:59'),
-('lbl_confirmed', 'Đã xác nhận', 0, 'processing', NULL, '#28a745', 'fa-check', 2, 0, 0, 0, NULL, NULL, '2025-10-01 22:38:43', '2025-10-01 22:38:43'),
-('lbl_new_order', 'Đơn mới', 0, 'new', NULL, '#17a2b8', 'fa-plus-circle', -1000, 1, 1, 0, NULL, NULL, '2025-10-02 00:23:59', '2025-10-02 00:23:59'),
-('lbl_processing', 'Đang xử lý', 0, 'processing', NULL, '#ffc107', 'fa-spinner', 0, 1, 1, 0, NULL, NULL, '2025-10-02 00:23:59', '2025-10-02 00:23:59');
+INSERT INTO `order_labels` (`label_key`, `label_name`, `core_status`, `description`, `color`, `icon`, `sort_order`, `is_system`, `is_default`, `auto_lock`, `metadata`, `created_by`, `created_at`, `updated_at`) VALUES
+('lbl_callback', 'Hẹn gọi lại', 'processing', 'Khách yêu cầu gọi lại sau', '#FFC107', 'fa-phone-alt', 5, 0, 0, 0, NULL, NULL, '2025-10-01 21:29:24', '2025-10-01 21:29:24'),
+('lbl_cancelled', 'Thất bại', 'failed', NULL, '#dc3545', 'fa-times-circle', 9998, 0, 0, 0, NULL, NULL, '2025-10-02 00:23:59', '2025-10-02 02:02:59'),
+('lbl_completed', 'Hoàn thành', 'success', NULL, '#28a745', 'fa-check-circle', 9999, 0, 0, 0, NULL, NULL, '2025-10-02 00:23:59', '2025-10-02 02:02:59'),
+('lbl_confirmed', 'Đã xác nhận', 'processing', NULL, '#28a745', 'fa-check', 2, 0, 0, 0, NULL, NULL, '2025-10-01 22:38:43', '2025-10-01 22:38:43'),
+('lbl_new_order', 'Đơn mới', 'new', 'Đơn mới vào hệ thống - HỆ THỐNG TỰ GÁN', '#17a2b8', 'fa-plus-circle', -1000, 1, 1, 0, NULL, NULL, '2025-10-02 00:23:59', '2025-10-02 02:02:58'),
+('lbl_processing', 'Đang xử lý', 'processing', 'Lần đầu nhân viên nhận đơn - HỆ THỐNG TỰ GÁN', '#ffc107', 'fa-spinner', 0, 1, 1, 0, NULL, NULL, '2025-10-02 00:23:59', '2025-10-02 02:02:59');
 
 -- --------------------------------------------------------
 
