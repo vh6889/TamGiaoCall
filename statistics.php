@@ -54,11 +54,11 @@ $sql_telesale_perf = "SELECT
                         u.id,
                         u.full_name,
                         COUNT(o.id) as assigned_orders,
-                        COUNT(CASE WHEN o.status = 'giao-thanh-cong' THEN 1 END) as confirmed,
-                        COUNT(CASE WHEN o.status = 'rejected' THEN 1 END) as rejected,
-                        COUNT(CASE WHEN o.status = 'no_answer' THEN 1 END) as no_answer,
+                        COUNT(CASE WHEN o.primary_label = 'giao-thanh-cong' THEN 1 END) as confirmed,
+                        COUNT(CASE WHEN o.primary_label = 'rejected' THEN 1 END) as rejected,
+                        COUNT(CASE WHEN o.primary_label = 'no_answer' THEN 1 END) as no_answer,
                         SUM(o.call_count) as total_calls,
-                        ROUND(COUNT(CASE WHEN o.status = 'giao-thanh-cong' THEN 1 END) * 100.0 / NULLIF(COUNT(o.id), 0), 2) as success_rate
+                        ROUND(COUNT(CASE WHEN o.primary_label = 'giao-thanh-cong' THEN 1 END) * 100.0 / NULLIF(COUNT(o.id), 0), 2) as success_rate
                       FROM users u
                       LEFT JOIN orders o ON u.id = o.assigned_to AND DATE(o.created_at) BETWEEN ? AND ?
                       WHERE u.role = 'telesale' AND u.status = 'active'

@@ -93,7 +93,7 @@ try {
         
         // Cancel pending reminders
         db_update('reminders', 
-            ['status' => 'cancelled', 'completed_at' => date('Y-m-d H:i:s')],
+            ['primary_label' => 'cancelled', 'completed_at' => date('Y-m-d H:i:s')],
             'order_id = ? AND status = ?',
             [$order_id, 'pending']
         );

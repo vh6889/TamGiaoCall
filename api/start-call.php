@@ -80,12 +80,12 @@ try {
         'user_id' => $user['id'],
         'user_name' => $user['full_name'],
         'start_time' => date('Y-m-d H:i:s'),
-        'status' => 'active'
+        'primary_label' => 'active'
     ]);
     
     // Update order status
     db_update('orders', [
-        'status' => $calling_status,
+        'primary_label' => $calling_status,
         'last_call_at' => date('Y-m-d H:i:s')
     ], 'id = ?', [$order_id]);
     

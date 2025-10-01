@@ -64,7 +64,7 @@ try {
     db_update('call_logs', [
         'end_time' => date('Y-m-d H:i:s'),
         'note' => sanitize($notes),
-        'status' => 'completed'
+        'primary_label' => 'completed'
     ], 'id = ?', [$call['id']]);
     
     $new_call_count = intval($order['call_count'] ?? 0) + 1;

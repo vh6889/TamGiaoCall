@@ -137,7 +137,7 @@ function create_auto_reminders($order_id, $order_status, $user_id) {
                 'type' => 'callback',
                 'message' => 'Nho goi lai cho khach hang',
                 'due_time' => date('Y-m-d H:i:s', strtotime('+2 hours')),
-                'status' => 'pending'
+                'primary_label' => 'pending'
             ]);
         }
     }
@@ -157,7 +157,7 @@ function create_auto_reminders($order_id, $order_status, $user_id) {
                 'type' => 'follow_up',
                 'message' => 'Da goi nhieu lan khong duoc, can thay doi thoi gian goi',
                 'due_time' => date('Y-m-d H:i:s', strtotime('+1 day')),
-                'status' => 'pending'
+                'primary_label' => 'pending'
             ]);
         }
     }
@@ -176,7 +176,7 @@ function complete_order_reminders($order_id, $new_status) {
     // Complete reminders when order is finalized
     if (in_array($new_status, $final_statuses)) {
         db_update('reminders', 
-            ['status' => 'completed', 'completed_at' => date('Y-m-d H:i:s')],
+            ['primary_label' => 'completed', 'completed_at' => date('Y-m-d H:i:s')],
             'order_id = ? AND status = ?',
             [$order_id, 'pending']
         );

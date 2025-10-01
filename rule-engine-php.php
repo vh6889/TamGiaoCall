@@ -187,7 +187,7 @@ class RuleEngine {
                     COUNT(DISTINCT o.id) as current_active_orders
              FROM users u
              LEFT JOIN employee_performance ep ON u.id = ep.user_id
-             LEFT JOIN orders o ON o.assigned_to = u.id AND o.status NOT IN ('completed', 'cancelled')
+             LEFT JOIN orders o ON o.assigned_to = u.id AND o.primary_label NOT IN ('completed', 'cancelled')
              WHERE u.id = ?
              GROUP BY u.id",
             [$userId]
@@ -328,7 +328,7 @@ class RuleEngine {
             if (!isset($this->actionHandlers[$type])) {
                 $results[] = [
                     'action' => $type,
-                    'status' => 'failed',
+                    'primary_label' => 'failed',
                     'error' => "Unknown action type: $type"
                 ];
                 continue;
@@ -338,13 +338,13 @@ class RuleEngine {
                 $result = call_user_func($this->actionHandlers[$type], $params, $context);
                 $results[] = [
                     'action' => $type,
-                    'status' => 'success',
+                    'primary_label' => 'success',
                     'result' => $result
                 ];
             } catch (Exception $e) {
                 $results[] = [
                     'action' => $type,
-                    'status' => 'failed',
+                    'primary_label' => 'failed',
                     'error' => $e->getMessage()
                 ];
             }
@@ -363,7 +363,7 @@ class RuleEngine {
         $newStatus = $params['status'];
         
         $this->db->query(
-            "UPDATE orders SET status = ?, updated_at = NOW() WHERE id = ?",
+            "UPDATE orders SET primary_label = ?, updated_at = NOW() WHERE id = ?",
             [$newStatus, $orderId]
         );
         
@@ -388,7 +388,7 @@ class RuleEngine {
         $user = $this->db->query(
             "SELECT id FROM users 
              WHERE role = ? AND status = 'active' 
-             ORDER BY (SELECT COUNT(*) FROM orders WHERE assigned_to = users.id AND status NOT IN ('completed', 'cancelled')) ASC
+             ORDER BY (SELECT COUNT(*) FROM orders WHERE assigned_to = users.id AND primary_label NOT IN ('completed', 'cancelled')) ASC
              LIMIT 1",
             [$role]
         )->fetch();
@@ -455,8 +455,8 @@ class RuleEngine {
         // Reassign active orders
         $this->db->query(
             "UPDATE orders 
-             SET assigned_to = NULL, status = " . get_new_status_key() . "
-             WHERE assigned_to = ? AND status NOT IN ('completed', 'cancelled')",
+             SET assigned_to = NULL, primary_label = " . get_new_status_key() . "
+             WHERE assigned_to = ? AND primary_label NOT IN ('completed', 'cancelled')",
             [$userId]
         );
         
@@ -840,7 +840,7 @@ $ruleId = $manager->createRule([
         ]
     ],
     'actions' => [
-        ['type' => 'change_order_status', 'params' => ['status' => 'trash']],
+        ['type' => 'change_order_status', 'params' => ['primary_label' => 'trash']],
         ['type' => 'add_customer_label', 'params' => ['label_key' => 'khach-khong-nghe']]
     ]
 ]);

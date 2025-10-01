@@ -61,7 +61,7 @@ try {
     db_update('orders', [
         'assigned_to' => NULL,
         'assigned_at' => NULL,
-        'status' => get_free_status_key()
+        'system_status' => get_free_status_key()
     ], 'id = ?', [$order_id]);
     
     // Add system note
@@ -75,7 +75,7 @@ try {
     
     // Cancel any pending reminders for this order
     db_update('reminders', 
-        ['status' => 'cancelled', 'completed_at' => date('Y-m-d H:i:s')],
+        ['primary_label' => 'cancelled', 'completed_at' => date('Y-m-d H:i:s')],
         'order_id = ? AND status = ?',
         [$order_id, 'pending']
     );

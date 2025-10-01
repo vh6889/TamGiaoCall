@@ -40,7 +40,7 @@ $order = require_order_access($order_id, false);
     try {
         // Update status to shipping
         db_update('orders', [
-            'status' => 'shipping',
+            'primary_label' => 'shipping',
             'shipped_at' => date('Y-m-d H:i:s')
         ], 'id = ?', [$order_id]);
         

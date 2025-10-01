@@ -97,7 +97,7 @@ try {
     }
 
     // Vô hiệu hóa tài khoản
-    db_update('users', ['status' => 'inactive'], 'id = ?', [$user_id_to_disable]);
+    db_update('users', ['primary_label' => 'inactive'], 'id = ?', [$user_id_to_disable]);
     log_activity('disable_user', 'Disabled user #' . $user_id_to_disable);
 
     commit_transaction();

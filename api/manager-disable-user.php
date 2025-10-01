@@ -97,7 +97,7 @@ try {
         }
         
         // Disable user
-        db_update('users', ['status' => 'inactive'], 'id = ?', [$user_id]);
+        db_update('users', ['primary_label' => 'inactive'], 'id = ?', [$user_id]);
         
         log_activity('disable_user', "User {$target_user['username']} disabled by {$current_user['role']} {$current_user['username']}", 'user', $user_id);
         
@@ -105,7 +105,7 @@ try {
         
     } else if ($action === 'enable' && is_admin()) {
         // Only admin can enable
-        db_update('users', ['status' => 'active'], 'id = ?', [$user_id]);
+        db_update('users', ['primary_label' => 'active'], 'id = ?', [$user_id]);
         
         log_activity('enable_user', "User {$target_user['username']} enabled by admin", 'user', $user_id);
         

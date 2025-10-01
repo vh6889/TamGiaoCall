@@ -120,7 +120,7 @@ $is_system_page_active = in_array($current_page, $system_pages);
                         <i class="fas fa-user-check nav-icon"></i> Duyệt đơn
                         <?php
                         // Đếm số đơn chờ duyệt và hiển thị badge nếu có
-                        $pending_count = count_orders(['status' => 'pending_approval']);
+                        $pending_count = count_orders(['primary_label' => 'pending_approval']);
                         if ($pending_count > 0) echo "<span class='badge bg-danger ms-auto'>{$pending_count}</span>";
                         ?>
                     </a>

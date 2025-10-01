@@ -566,14 +566,14 @@ function insert_reminder($order_id, $user_id, $type, $due_time, $remind_time = n
         'type' => $type,
         'due_time' => $due_time,
         'remind_time' => $remind_time,
-        'status' => 'pending'
+        'primary_label' => 'pending'
     ]);
     log_activity('insert_reminder', "Inserted reminder for order #$order_id (type: $type)", 'order', $order_id);
 }
 
 function cancel_pending_reminders($order_id) {
     db_update('reminders', 
-        ['status' => 'cancelled'], 
+        ['primary_label' => 'cancelled'], 
         'order_id = ? AND status = ?', 
         [$order_id, 'pending']
     );
