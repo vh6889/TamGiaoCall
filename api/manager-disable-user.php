@@ -68,7 +68,7 @@ try {
         // Handle handover for pending orders
         $pending_orders = db_get_results(
             "SELECT id FROM orders 
-             WHERE assigned_to = ? AND status NOT IN (SELECT label_key AS status_key, FROM order_labels WHERE label LIKE '%mới%' OR label LIKE '%hoàn%' OR label LIKE '%hủy%')",
+             WHERE assigned_to = ? AND status NOT IN (SELECT label_key FROM order_labels WHERE label_name LIKE '%mới%' OR label LIKE '%hoàn%' OR label LIKE '%hủy%')",
             [$user_id]
         );
         

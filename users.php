@@ -18,7 +18,7 @@ if (is_manager()) {
         SELECT u.*, COUNT(o.id) as pending_orders
         FROM users u
         INNER JOIN manager_assignments ma ON u.id = ma.telesale_id
-        LEFT JOIN orders o ON u.id = o.assigned_to AND o.status NOT IN (SELECT label_key AS status_key, FROM order_labels WHERE label LIKE '%mới%' OR label LIKE '%hoàn%' OR label LIKE '%hủy%')
+        LEFT JOIN orders o ON u.id = o.assigned_to AND o.status NOT IN (SELECT label_key FROM order_labels WHERE label_name LIKE '%mới%' OR label LIKE '%hoàn%' OR label LIKE '%hủy%')
         WHERE ma.manager_id = ?
         GROUP BY u.id
         ORDER BY u.created_at DESC",
@@ -29,7 +29,7 @@ if (is_manager()) {
     $users = db_get_results("
         SELECT u.*, COUNT(o.id) as pending_orders
         FROM users u
-        LEFT JOIN orders o ON u.id = o.assigned_to AND o.status NOT IN (SELECT label_key AS status_key, FROM order_labels WHERE label LIKE '%mới%' OR label LIKE '%hoàn%' OR label LIKE '%hủy%')
+        LEFT JOIN orders o ON u.id = o.assigned_to AND o.status NOT IN (SELECT label_key FROM order_labels WHERE label_name LIKE '%mới%' OR label LIKE '%hoàn%' OR label LIKE '%hủy%')
         GROUP BY u.id
         ORDER BY u.created_at DESC
     ");

@@ -1,12 +1,16 @@
 <?php
 /**
- * Status Helper - System Status Management
- * Chỉ có 2 status hệ thống cố định: free và assigned
+ * Status Helper - UPDATED FOR NEW LABEL LOGIC
+ * Hệ thống MỚI: system_status (free/assigned) + primary_label (dynamic)
  */
 
 if (!defined('TSM_ACCESS')) {
     die('Direct access not allowed');
 }
+
+// =============================================
+// SYSTEM STATUS FUNCTIONS (HARDCODED)
+// =============================================
 
 /**
  * Get system status: FREE (chưa gán)
@@ -29,62 +33,102 @@ function is_system_status($status_key) {
     return in_array($status_key, ['free', 'assigned']);
 }
 
-/**
- * Get all user-defined statuses (excluding system statuses)
- */
-function get_user_statuses() {
-    return db_get_results(
-        "SELECT label_key AS status_key, label_key AS value, label_name AS label, label_name AS text, color, icon 
-         FROM order_labels 
-         WHERE is_system = 0 
-         ORDER BY sort_order ASC"
-    );
-}
+// =============================================
+// LABEL FUNCTIONS (DYNAMIC FROM DATABASE)
+// =============================================
 
 /**
- * Get all statuses including system
+ * Lấy tất cả nhãn (backward compatible với tên cũ)
  */
 function get_all_statuses() {
-    return db_get_results("SELECT label_key AS status_key, label_name AS label, color, icon FROM order_labels ORDER BY sort_order");
+    return db_get_results("
+        SELECT label_key AS status_key, 
+               label_key AS value,
+               label_name AS label, 
+               label_name AS text,
+               color, icon, sort_order, is_system, is_final
+        FROM order_labels 
+        WHERE is_system = 0
+        ORDER BY sort_order ASC
+    ");
 }
 
 /**
- * Get status options for select dropdown (excluding system statuses)
+ * Get user-defined labels only (excluding system)
+ */
+function get_user_statuses() {
+    return get_all_statuses();
+}
+
+/**
+ * Get status options for select dropdown
  */
 function get_status_options_with_labels() {
-    return db_get_results(
-        "SELECT label_key AS status_key, label FROM order_labels 
-         WHERE is_system = 0 
-         ORDER BY sort_order ASC"
-    );
+    return db_get_results("
+        SELECT label_key AS status_key, 
+               label_key AS value,
+               label_name AS label,
+               label_name AS text,
+               color, icon
+        FROM order_labels 
+        WHERE is_system = 0 
+        ORDER BY sort_order ASC
+    ");
 }
 
 /**
- * Get confirmed statuses (for statistics)
+ * Lấy thông tin 1 nhãn (backward compatible)
  */
-function get_confirmed_statuses() {
-    $statuses = db_get_col(
-        "SELECT label_key AS status_key, FROM order_labels 
-         WHERE is_system = 0 
-         AND (label LIKE '%thành công%' OR label LIKE '%hoàn thành%' OR label LIKE '%completed%')"
-    );
-    return $statuses ?: [];
+function get_status_info($status_key) {
+    $label = db_get_row("
+        SELECT label_key AS status_key, 
+               label_name AS label, 
+               color, icon, is_final
+        FROM order_labels 
+        WHERE label_key = ?
+    ", [$status_key]);
+    
+    if ($label) {
+        return $label;
+    }
+    
+    // Fallback for system statuses
+    if ($status_key === 'free') {
+        return [
+            'status_key' => 'free',
+            'label' => '[HỆ THỐNG] Chưa gán',
+            'color' => '#6c757d',
+            'icon' => 'fa-inbox',
+            'is_final' => 0
+        ];
+    }
+    
+    if ($status_key === 'assigned') {
+        return [
+            'status_key' => 'assigned',
+            'label' => '[HỆ THỐNG] Đã gán',
+            'color' => '#17a2b8',
+            'icon' => 'fa-user-check',
+            'is_final' => 0
+        ];
+    }
+    
+    // Default fallback
+    return [
+        'status_key' => $status_key,
+        'label' => $status_key,
+        'color' => '#6c757d',
+        'icon' => 'fa-tag',
+        'is_final' => 0
+    ];
 }
 
-/**
- * Get cancelled statuses (for statistics)
- */
-function get_cancelled_statuses() {
-    $statuses = db_get_col(
-        "SELECT label_key AS status_key, FROM order_labels 
-         WHERE is_system = 0 
-         AND (label LIKE '%hủy%' OR label LIKE '%cancelled%' OR label LIKE '%bom%')"
-    );
-    return $statuses ?: [];
-}
+// =============================================
+// VALIDATION FUNCTIONS
+// =============================================
 
 /**
- * Check if status exists in database
+ * Check if label exists in database
  */
 function is_valid_status($status_key) {
     return (bool)db_get_var(
@@ -98,8 +142,9 @@ function is_valid_status($status_key) {
  * System statuses cannot be manually set by user
  */
 function validate_status_change($new_status) {
+    // Không cho phép user chọn status hệ thống
     if (is_system_status($new_status)) {
-        return false; // Không cho phép user chọn status hệ thống
+        return false;
     }
     
     return is_valid_status($new_status);
@@ -115,48 +160,125 @@ function validate_status_transition($current_status, $new_status) {
         return false;
     }
     
-    // Cannot change from locked/final statuses
-    $final_statuses = array_merge(
-        get_confirmed_statuses(),
-        get_cancelled_statuses()
-    );
+    // Kiểm tra đơn có bị lock không (check ở ngoài hàm này)
+    // Ở đây chỉ validate logic transition
     
-    if (in_array($current_status, $final_statuses)) {
-        return false;
-    }
+    return validate_status_change($new_status);
+}
+
+// =============================================
+// STATISTICS FUNCTIONS
+// =============================================
+
+/**
+ * Get confirmed statuses (for statistics)
+ */
+function get_confirmed_statuses() {
+    $statuses = db_get_col("
+        SELECT label_key 
+        FROM order_labels 
+        WHERE is_system = 0 
+          AND (label_name LIKE '%thành công%' 
+               OR label_name LIKE '%hoàn thành%' 
+               OR label_name LIKE '%completed%'
+               OR label_name LIKE '%giao thành công%')
+    ");
     
-    return true;
+    return $statuses ?: [];
 }
 
 /**
- * Get status badge HTML
+ * Get cancelled statuses (for statistics)
+ */
+function get_cancelled_statuses() {
+    $statuses = db_get_col("
+        SELECT label_key 
+        FROM order_labels 
+        WHERE is_system = 0 
+          AND (label_name LIKE '%hủy%' 
+               OR label_name LIKE '%cancelled%' 
+               OR label_name LIKE '%bom%'
+               OR label_name LIKE '%từ chối%')
+    ");
+    
+    return $statuses ?: [];
+}
+
+/**
+ * Get "new" status key for reclaimed orders
+ */
+function get_new_status_key() {
+    $status = db_get_var("
+        SELECT label_key 
+        FROM order_labels 
+        WHERE label_name LIKE '%mới%' 
+          OR label_name LIKE '%new%'
+        ORDER BY sort_order 
+        LIMIT 1
+    ");
+    
+    return $status ?: 'n-a'; // Fallback
+}
+
+// =============================================
+// DISPLAY FUNCTIONS
+// =============================================
+
+/**
+ * Get status badge HTML (backward compatible)
  */
 function get_status_badge($status_key) {
-    $status = db_get_row(
-        "SELECT label, color, icon FROM order_labels WHERE label_key = ?",
-        [$status_key]
-    );
+    $info = get_status_info($status_key);
     
-    if (!$status) {
-        return '<span class="badge bg-secondary">N/A</span>';
+    return format_status_badge(
+        $status_key, 
+        $info['label'], 
+        $info['color'], 
+        $info['icon']
+    );
+}
+
+/**
+ * Format status badge with custom parameters
+ */
+function format_status_badge($status_key, $label = null, $color = null, $icon = null) {
+    if (!$label) {
+        $info = get_status_info($status_key);
+        $label = $info['label'];
+        $color = $info['color'];
+        $icon = $info['icon'];
     }
     
     return sprintf(
-        '<span class="badge" style="background-color: %s"><i class="fas %s"></i> %s</span>',
-        htmlspecialchars($status['color']),
-        htmlspecialchars($status['icon']),
-        htmlspecialchars($status['label'])
+        '<span class="badge" style="background-color: %s; color: #fff; text-shadow: 1px 1px 1px rgba(0,0,0,0.3);">
+            <i class="fas %s me-1"></i> %s
+        </span>',
+        htmlspecialchars($color),
+        htmlspecialchars($icon),
+        htmlspecialchars($label)
     );
 }
 
 /**
- * Get status color for badge/display
+ * Get status color
  */
 function get_status_color($status_key) {
-    $color = db_get_var(
-        "SELECT color FROM order_labels WHERE label_key = ?",
-        [$status_key]
-    );
-    
-    return $color ?: '#6c757d'; // Default gray
+    $info = get_status_info($status_key);
+    return $info['color'];
+}
+
+/**
+ * Get status icon
+ */
+function get_status_icon($status_key) {
+    $info = get_status_info($status_key);
+    return $info['icon'];
+}
+
+/**
+ * Get status label text
+ */
+function get_status_label($status_key) {
+    $info = get_status_info($status_key);
+    return $info['label'];
 }

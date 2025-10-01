@@ -25,18 +25,11 @@ if (!is_admin()) {
 check_rate_limit('disable-user', get_logged_user()['id']);
 
 $input = get_json_input(["user_id"]);
-$user_id = (int)$input['user_id'];
-
-if (!is_logged_in() || !is_admin()) {
-    json_error('Unauthorized', 403);
-}
-
-$input = json_decode(file_get_contents('php://input'), true);
-$current_user = get_logged_user();
-
-$user_id_to_disable = (int)($input['user_id'] ?? 0);
+$user_id_to_disable = (int)$input['user_id'];
 $handover_option = $input['handover_option'] ?? 'reclaim'; // 'reclaim' or 'transfer'
 $target_user_id = (int)($input['target_user_id'] ?? 0);
+
+$current_user = get_logged_user();
 
 if (!$user_id_to_disable) {
     json_error('User ID không hợp lệ.');
@@ -51,13 +44,25 @@ if ($handover_option === 'transfer' && !$target_user_id) {
 }
 
 try {
-    $pdo = get_db_connection();
-    $pdo->beginTransaction();
+    begin_transaction();
 
-    // Lấy danh sách các đơn hàng đang dang dở của nhân viên
+    // LỖI CŨ: Query có lỗi SQL syntax
+    // SỬA THÀNH: Lấy đơn hàng chưa hoàn thành
+    $final_labels = array_merge(
+        get_confirmed_statuses(), 
+        get_cancelled_statuses()
+    );
+    
+    $placeholders_labels = implode(',', array_fill(0, count($final_labels), '?'));
+    
     $pending_orders = db_get_results(
-        "SELECT id, order_number FROM orders WHERE assigned_to = ? AND status NOT IN (SELECT label_key AS status_key, FROM order_labels WHERE label LIKE '%mới%' OR label LIKE '%hoàn%' OR label LIKE '%hủy%')",
-        [$user_id_to_disable]
+        "SELECT id, order_number 
+         FROM orders 
+         WHERE assigned_to = ? 
+           AND system_status = 'assigned'
+           AND is_locked = 0
+           AND primary_label NOT IN ($placeholders_labels)",
+        array_merge([$user_id_to_disable], $final_labels)
     );
 
     if (!empty($pending_orders)) {
@@ -65,12 +70,28 @@ try {
         $placeholders = implode(',', array_fill(0, count($order_ids), '?'));
 
         if ($handover_option === 'reclaim') {
-            // Trả về kho đơn mới
-            db_query("UPDATE orders SET assigned_to = NULL, status = " . get_new_status_key() . " WHERE id IN ($placeholders)", $order_ids);
+            // Trả về kho (release orders)
+            $new_label = get_new_status_key();
+            db_query(
+                "UPDATE orders 
+                 SET assigned_to = NULL, 
+                     system_status = 'free',
+                     primary_label = ?,
+                     assigned_at = NULL
+                 WHERE id IN ($placeholders)", 
+                array_merge([$new_label], $order_ids)
+            );
             log_activity('handover_reclaim', 'Reclaimed ' . count($order_ids) . ' orders from user #' . $user_id_to_disable);
+            
         } elseif ($handover_option === 'transfer') {
             // Bàn giao cho nhân viên khác
-            db_query("UPDATE orders SET assigned_to = ? WHERE id IN ($placeholders)", array_merge([$target_user_id], $order_ids));
+            db_query(
+                "UPDATE orders 
+                 SET assigned_to = ?,
+                     assigned_at = NOW()
+                 WHERE id IN ($placeholders)", 
+                array_merge([$target_user_id], $order_ids)
+            );
             log_activity('handover_transfer', 'Transferred ' . count($order_ids) . ' orders from user #' . $user_id_to_disable . ' to user #' . $target_user_id);
         }
     }
@@ -79,15 +100,12 @@ try {
     db_update('users', ['status' => 'inactive'], 'id = ?', [$user_id_to_disable]);
     log_activity('disable_user', 'Disabled user #' . $user_id_to_disable);
 
-    $pdo->commit();
+    commit_transaction();
+    
     json_success('Đã vô hiệu hóa tài khoản và bàn giao công việc thành công.');
-    $pdo->commit();
+    
 } catch (Exception $e) {
-    $pdo->rollBack();
+    rollback_transaction();
+    error_log('[DISABLE_USER] Error: ' . $e->getMessage());
     json_error('Error: ' . $e->getMessage(), 500);
-}
-
-} catch (Exception $e) {
-    $pdo->rollBack();
-    json_error('Có lỗi xảy ra: ' . $e->getMessage(), 500);
 }

@@ -7,7 +7,7 @@ $engine = new RuleEngine($db);
 // Run time-based rules cho orders
 $orders = $db->query("
     SELECT id FROM orders 
-    WHERE status NOT IN (SELECT label_key AS status_key, FROM order_labels WHERE label LIKE '%hoàn%' OR label LIKE '%hủy%')
+    WHERE status NOT IN (SELECT label_key FROM order_labels WHERE label_name LIKE '%hoàn%' OR label LIKE '%hủy%')
 ")->fetchAll();
 
 foreach ($orders as $order) {

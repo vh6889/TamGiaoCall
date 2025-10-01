@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Máy chủ: 127.0.0.1
--- Thời gian đã tạo: Th10 01, 2025 lúc 10:22 AM
+-- Thời gian đã tạo: Th10 01, 2025 lúc 11:01 AM
 -- Phiên bản máy phục vụ: 10.4.32-MariaDB
 -- Phiên bản PHP: 8.0.30
 
@@ -552,10 +552,12 @@ CREATE TABLE `order_labels` (
 --
 
 INSERT INTO `order_labels` (`label_key`, `label_name`, `description`, `color`, `icon`, `sort_order`, `is_final`, `is_system`, `auto_lock`, `metadata`, `created_by`, `created_at`, `updated_at`) VALUES
+('assigned', '[HỆ THỐNG] Đã gán', 'Trạng thái hệ thống: Đơn hàng đã được gán cho nhân viên', '#17a2b8', 'fa-user-check', -1, 0, 1, 0, NULL, NULL, '2025-10-01 15:48:34', '2025-10-01 15:48:34'),
 ('bom-hang', 'Bom hàng', NULL, '#dc3545', 'fa-bomb', 12, 0, 0, 0, NULL, NULL, '2025-09-30 16:34:13', '2025-10-01 08:21:05'),
 ('dang-giao', 'Đang giao', NULL, '#639419', 'fa-tag', 11, 0, 0, 0, NULL, NULL, '2025-09-30 16:28:29', '2025-09-30 16:28:29'),
 ('dang-hoan', 'Đang hoàn', NULL, '#8c460d', 'fa-tag', 16, 0, 0, 0, NULL, NULL, '2025-09-30 16:34:44', '2025-09-30 16:34:44'),
 ('dong-goi-sai', 'Đóng gói sai', NULL, '#7c3131', 'fa-tag', 12, 0, 0, 0, NULL, NULL, '2025-09-30 16:30:16', '2025-09-30 16:30:16'),
+('free', '[HỆ THỐNG] Chưa gán', 'Trạng thái hệ thống: Đơn hàng chưa được gán cho nhân viên nào', '#6c757d', 'fa-inbox', -2, 0, 1, 0, NULL, NULL, '2025-10-01 15:48:33', '2025-10-01 15:48:33'),
 ('giao-thanh-cong', 'Giao thành công', NULL, '#00d604', 'fa-tag', 20, 0, 0, 0, NULL, NULL, '2025-09-30 16:37:32', '2025-09-30 16:37:32'),
 ('hoan-thanh-cong', 'Hoàn thành công', NULL, '#1a1a1a', 'fa-tag', 17, 0, 0, 0, NULL, NULL, '2025-09-30 16:35:25', '2025-09-30 16:35:25'),
 ('khong-nghe', 'Không nghe', NULL, '#dfc834', 'fa-tag', 3, 0, 0, 0, NULL, NULL, '2025-09-30 16:23:37', '2025-09-30 16:23:37'),
@@ -1120,6 +1122,54 @@ CREATE TABLE `v_latest_calls` (
 -- --------------------------------------------------------
 
 --
+-- Cấu trúc đóng vai cho view `v_orders_with_labels`
+-- (See below for the actual view)
+--
+CREATE TABLE `v_orders_with_labels` (
+`id` int(10) unsigned
+,`woo_order_id` int(10) unsigned
+,`order_number` varchar(50)
+,`customer_name` varchar(100)
+,`customer_phone` varchar(20)
+,`customer_email` varchar(100)
+,`customer_address` text
+,`customer_notes` text
+,`total_amount` decimal(15,2)
+,`currency` varchar(10)
+,`payment_method` varchar(50)
+,`products` longtext
+,`status` varchar(50)
+,`system_status` enum('free','assigned')
+,`primary_label` varchar(50)
+,`assigned_to` int(10) unsigned
+,`manager_id` int(10) unsigned
+,`assigned_at` datetime
+,`call_count` int(10) unsigned
+,`last_call_at` datetime
+,`callback_time` datetime
+,`source` enum('woocommerce','manual')
+,`created_by` int(10) unsigned
+,`approval_status` varchar(50)
+,`approved_by` int(10) unsigned
+,`approved_at` datetime
+,`woo_created_at` datetime
+,`created_at` datetime
+,`updated_at` datetime
+,`completed_at` datetime
+,`is_locked` tinyint(1)
+,`locked_at` datetime
+,`locked_by` int(10) unsigned
+,`deleted_at` timestamp
+,`version` int(11)
+,`label_name` varchar(100)
+,`label_color` varchar(20)
+,`label_icon` varchar(50)
+,`label_is_final` int(4)
+);
+
+-- --------------------------------------------------------
+
+--
 -- Cấu trúc đóng vai cho view `v_orders_with_status`
 -- (See below for the actual view)
 --
@@ -1211,6 +1261,15 @@ CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW 
 DROP TABLE IF EXISTS `v_latest_calls`;
 
 CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_latest_calls`  AS SELECT `cl1`.`id` AS `id`, `cl1`.`order_id` AS `order_id`, `cl1`.`user_id` AS `user_id`, `cl1`.`user_name` AS `user_name`, `cl1`.`start_time` AS `start_time`, `cl1`.`end_time` AS `end_time`, `cl1`.`duration` AS `duration`, `cl1`.`note` AS `note`, `cl1`.`status` AS `status`, `cl1`.`recording_url` AS `recording_url`, `cl1`.`customer_feedback` AS `customer_feedback`, `cl1`.`created_at` AS `created_at`, `o`.`order_number` AS `order_number`, `o`.`customer_name` AS `customer_name`, `o`.`customer_phone` AS `customer_phone`, `o`.`status` AS `order_status` FROM ((`call_logs` `cl1` join (select `call_logs`.`order_id` AS `order_id`,max(`call_logs`.`start_time`) AS `max_start` from `call_logs` group by `call_logs`.`order_id`) `cl2` on(`cl1`.`order_id` = `cl2`.`order_id` and `cl1`.`start_time` = `cl2`.`max_start`)) left join `orders` `o` on(`cl1`.`order_id` = `o`.`id`)) ;
+
+-- --------------------------------------------------------
+
+--
+-- Cấu trúc cho view `v_orders_with_labels`
+--
+DROP TABLE IF EXISTS `v_orders_with_labels`;
+
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_orders_with_labels`  AS SELECT `o`.`id` AS `id`, `o`.`woo_order_id` AS `woo_order_id`, `o`.`order_number` AS `order_number`, `o`.`customer_name` AS `customer_name`, `o`.`customer_phone` AS `customer_phone`, `o`.`customer_email` AS `customer_email`, `o`.`customer_address` AS `customer_address`, `o`.`customer_notes` AS `customer_notes`, `o`.`total_amount` AS `total_amount`, `o`.`currency` AS `currency`, `o`.`payment_method` AS `payment_method`, `o`.`products` AS `products`, `o`.`status` AS `status`, `o`.`system_status` AS `system_status`, `o`.`primary_label` AS `primary_label`, `o`.`assigned_to` AS `assigned_to`, `o`.`manager_id` AS `manager_id`, `o`.`assigned_at` AS `assigned_at`, `o`.`call_count` AS `call_count`, `o`.`last_call_at` AS `last_call_at`, `o`.`callback_time` AS `callback_time`, `o`.`source` AS `source`, `o`.`created_by` AS `created_by`, `o`.`approval_status` AS `approval_status`, `o`.`approved_by` AS `approved_by`, `o`.`approved_at` AS `approved_at`, `o`.`woo_created_at` AS `woo_created_at`, `o`.`created_at` AS `created_at`, `o`.`updated_at` AS `updated_at`, `o`.`completed_at` AS `completed_at`, `o`.`is_locked` AS `is_locked`, `o`.`locked_at` AS `locked_at`, `o`.`locked_by` AS `locked_by`, `o`.`deleted_at` AS `deleted_at`, `o`.`version` AS `version`, coalesce(`ol`.`label_name`,'Chưa có nhãn') AS `label_name`, coalesce(`ol`.`color`,'#6c757d') AS `label_color`, coalesce(`ol`.`icon`,'fa-tag') AS `label_icon`, coalesce(`ol`.`is_final`,0) AS `label_is_final` FROM (`orders` `o` left join `order_labels` `ol` on(`o`.`primary_label` = `ol`.`label_key`)) ;
 
 -- --------------------------------------------------------
 

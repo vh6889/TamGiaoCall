@@ -76,12 +76,18 @@ function get_order_suggestions($order) {
         ];
         
         $cancelled_orders = db_get_var(
-            "SELECT COUNT(*) FROM orders 
-             WHERE customer_phone = ? 
-             AND status IN (SELECT label_key AS status_key, FROM order_labels WHERE label LIKE '%huy%' OR label LIKE '%rejected%' OR label LIKE '%bom%') 
-             AND id != ?",
-            [$order['customer_phone'], $order['id']]
-        );
+			"SELECT COUNT(*) FROM orders 
+			 WHERE customer_phone = ? 
+			 AND primary_label IN (
+				 SELECT label_key 
+				 FROM order_labels 
+				 WHERE label_name LIKE '%huy%' 
+					OR label_name LIKE '%rejected%' 
+					OR label_name LIKE '%bom%'
+			 ) 
+			 AND id != ?",
+			[$order['customer_phone'], $order['id']]
+		);
         
         if ($cancelled_orders > 0) {
             $suggestions[] = [
@@ -183,11 +189,11 @@ $related_products = [
     ['id' => 203, 'name' => 'Sản phẩm bổ sung C', 'price' => 750000, 'sku' => 'ADD-C', 'image' => ''],
 ];
 
-// Get status info
+// Get label info (not status)
 $current_status_label = db_get_var(
-    "SELECT label_name AS label FROM order_labels WHERE label_key = ?",
-    [$order['status']]
-) ?: $order['status'];
+    "SELECT label_name FROM order_labels WHERE label_key = ?",
+    [$order['primary_label']]
+) ?: ($order['primary_label'] ?? 'N/A');
 
 $status_options = get_status_options_with_labels();
 
@@ -464,17 +470,20 @@ include 'includes/header.php';
                                 </div>
                                 <p class="mb-1">
                                     <?php 
-                                    if ($note['note_type'] === 'status' && strpos($note['content'], 'Cập nhật trạng thái:') !== false) {
-                                        $status_key = trim(str_replace('Cập nhật trạng thái:', '', $note['content']));
-                                        $status_label = db_get_var(
-                                            "SELECT label_name AS label FROM order_labels WHERE label_key = ?",
-                                            [$status_key]
-                                        ) ?: $status_key;
-                                        echo "Cập nhật trạng thái: <strong>" . htmlspecialchars($status_label) . "</strong>";
-                                    } else {
-                                        echo nl2br(htmlspecialchars($note['content']));
-                                    }
-                                    ?>
+									if ($note['note_type'] === 'status' && strpos($note['content'], 'Cập nhật trạng thái:') !== false) {
+										$status_key = trim(str_replace('Cập nhật trạng thái:', '', $note['content']));
+										$status_label = db_get_var(
+											"SELECT label_name FROM order_labels WHERE label_key = ?",
+											[$status_key]
+										) ?: $status_key;
+										echo "Cập nhật nhãn: <strong>" . htmlspecialchars($status_label) . "</strong>";
+									} elseif ($note['note_type'] === 'status' && strpos($note['content'], 'Nhãn:') !== false) {
+										// Trigger tự động tạo note dạng: Nhãn: "old" → "new"
+										echo nl2br(htmlspecialchars($note['content']));
+									} else {
+										echo nl2br(htmlspecialchars($note['content']));
+									}
+									?>
                                 </p>
                                 <span class="badge bg-secondary"><?php echo $note['note_type']; ?></span>
                             </div>

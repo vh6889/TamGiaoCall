@@ -308,6 +308,29 @@ function log_activity($action, $description = '', $related_type = null, $related
         'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? ''
     ]);
 }
+/**
+ * Lấy thông tin đơn hàng theo ID
+ * JOIN với order_labels để lấy thông tin nhãn
+ * 
+ * @param int $order_id ID đơn hàng
+ * @return array|null Thông tin đơn hàng hoặc null nếu không tìm thấy
+ */
+function get_order($order_id) {
+    return db_get_row("
+        SELECT 
+            o.*,
+            ol.label_name,
+            ol.color AS label_color,
+            ol.icon AS label_icon,
+            ol.is_final AS label_is_final,
+            u.full_name AS assigned_to_name,
+            u.username AS assigned_to_username
+        FROM orders o
+        LEFT JOIN order_labels ol ON o.primary_label = ol.label_key
+        LEFT JOIN users u ON o.assigned_to = u.id
+        WHERE o.id = ?
+    ", [$order_id]);
+}
 
 function get_orders($filters = []) {
     $where = ['1=1'];

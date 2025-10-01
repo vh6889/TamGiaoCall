@@ -63,8 +63,8 @@ try {
     
     // Get "calling" status dynamically
     $calling_status = db_get_var(
-        "SELECT label_key AS status_key, FROM order_labels 
-         WHERE label LIKE '%gọi%' OR label LIKE '%calling%' OR label LIKE '%đang gọi%'
+        "SELECT label_key FROM order_labels 
+         WHERE label_name LIKE '%gọi%' OR label LIKE '%calling%' OR label LIKE '%đang gọi%'
          ORDER BY sort_order 
          LIMIT 1"
     );
