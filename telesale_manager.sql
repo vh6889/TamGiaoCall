@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Máy chủ: 127.0.0.1
--- Thời gian đã tạo: Th10 01, 2025 lúc 05:40 PM
+-- Thời gian đã tạo: Th10 01, 2025 lúc 07:58 PM
 -- Phiên bản máy phục vụ: 10.4.32-MariaDB
 -- Phiên bản PHP: 8.0.30
 
@@ -80,7 +80,11 @@ INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `related_
 (34, 1, 'login', 'User logged in', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 13:25:32'),
 (35, 1, 'logout', 'User logged out', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 13:46:22'),
 (36, 2, 'login', 'User logged in', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 13:46:40'),
-(37, 1, 'login', 'User logged in', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 22:16:13');
+(37, 1, 'login', 'User logged in', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 22:16:13'),
+(38, 1, 'reclaim_order', 'Reclaimed order #TEST001 to common pool', 'order', 62, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-02 00:45:25'),
+(39, 1, 'reclaim_order', 'Reclaimed order #TEST003 to common pool', 'order', 64, '::1', 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36', '2025-10-02 00:49:19'),
+(40, 1, 'transfer_order', 'Transferred order #TEST002 to telesale2', 'order', 63, '::1', 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36', '2025-10-02 00:54:14'),
+(41, 2, 'login', 'User logged in', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-02 00:55:08');
 
 -- --------------------------------------------------------
 
@@ -288,6 +292,7 @@ CREATE TABLE `orders` (
   `products` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL COMMENT 'Danh sách sản phẩm (JSON)' CHECK (json_valid(`products`)),
   `customer_notes` text DEFAULT NULL COMMENT 'Ghi chú của khách',
   `system_status` enum('free','assigned') NOT NULL DEFAULT 'free',
+  `core_status` enum('new','processing','success','failed') NOT NULL DEFAULT 'new',
   `primary_label` varchar(50) DEFAULT NULL,
   `assigned_to` int(10) UNSIGNED DEFAULT NULL COMMENT 'ID nhân viên được gán',
   `manager_id` int(10) UNSIGNED DEFAULT NULL COMMENT 'ID manager đang giám sát đơn',
@@ -315,12 +320,12 @@ CREATE TABLE `orders` (
 -- Đang đổ dữ liệu cho bảng `orders`
 --
 
-INSERT INTO `orders` (`id`, `woo_order_id`, `order_number`, `customer_name`, `customer_phone`, `customer_email`, `customer_address`, `total_amount`, `currency`, `payment_method`, `products`, `customer_notes`, `system_status`, `primary_label`, `assigned_to`, `manager_id`, `assigned_at`, `call_count`, `last_call_at`, `callback_time`, `source`, `created_by`, `approval_status`, `approved_by`, `approved_at`, `woo_created_at`, `created_at`, `updated_at`, `completed_at`, `is_locked`, `locked_at`, `locked_by`, `deleted_at`, `version`) VALUES
-(62, NULL, 'TEST001', 'Nguyễn Văn A', '0901234567', 'nguyenvana@gmail.com', '123 Đường Lê Lợi, Quận 1, TP.HCM', 1500000.00, 'VND', 'COD', '[{\"product_name\":\"Áo thun nam\",\"quantity\":2,\"price\":250000},{\"product_name\":\"Quần jean\",\"quantity\":1,\"price\":500000}]', 'Giao hàng ngoài giờ hành chính', 'free', 'lbl_new_order', NULL, NULL, NULL, 0, NULL, NULL, 'manual', NULL, NULL, NULL, NULL, NULL, '2025-10-01 21:47:27', '2025-10-01 21:47:27', NULL, 0, NULL, NULL, NULL, 1),
-(63, NULL, 'TEST002', 'Trần Thị B', '0912345678', 'tranthib@yahoo.com', '456 Đường Nguyễn Huệ, Quận 3, TP.HCM', 2800000.00, 'VND', 'Banking', '[{\"product_name\":\"Laptop Dell\",\"quantity\":1,\"price\":2800000}]', 'Cần kiểm tra kỹ hàng trước khi nhận', 'free', 'lbl_new_order', NULL, NULL, NULL, 0, NULL, NULL, 'manual', NULL, NULL, NULL, NULL, NULL, '2025-10-01 21:47:27', '2025-10-01 21:47:27', NULL, 0, NULL, NULL, NULL, 1),
-(64, NULL, 'TEST003', 'Lê Văn C', '0923456789', 'levanc@hotmail.com', '789 Đường Trần Hưng Đạo, Quận 5, TP.HCM', 5000000.00, 'VND', 'COD', '[{\"product_name\":\"iPhone 15 Pro\",\"quantity\":1,\"price\":5000000}]', 'Khách VIP, ưu tiên gọi buổi sáng', 'free', 'lbl_new_order', NULL, NULL, NULL, 0, NULL, NULL, 'manual', NULL, NULL, NULL, NULL, NULL, '2025-10-01 21:47:27', '2025-10-01 21:47:27', NULL, 0, NULL, NULL, NULL, 1),
-(65, NULL, 'WOO12345', 'Phạm Thị D', '0934567890', 'phamthid@gmail.com', '321 Đường Võ Văn Tần, Quận 10, TP.HCM', 750000.00, 'VND', 'VNPAY', '[{\"product_name\":\"Giày thể thao Nike\",\"quantity\":1,\"price\":750000}]', 'Gọi trước 30 phút', 'free', 'lbl_new_order', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 21:47:27', '2025-10-01 21:47:27', NULL, 0, NULL, NULL, NULL, 1),
-(66, NULL, 'TEST005', 'Hoàng Văn E', '0945678901', 'hoangvane@outlook.com', '654 Đường Hai Bà Trưng, Quận Tân Bình, TP.HCM', 350000.00, 'VND', 'COD', '[{\"product_name\":\"Túi xách nữ\",\"quantity\":1,\"price\":350000}]', NULL, 'free', 'lbl_new_order', NULL, NULL, NULL, 0, NULL, NULL, 'manual', NULL, NULL, NULL, NULL, NULL, '2025-10-01 21:47:27', '2025-10-01 21:47:27', NULL, 0, NULL, NULL, NULL, 1);
+INSERT INTO `orders` (`id`, `woo_order_id`, `order_number`, `customer_name`, `customer_phone`, `customer_email`, `customer_address`, `total_amount`, `currency`, `payment_method`, `products`, `customer_notes`, `system_status`, `core_status`, `primary_label`, `assigned_to`, `manager_id`, `assigned_at`, `call_count`, `last_call_at`, `callback_time`, `source`, `created_by`, `approval_status`, `approved_by`, `approved_at`, `woo_created_at`, `created_at`, `updated_at`, `completed_at`, `is_locked`, `locked_at`, `locked_by`, `deleted_at`, `version`) VALUES
+(62, NULL, 'TEST001', 'Nguyễn Văn A', '0901234567', 'nguyenvana@gmail.com', '123 Đường Lê Lợi, Quận 1, TP.HCM', 1500000.00, 'VND', 'COD', '[{\"product_name\":\"Áo thun nam\",\"quantity\":2,\"price\":250000},{\"product_name\":\"Quần jean\",\"quantity\":1,\"price\":500000}]', 'Giao hàng ngoài giờ hành chính', 'assigned', 'processing', 'lbl_new_order', 3, NULL, '2025-10-02 00:45:33', 0, NULL, NULL, 'manual', NULL, NULL, NULL, NULL, NULL, '2025-10-01 21:47:27', '2025-10-02 00:45:33', NULL, 0, NULL, NULL, NULL, 1),
+(63, NULL, 'TEST002', 'Trần Thị B', '0912345678', 'tranthib@yahoo.com', '456 Đường Nguyễn Huệ, Quận 3, TP.HCM', 2800000.00, 'VND', 'Banking', '[{\"product_name\":\"Laptop Dell\",\"quantity\":1,\"price\":2800000}]', 'Cần kiểm tra kỹ hàng trước khi nhận', 'assigned', 'processing', 'lbl_processing', 3, NULL, '2025-10-02 00:54:14', 0, NULL, NULL, 'manual', NULL, NULL, NULL, NULL, NULL, '2025-10-01 21:47:27', '2025-10-02 00:54:14', NULL, 0, NULL, NULL, NULL, 1),
+(64, NULL, 'TEST003', 'Lê Văn C', '0923456789', 'levanc@hotmail.com', '789 Đường Trần Hưng Đạo, Quận 5, TP.HCM', 5000000.00, 'VND', 'COD', '[{\"product_name\":\"iPhone 15 Pro\",\"quantity\":1,\"price\":5000000}]', 'Khách VIP, ưu tiên gọi buổi sáng', 'assigned', 'processing', 'lbl_new_order', 2, NULL, '2025-10-02 00:49:29', 0, NULL, NULL, 'manual', NULL, NULL, NULL, NULL, NULL, '2025-10-01 21:47:27', '2025-10-02 00:49:29', NULL, 0, NULL, NULL, NULL, 1),
+(65, NULL, 'WOO12345', 'Phạm Thị D', '0934567890', 'phamthid@gmail.com', '321 Đường Võ Văn Tần, Quận 10, TP.HCM', 750000.00, 'VND', 'VNPAY', '[{\"product_name\":\"Giày thể thao Nike\",\"quantity\":1,\"price\":750000}]', 'Gọi trước 30 phút', 'free', 'new', 'lbl_new_order', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 21:47:27', '2025-10-02 00:23:59', NULL, 0, NULL, NULL, NULL, 1),
+(66, NULL, 'TEST005', 'Hoàng Văn E', '0945678901', 'hoangvane@outlook.com', '654 Đường Hai Bà Trưng, Quận Tân Bình, TP.HCM', 350000.00, 'VND', 'COD', '[{\"product_name\":\"Túi xách nữ\",\"quantity\":1,\"price\":350000}]', NULL, 'free', 'new', 'lbl_new_order', NULL, NULL, NULL, 0, NULL, NULL, 'manual', NULL, NULL, NULL, NULL, NULL, '2025-10-01 21:47:27', '2025-10-02 00:23:59', NULL, 0, NULL, NULL, NULL, 1);
 
 -- --------------------------------------------------------
 
@@ -332,11 +337,13 @@ CREATE TABLE `order_labels` (
   `label_key` varchar(50) NOT NULL,
   `label_name` varchar(100) NOT NULL,
   `label_value` tinyint(1) NOT NULL DEFAULT 0 COMMENT '0=không tính doanh thu, 1=hoàn thành (tính doanh thu)',
+  `core_status` enum('new','processing','success','failed') NOT NULL DEFAULT 'processing' COMMENT 'Nhãn này thuộc core status nào - BẮT BUỘC PHẢI CHỌN',
   `description` text DEFAULT NULL,
   `color` varchar(20) NOT NULL DEFAULT '#6c757d',
   `icon` varchar(50) NOT NULL DEFAULT 'fa-tag',
   `sort_order` int(11) NOT NULL DEFAULT 0,
   `is_system` tinyint(1) DEFAULT 0,
+  `is_default` tinyint(1) DEFAULT 0 COMMENT 'Là nhãn mặc định của core_status',
   `auto_lock` tinyint(1) DEFAULT 0,
   `metadata` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`metadata`)),
   `created_by` int(10) UNSIGNED DEFAULT NULL,
@@ -348,14 +355,13 @@ CREATE TABLE `order_labels` (
 -- Đang đổ dữ liệu cho bảng `order_labels`
 --
 
-INSERT INTO `order_labels` (`label_key`, `label_name`, `label_value`, `description`, `color`, `icon`, `sort_order`, `is_system`, `auto_lock`, `metadata`, `created_by`, `created_at`, `updated_at`) VALUES
-('free', '[Kho chung] Chưa phân công', 0, NULL, '#6c757d', 'fa-inbox', -9999, 1, 0, NULL, NULL, '2025-10-01 22:18:22', '2025-10-01 22:18:22'),
-('lbl_callback', 'Hẹn gọi lại', 0, 'Khách yêu cầu gọi lại sau', '#FFC107', 'fa-phone-alt', 5, 0, 0, NULL, NULL, '2025-10-01 21:29:24', '2025-10-01 21:29:24'),
-('lbl_completed', 'Hoàn thành', 1, NULL, '#28a745', 'fa-check-circle', 9999, 1, 0, NULL, NULL, '2025-10-01 18:54:28', '2025-10-01 18:54:28'),
-('lbl_confirmed', 'Đã xác nhận', 0, NULL, '#28a745', 'fa-check', 2, 0, 0, NULL, NULL, '2025-10-01 22:38:43', '2025-10-01 22:38:43'),
-('lbl_new_order', 'Đơn mới', 0, NULL, '#17a2b8', 'fa-plus-circle', -1, 1, 0, NULL, NULL, '2025-10-01 18:54:28', '2025-10-01 18:54:28'),
-('lbl_processing', 'Đang xử lý', 0, NULL, '#ffc107', 'fa-spinner', 1, 0, 0, NULL, NULL, '2025-10-01 22:38:43', '2025-10-01 22:38:43'),
-('pending_approval', 'Chờ duyệt', 0, NULL, '#ffc107', 'fa-clock', -9998, 1, 0, NULL, NULL, '2025-10-01 22:18:22', '2025-10-01 22:18:22');
+INSERT INTO `order_labels` (`label_key`, `label_name`, `label_value`, `core_status`, `description`, `color`, `icon`, `sort_order`, `is_system`, `is_default`, `auto_lock`, `metadata`, `created_by`, `created_at`, `updated_at`) VALUES
+('lbl_callback', 'Hẹn gọi lại', 0, 'processing', 'Khách yêu cầu gọi lại sau', '#FFC107', 'fa-phone-alt', 5, 0, 0, 0, NULL, NULL, '2025-10-01 21:29:24', '2025-10-01 21:29:24'),
+('lbl_cancelled', 'Thất bại', 0, 'failed', NULL, '#dc3545', 'fa-times-circle', 9998, 1, 1, 0, NULL, NULL, '2025-10-02 00:23:59', '2025-10-02 00:23:59'),
+('lbl_completed', 'Hoàn thành', 1, 'success', NULL, '#28a745', 'fa-check-circle', 9999, 1, 1, 0, NULL, NULL, '2025-10-02 00:23:59', '2025-10-02 00:23:59'),
+('lbl_confirmed', 'Đã xác nhận', 0, 'processing', NULL, '#28a745', 'fa-check', 2, 0, 0, 0, NULL, NULL, '2025-10-01 22:38:43', '2025-10-01 22:38:43'),
+('lbl_new_order', 'Đơn mới', 0, 'new', NULL, '#17a2b8', 'fa-plus-circle', -1000, 1, 1, 0, NULL, NULL, '2025-10-02 00:23:59', '2025-10-02 00:23:59'),
+('lbl_processing', 'Đang xử lý', 0, 'processing', NULL, '#ffc107', 'fa-spinner', 0, 1, 1, 0, NULL, NULL, '2025-10-02 00:23:59', '2025-10-02 00:23:59');
 
 -- --------------------------------------------------------
 
@@ -388,6 +394,20 @@ CREATE TABLE `order_notes` (
   `deleted_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Bảng ghi chú đơn hàng';
 
+--
+-- Đang đổ dữ liệu cho bảng `order_notes`
+--
+
+INSERT INTO `order_notes` (`id`, `order_id`, `user_id`, `note_type`, `content`, `created_at`, `deleted_at`) VALUES
+(7, 62, 1, 'assignment', 'Phân công cho Nguyễn Văn Ad', '2025-10-02 00:44:15', NULL),
+(8, 62, 1, 'system', 'Admin Administrator đã thu hồi đơn hàng về kho chung từ Nguyễn Văn Ad', '2025-10-02 00:45:25', NULL),
+(9, 62, 1, 'assignment', 'Phân công cho Trần Thị Booo', '2025-10-02 00:45:33', NULL),
+(10, 64, 1, 'assignment', 'Phân công cho Trần Thị Booo', '2025-10-02 00:46:33', NULL),
+(11, 64, 1, 'system', 'Admin Administrator đã thu hồi đơn hàng về kho chung từ Trần Thị Booo', '2025-10-02 00:49:19', NULL),
+(12, 64, 1, 'assignment', 'Phân công cho Nguyễn Văn Ad', '2025-10-02 00:49:30', NULL),
+(13, 63, 1, 'assignment', 'Phân công cho Nguyễn Văn Ad', '2025-10-02 00:54:05', NULL),
+(14, 63, 1, 'assignment', 'Chuyển giao từ Nguyễn Văn Ad cho Trần Thị Booo', '2025-10-02 00:54:14', NULL);
+
 -- --------------------------------------------------------
 
 --
@@ -409,12 +429,20 @@ CREATE TABLE `password_history` (
 
 CREATE TABLE `rate_limits` (
   `id` int(11) NOT NULL,
-  `user_id` int(11) NOT NULL,
-  `action` varchar(100) NOT NULL,
-  `attempts` int(11) DEFAULT 1,
-  `window_start` datetime NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+  `rate_key` varchar(255) NOT NULL,
+  `user_id` int(11) DEFAULT NULL,
+  `action` varchar(100) DEFAULT NULL,
+  `created_at` datetime DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Đang đổ dữ liệu cho bảng `rate_limits`
+--
+
+INSERT INTO `rate_limits` (`id`, `rate_key`, `user_id`, `action`, `created_at`) VALUES
+(1, 'rate_limit_assign-order_1', 1, 'assign-order', '2025-10-02 00:44:15'),
+(2, 'rate_limit_reclaim-order_1', 1, 'reclaim-order', '2025-10-02 00:45:25'),
+(3, 'rate_limit_reclaim-order_1', 1, 'reclaim-order', '2025-10-02 00:49:19');
 
 -- --------------------------------------------------------
 
@@ -671,7 +699,7 @@ CREATE TABLE `users` (
 
 INSERT INTO `users` (`id`, `username`, `password`, `full_name`, `email`, `phone`, `role`, `status`, `avatar`, `last_login_at`, `last_login_ip`, `created_at`, `updated_at`, `suspension_reason`, `suspension_until`, `deleted_at`) VALUES
 (1, 'admin', '$2y$10$5EzgChCuFM.LG/yVCMbuseZFP2fxECDOQJb8FzEmssX4iev/sjbVi', 'Administrator', 'admin@example.com', NULL, 'admin', 'active', NULL, '2025-10-01 22:16:13', '::1', '2025-09-30 09:36:19', '2025-10-01 22:16:13', NULL, NULL, NULL),
-(2, 'telesale1', '$2y$10$lkpRcTFFgJVlNIawkjprY.n7mubXpkH1/Sa0TOf4pl7rZQw6DVuqa', 'Nguyễn Văn Ad', 'vh6889@gmail.com', '0963470944', 'telesale', 'active', NULL, '2025-10-01 13:46:40', '::1', '2025-09-30 09:36:19', '2025-10-01 13:46:40', NULL, NULL, NULL),
+(2, 'telesale1', '$2y$10$lkpRcTFFgJVlNIawkjprY.n7mubXpkH1/Sa0TOf4pl7rZQw6DVuqa', 'Nguyễn Văn Ad', 'vh6889@gmail.com', '0963470944', 'telesale', 'active', NULL, '2025-10-02 00:55:08', '::1', '2025-09-30 09:36:19', '2025-10-02 00:55:08', NULL, NULL, NULL),
 (3, 'telesale2', '$2y$10$lkpRcTFFgJVlNIawkjprY.n7mubXpkH1/Sa0TOf4pl7rZQw6DVuqa', 'Trần Thị Booo', 'telesale2@example.com', '', 'telesale', 'active', NULL, NULL, NULL, '2025-09-30 09:36:19', '2025-09-30 12:54:32', NULL, NULL, NULL),
 (4, 'oigioioi', '$2y$10$AxE8XaE9rkf9G7nvTyTFgu1xQNGMAKItLU/tkocwj2ZTJv/JmGppq', 'Hai Vu', 'raintl07@gmail.com', '0963470944', 'manager', 'active', NULL, NULL, NULL, '2025-09-30 18:50:59', '2025-09-30 18:50:59', NULL, NULL, NULL);
 
@@ -852,14 +880,18 @@ ALTER TABLE `orders`
   ADD KEY `idx_approval_status` (`approval_status`),
   ADD KEY `idx_source` (`source`),
   ADD KEY `idx_system_status` (`system_status`),
-  ADD KEY `idx_primary_label` (`primary_label`);
+  ADD KEY `idx_primary_label` (`primary_label`),
+  ADD KEY `idx_orders_core` (`core_status`),
+  ADD KEY `idx_orders_core_status` (`core_status`);
 
 --
 -- Chỉ mục cho bảng `order_labels`
 --
 ALTER TABLE `order_labels`
   ADD PRIMARY KEY (`label_key`),
-  ADD KEY `idx_sort_order` (`sort_order`);
+  ADD KEY `idx_sort_order` (`sort_order`),
+  ADD KEY `idx_order_labels_core` (`core_status`,`is_default`),
+  ADD KEY `idx_order_labels_core_status` (`core_status`);
 
 --
 -- Chỉ mục cho bảng `order_label_history`
@@ -891,8 +923,7 @@ ALTER TABLE `password_history`
 --
 ALTER TABLE `rate_limits`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `idx_user_action` (`user_id`,`action`),
-  ADD KEY `idx_window` (`window_start`),
+  ADD KEY `idx_rate_key` (`rate_key`),
   ADD KEY `idx_created_at` (`created_at`);
 
 --
@@ -1005,7 +1036,7 @@ ALTER TABLE `user_labels`
 -- AUTO_INCREMENT cho bảng `activity_logs`
 --
 ALTER TABLE `activity_logs`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=38;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=42;
 
 --
 -- AUTO_INCREMENT cho bảng `call_logs`
@@ -1059,7 +1090,7 @@ ALTER TABLE `order_label_history`
 -- AUTO_INCREMENT cho bảng `order_notes`
 --
 ALTER TABLE `order_notes`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- AUTO_INCREMENT cho bảng `password_history`
@@ -1071,7 +1102,7 @@ ALTER TABLE `password_history`
 -- AUTO_INCREMENT cho bảng `rate_limits`
 --
 ALTER TABLE `rate_limits`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT cho bảng `reminders`
