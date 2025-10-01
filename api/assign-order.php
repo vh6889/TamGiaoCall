@@ -40,8 +40,9 @@ if (!$order) {
 }
 
 // 2. Validate the user to be assigned
-$user_to_assign = get_user($assign_to_user_id);
-if (!$user_to_assign || $user_to_assign['role'] !== 'telesale' || $user_to_assign['status'] !== 'active') {
+if (!$user_to_assign || 
+    !in_array($user_to_assign['role'], ['telesale', 'manager']) || 
+    $user_to_assign['status'] !== 'active') {
     json_error('Nhân viên được chọn không hợp lệ hoặc không hoạt động.', 400);
 }
 

@@ -193,3 +193,37 @@ function count_orders_by_completion($user_id = null) {
     
     return db_get_row($sql, $params);
 }
+function format_status_badge($status_key) {
+    if (empty($status_key)) {
+        return '<span class="badge bg-secondary">N/A</span>';
+    }
+    
+    // Get status info from order_labels table
+    $status_info = get_status_info($status_key);
+    
+    if (!$status_info) {
+        return '<span class="badge bg-secondary">' . htmlspecialchars($status_key) . '</span>';
+    }
+    
+    $color = htmlspecialchars($status_info['color']);
+    $icon = htmlspecialchars($status_info['icon']);
+    $label = htmlspecialchars($status_info['label']);
+    
+    return sprintf(
+        '<span class="badge" style="background-color: %s; color: #fff; text-shadow: 1px 1px 1px rgba(0,0,0,0.3);">
+            <i class="fas %s"></i> %s
+        </span>',
+        $color,
+        $icon,
+        $label
+    );
+}
+function get_status_options_with_labels() {
+    return db_get_results("
+        SELECT label_key, label_name, label_value, color, icon
+        FROM order_labels 
+        WHERE is_system = 0 OR label_key = 'lbl_completed'
+        ORDER BY 
+            CASE WHEN label_value = 1 THEN 999 ELSE sort_order END ASC
+    ");
+}

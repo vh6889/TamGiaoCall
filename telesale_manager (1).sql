@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Máy chủ: 127.0.0.1
--- Thời gian đã tạo: Th10 01, 2025 lúc 02:14 PM
+-- Thời gian đã tạo: Th10 01, 2025 lúc 05:40 PM
 -- Phiên bản máy phục vụ: 10.4.32-MariaDB
 -- Phiên bản PHP: 8.0.30
 
@@ -79,7 +79,8 @@ INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `related_
 (33, 1, 'login', 'User logged in', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 11:32:32'),
 (34, 1, 'login', 'User logged in', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 13:25:32'),
 (35, 1, 'logout', 'User logged out', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 13:46:22'),
-(36, 2, 'login', 'User logged in', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 13:46:40');
+(36, 2, 'login', 'User logged in', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 13:46:40'),
+(37, 1, 'login', 'User logged in', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 22:16:13');
 
 -- --------------------------------------------------------
 
@@ -311,77 +312,15 @@ CREATE TABLE `orders` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Bảng đơn hàng';
 
 --
--- Bẫy `orders`
+-- Đang đổ dữ liệu cho bảng `orders`
 --
-DELIMITER $$
-CREATE TRIGGER `tr_order_label_change` AFTER UPDATE ON `orders` FOR EACH ROW BEGIN
-    DECLARE old_label_name VARCHAR(100);
-    DECLARE new_label_name VARCHAR(100);
-    
-    IF (OLD.primary_label IS NULL AND NEW.primary_label IS NOT NULL) OR
-       (OLD.primary_label IS NOT NULL AND NEW.primary_label IS NULL) OR
-       (OLD.primary_label != NEW.primary_label) THEN
-        
-        IF OLD.primary_label IS NOT NULL THEN
-            SELECT label_name INTO old_label_name 
-            FROM order_labels WHERE label_key = OLD.primary_label LIMIT 1;
-        END IF;
-        
-        IF NEW.primary_label IS NOT NULL THEN
-            SELECT label_name INTO new_label_name 
-            FROM order_labels WHERE label_key = NEW.primary_label LIMIT 1;
-        END IF;
-        
-        INSERT INTO order_notes (order_id, user_id, note_type, content)
-        VALUES (NEW.id, NEW.assigned_to, 'status',
-            CONCAT('Nhãn: "', IFNULL(old_label_name, 'Không có'), 
-                   '" → "', IFNULL(new_label_name, 'Không có'), '"'));
-        
-        IF NEW.primary_label IS NOT NULL THEN
-            INSERT INTO order_label_history (order_id, label_key, action, assigned_by)
-            VALUES (NEW.id, NEW.primary_label, 'assigned', NEW.assigned_to);
-        END IF;
-    END IF;
-END
-$$
-DELIMITER ;
-DELIMITER $$
-CREATE TRIGGER `validate_system_status_insert` BEFORE INSERT ON `orders` FOR EACH ROW BEGIN
-    IF NEW.system_status = 'free' AND NEW.assigned_to IS NOT NULL THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Logic error: free but assigned';
-    END IF;
-    IF NEW.system_status = 'assigned' AND NEW.assigned_to IS NULL THEN
-        SET NEW.system_status = 'free';
-    END IF;
-END
-$$
-DELIMITER ;
-DELIMITER $$
-CREATE TRIGGER `validate_system_status_update` BEFORE UPDATE ON `orders` FOR EACH ROW BEGIN
-    DECLARE is_final_label TINYINT DEFAULT 0;
-    
-    IF NEW.system_status = 'free' AND NEW.assigned_to IS NOT NULL THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Logic error: free but assigned';
-    END IF;
-    IF NEW.system_status = 'assigned' AND NEW.assigned_to IS NULL THEN
-        SET NEW.system_status = 'free';
-    END IF;
-    
-    IF NEW.primary_label IS NOT NULL AND 
-       (OLD.primary_label IS NULL OR OLD.primary_label != NEW.primary_label) THEN
-        SELECT is_final INTO is_final_label 
-        FROM order_labels WHERE label_key = NEW.primary_label LIMIT 1;
-        
-        IF is_final_label = 1 THEN
-            SET NEW.is_locked = 1;
-            SET NEW.locked_at = NOW();
-            SET NEW.locked_by = NEW.assigned_to;
-            SET NEW.completed_at = NOW();
-        END IF;
-    END IF;
-END
-$$
-DELIMITER ;
+
+INSERT INTO `orders` (`id`, `woo_order_id`, `order_number`, `customer_name`, `customer_phone`, `customer_email`, `customer_address`, `total_amount`, `currency`, `payment_method`, `products`, `customer_notes`, `system_status`, `primary_label`, `assigned_to`, `manager_id`, `assigned_at`, `call_count`, `last_call_at`, `callback_time`, `source`, `created_by`, `approval_status`, `approved_by`, `approved_at`, `woo_created_at`, `created_at`, `updated_at`, `completed_at`, `is_locked`, `locked_at`, `locked_by`, `deleted_at`, `version`) VALUES
+(62, NULL, 'TEST001', 'Nguyễn Văn A', '0901234567', 'nguyenvana@gmail.com', '123 Đường Lê Lợi, Quận 1, TP.HCM', 1500000.00, 'VND', 'COD', '[{\"product_name\":\"Áo thun nam\",\"quantity\":2,\"price\":250000},{\"product_name\":\"Quần jean\",\"quantity\":1,\"price\":500000}]', 'Giao hàng ngoài giờ hành chính', 'free', 'lbl_new_order', NULL, NULL, NULL, 0, NULL, NULL, 'manual', NULL, NULL, NULL, NULL, NULL, '2025-10-01 21:47:27', '2025-10-01 21:47:27', NULL, 0, NULL, NULL, NULL, 1),
+(63, NULL, 'TEST002', 'Trần Thị B', '0912345678', 'tranthib@yahoo.com', '456 Đường Nguyễn Huệ, Quận 3, TP.HCM', 2800000.00, 'VND', 'Banking', '[{\"product_name\":\"Laptop Dell\",\"quantity\":1,\"price\":2800000}]', 'Cần kiểm tra kỹ hàng trước khi nhận', 'free', 'lbl_new_order', NULL, NULL, NULL, 0, NULL, NULL, 'manual', NULL, NULL, NULL, NULL, NULL, '2025-10-01 21:47:27', '2025-10-01 21:47:27', NULL, 0, NULL, NULL, NULL, 1),
+(64, NULL, 'TEST003', 'Lê Văn C', '0923456789', 'levanc@hotmail.com', '789 Đường Trần Hưng Đạo, Quận 5, TP.HCM', 5000000.00, 'VND', 'COD', '[{\"product_name\":\"iPhone 15 Pro\",\"quantity\":1,\"price\":5000000}]', 'Khách VIP, ưu tiên gọi buổi sáng', 'free', 'lbl_new_order', NULL, NULL, NULL, 0, NULL, NULL, 'manual', NULL, NULL, NULL, NULL, NULL, '2025-10-01 21:47:27', '2025-10-01 21:47:27', NULL, 0, NULL, NULL, NULL, 1),
+(65, NULL, 'WOO12345', 'Phạm Thị D', '0934567890', 'phamthid@gmail.com', '321 Đường Võ Văn Tần, Quận 10, TP.HCM', 750000.00, 'VND', 'VNPAY', '[{\"product_name\":\"Giày thể thao Nike\",\"quantity\":1,\"price\":750000}]', 'Gọi trước 30 phút', 'free', 'lbl_new_order', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 21:47:27', '2025-10-01 21:47:27', NULL, 0, NULL, NULL, NULL, 1),
+(66, NULL, 'TEST005', 'Hoàng Văn E', '0945678901', 'hoangvane@outlook.com', '654 Đường Hai Bà Trưng, Quận Tân Bình, TP.HCM', 350000.00, 'VND', 'COD', '[{\"product_name\":\"Túi xách nữ\",\"quantity\":1,\"price\":350000}]', NULL, 'free', 'lbl_new_order', NULL, NULL, NULL, 0, NULL, NULL, 'manual', NULL, NULL, NULL, NULL, NULL, '2025-10-01 21:47:27', '2025-10-01 21:47:27', NULL, 0, NULL, NULL, NULL, 1);
 
 -- --------------------------------------------------------
 
@@ -410,8 +349,13 @@ CREATE TABLE `order_labels` (
 --
 
 INSERT INTO `order_labels` (`label_key`, `label_name`, `label_value`, `description`, `color`, `icon`, `sort_order`, `is_system`, `auto_lock`, `metadata`, `created_by`, `created_at`, `updated_at`) VALUES
+('free', '[Kho chung] Chưa phân công', 0, NULL, '#6c757d', 'fa-inbox', -9999, 1, 0, NULL, NULL, '2025-10-01 22:18:22', '2025-10-01 22:18:22'),
+('lbl_callback', 'Hẹn gọi lại', 0, 'Khách yêu cầu gọi lại sau', '#FFC107', 'fa-phone-alt', 5, 0, 0, NULL, NULL, '2025-10-01 21:29:24', '2025-10-01 21:29:24'),
 ('lbl_completed', 'Hoàn thành', 1, NULL, '#28a745', 'fa-check-circle', 9999, 1, 0, NULL, NULL, '2025-10-01 18:54:28', '2025-10-01 18:54:28'),
-('lbl_new_order', 'Đơn mới', 0, NULL, '#17a2b8', 'fa-plus-circle', -1, 1, 0, NULL, NULL, '2025-10-01 18:54:28', '2025-10-01 18:54:28');
+('lbl_confirmed', 'Đã xác nhận', 0, NULL, '#28a745', 'fa-check', 2, 0, 0, NULL, NULL, '2025-10-01 22:38:43', '2025-10-01 22:38:43'),
+('lbl_new_order', 'Đơn mới', 0, NULL, '#17a2b8', 'fa-plus-circle', -1, 1, 0, NULL, NULL, '2025-10-01 18:54:28', '2025-10-01 18:54:28'),
+('lbl_processing', 'Đang xử lý', 0, NULL, '#ffc107', 'fa-spinner', 1, 0, 0, NULL, NULL, '2025-10-01 22:38:43', '2025-10-01 22:38:43'),
+('pending_approval', 'Chờ duyệt', 0, NULL, '#ffc107', 'fa-clock', -9998, 1, 0, NULL, NULL, '2025-10-01 22:18:22', '2025-10-01 22:18:22');
 
 -- --------------------------------------------------------
 
@@ -726,7 +670,7 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`id`, `username`, `password`, `full_name`, `email`, `phone`, `role`, `status`, `avatar`, `last_login_at`, `last_login_ip`, `created_at`, `updated_at`, `suspension_reason`, `suspension_until`, `deleted_at`) VALUES
-(1, 'admin', '$2y$10$5EzgChCuFM.LG/yVCMbuseZFP2fxECDOQJb8FzEmssX4iev/sjbVi', 'Administrator', 'admin@example.com', NULL, 'admin', 'active', NULL, '2025-10-01 13:25:32', '::1', '2025-09-30 09:36:19', '2025-10-01 13:25:32', NULL, NULL, NULL),
+(1, 'admin', '$2y$10$5EzgChCuFM.LG/yVCMbuseZFP2fxECDOQJb8FzEmssX4iev/sjbVi', 'Administrator', 'admin@example.com', NULL, 'admin', 'active', NULL, '2025-10-01 22:16:13', '::1', '2025-09-30 09:36:19', '2025-10-01 22:16:13', NULL, NULL, NULL),
 (2, 'telesale1', '$2y$10$lkpRcTFFgJVlNIawkjprY.n7mubXpkH1/Sa0TOf4pl7rZQw6DVuqa', 'Nguyễn Văn Ad', 'vh6889@gmail.com', '0963470944', 'telesale', 'active', NULL, '2025-10-01 13:46:40', '::1', '2025-09-30 09:36:19', '2025-10-01 13:46:40', NULL, NULL, NULL),
 (3, 'telesale2', '$2y$10$lkpRcTFFgJVlNIawkjprY.n7mubXpkH1/Sa0TOf4pl7rZQw6DVuqa', 'Trần Thị Booo', 'telesale2@example.com', '', 'telesale', 'active', NULL, NULL, NULL, '2025-09-30 09:36:19', '2025-09-30 12:54:32', NULL, NULL, NULL),
 (4, 'oigioioi', '$2y$10$AxE8XaE9rkf9G7nvTyTFgu1xQNGMAKItLU/tkocwj2ZTJv/JmGppq', 'Hai Vu', 'raintl07@gmail.com', '0963470944', 'manager', 'active', NULL, NULL, NULL, '2025-09-30 18:50:59', '2025-09-30 18:50:59', NULL, NULL, NULL);
@@ -1061,13 +1005,13 @@ ALTER TABLE `user_labels`
 -- AUTO_INCREMENT cho bảng `activity_logs`
 --
 ALTER TABLE `activity_logs`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=37;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=38;
 
 --
 -- AUTO_INCREMENT cho bảng `call_logs`
 --
 ALTER TABLE `call_logs`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT cho bảng `customer_labels`
@@ -1103,19 +1047,19 @@ ALTER TABLE `notifications`
 -- AUTO_INCREMENT cho bảng `orders`
 --
 ALTER TABLE `orders`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=52;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=67;
 
 --
 -- AUTO_INCREMENT cho bảng `order_label_history`
 --
 ALTER TABLE `order_label_history`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT cho bảng `order_notes`
 --
 ALTER TABLE `order_notes`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT cho bảng `password_history`
@@ -1133,7 +1077,7 @@ ALTER TABLE `rate_limits`
 -- AUTO_INCREMENT cho bảng `reminders`
 --
 ALTER TABLE `reminders`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT cho bảng `role_permissions`
@@ -1181,7 +1125,7 @@ ALTER TABLE `tasks`
 -- AUTO_INCREMENT cho bảng `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
 
 --
 -- AUTO_INCREMENT cho bảng `user_labels`
