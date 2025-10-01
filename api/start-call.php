@@ -1,8 +1,8 @@
 <?php
 // ============================================
-// api/claim-order.php (Fixed)
+// api/start-call.php
 // ============================================
-if (basename($_SERVER['PHP_SELF']) == 'claim-order.php') {
+if (basename($_SERVER['PHP_SELF']) == 'start-call.php') {
     define('TSM_ACCESS', true);
     require_once '../config.php';
     require_once '../functions.php';
@@ -21,26 +21,22 @@ if (basename($_SERVER['PHP_SELF']) == 'claim-order.php') {
     }
     
     try {
-        $order = get_order($order_id);
-        
-        if ($order['assigned_to']) {
-            json_error('Đơn hàng đã được gán');
-        }
-        
-        db_update('orders', [
-            'assigned_to' => $user['id'],
-            'assigned_at' => date('Y-m-d H:i:s'),
-            'status' => 'assigned'
-        ], 'id = ?', [$order_id]);
-        
-        db_insert('order_notes', [
+        // Create call log
+        db_insert('call_logs', [
             'order_id' => $order_id,
             'user_id' => $user['id'],
-            'note_type' => 'system',
-            'content' => 'Nhận đơn hàng'
+            'user_name' => $user['full_name'],
+            'start_time' => date('Y-m-d H:i:s'),
+            'status' => 'active'
         ]);
         
-        json_success('Đã nhận đơn hàng');
+        // Update order status
+        db_update('orders', [
+            'status' => 'calling',
+            'last_call_at' => date('Y-m-d H:i:s')
+        ], 'id = ?', [$order_id]);
+        
+        json_success('Đã bắt đầu cuộc gọi');
     } catch (Exception $e) {
         json_error('Lỗi: ' . $e->getMessage());
     }

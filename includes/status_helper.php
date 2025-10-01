@@ -1,70 +1,53 @@
 <?php
 /**
- * Helper Functions cho Dynamic Status System
- * Lưu file này vào: includes/status_helper.php
+ * Status Helper - CHỈ khai báo functions CHƯA có trong functions.php
  */
 
-// Lấy tất cả status từ database
-function get_all_statuses() {
-    return db_get_results(
-        "SELECT status_key as value, label as text, color, icon, sort_order 
-         FROM order_status_configs 
-         ORDER BY sort_order"
-    );
-}
+// get_order_status_configs() - ĐÃ CÓ trong functions.php line 532
+// KHÔNG khai báo lại
 
-// Lấy thông tin 1 status
-function get_status_info($status_key) {
-    if (empty($status_key)) {
-        return null;
+// Function này orders.php cần ở dòng 58
+if (!function_exists('get_all_statuses')) {
+    function get_all_statuses() {
+        $configs = get_order_status_configs(); // Dùng function có sẵn
+        $statuses = [];
+        foreach ($configs as $key => $config) {
+            $statuses[$key] = $config['label'];
+        }
+        return $statuses;
     }
-    
-    return db_get_row(
-        "SELECT * FROM order_status_configs WHERE status_key = ?",
-        [$status_key]
-    );
 }
 
-// Tạo HTML cho status badge
-function render_status_badge($status_key) {
-    $status = get_status_info($status_key);
-    
-    // Nếu không tìm thấy status, dùng default
-    if (!$status) {
-        return '<span class="badge bg-secondary">
-                    <i class="fas fa-tag"></i> ' . htmlspecialchars($status_key) . '
-                </span>';
+// Các functions khác CHỈ khai báo nếu CHƯA có
+if (!function_exists('render_status_badge')) {
+    function render_status_badge($status_key) {
+        $configs = get_order_status_configs();
+        if (isset($configs[$status_key])) {
+            $config = $configs[$status_key];
+            return sprintf(
+                '<span class="badge" style="background-color: %s">%s</span>',
+                $config['color'],
+                htmlspecialchars($config['label'])
+            );
+        }
+        return '<span class="badge bg-secondary">' . htmlspecialchars($status_key) . '</span>';
     }
-    
-    // Tạo badge với màu và icon từ database
-    return '<span class="badge" style="background-color: ' . htmlspecialchars($status['color']) . '">
-                <i class="fas ' . htmlspecialchars($status['icon']) . '"></i> 
-                ' . htmlspecialchars($status['label']) . '
-            </span>';
 }
 
-// Tạo dropdown options cho select status
-function render_status_options($selected = null) {
-    $statuses = get_all_statuses();
-    $html = '';
-    
-    foreach($statuses as $status) {
-        $selected_attr = ($selected == $status['value']) ? 'selected' : '';
-        $html .= '<option value="' . htmlspecialchars($status['value']) . '" 
-                         data-color="' . htmlspecialchars($status['color']) . '"
-                         data-icon="' . htmlspecialchars($status['icon']) . '" 
-                         ' . $selected_attr . '>' 
-                . htmlspecialchars($status['text']) 
-                . '</option>';
+if (!function_exists('render_status_options')) {
+    function render_status_options($current_status = '') {
+        $configs = get_order_status_configs();
+        $html = '';
+        foreach ($configs as $key => $config) {
+            $selected = ($key == $current_status) ? 'selected' : '';
+            $html .= sprintf(
+                '<option value="%s" %s>%s</option>',
+                htmlspecialchars($key),
+                $selected,
+                htmlspecialchars($config['label'])
+            );
+        }
+        return $html;
     }
-    
-    return $html;
-}
-
-// Lấy default status (status đầu tiên) - SỬA db_get_value thành db_get_var
-function get_default_status() {
-    return db_get_var(  // ĐÃ SỬA
-        "SELECT status_key FROM order_status_configs ORDER BY sort_order ASC LIMIT 1"
-    );
 }
 ?>

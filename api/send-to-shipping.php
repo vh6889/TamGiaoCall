@@ -1,8 +1,8 @@
 <?php
 // ============================================
-// api/claim-order.php (Fixed)
-// ============================================
-if (basename($_SERVER['PHP_SELF']) == 'claim-order.php') {
+// api/send-to-shipping.php
+// ============================================  
+if (basename($_SERVER['PHP_SELF']) == 'send-to-shipping.php') {
     define('TSM_ACCESS', true);
     require_once '../config.php';
     require_once '../functions.php';
@@ -14,33 +14,29 @@ if (basename($_SERVER['PHP_SELF']) == 'claim-order.php') {
     }
     
     $order_id = (int)($_POST['order_id'] ?? 0);
-    $user = get_logged_user();
     
     if (!$order_id) {
         json_error('Invalid order ID');
     }
     
     try {
-        $order = get_order($order_id);
-        
-        if ($order['assigned_to']) {
-            json_error('Đơn hàng đã được gán');
-        }
-        
+        // Update status to shipping
         db_update('orders', [
-            'assigned_to' => $user['id'],
-            'assigned_at' => date('Y-m-d H:i:s'),
-            'status' => 'assigned'
+            'status' => 'shipping',
+            'shipped_at' => date('Y-m-d H:i:s')
         ], 'id = ?', [$order_id]);
         
+        // Add note
         db_insert('order_notes', [
             'order_id' => $order_id,
-            'user_id' => $user['id'],
+            'user_id' => get_logged_user()['id'],
             'note_type' => 'system',
-            'content' => 'Nhận đơn hàng'
+            'content' => 'Đã gửi đơn sang bộ phận giao vận'
         ]);
         
-        json_success('Đã nhận đơn hàng');
+        // TODO: Integrate with shipping API/system
+        
+        json_success('Đã gửi đơn sang giao hàng');
     } catch (Exception $e) {
         json_error('Lỗi: ' . $e->getMessage());
     }

@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Máy chủ: 127.0.0.1
--- Thời gian đã tạo: Th10 01, 2025 lúc 01:50 AM
+-- Thời gian đã tạo: Th10 01, 2025 lúc 04:27 AM
 -- Phiên bản máy phục vụ: 10.4.32-MariaDB
 -- Phiên bản PHP: 8.0.30
 
@@ -161,7 +161,53 @@ INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `related_
 (20, 1, 'delete_rule', 'Deleted rule #4', 'rule', 4, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 23:40:28'),
 (21, 1, 'delete_rule', 'Deleted rule #2', 'rule', 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 23:40:38'),
 (22, 1, 'create_rule', 'Created rule: Tự chuyển không nghe thành rác', 'rule', 7, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 00:36:21'),
-(23, 1, 'migrate_dynamic_status', 'Migrated system to use dynamic status', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 06:09:44');
+(23, 1, 'migrate_dynamic_status', 'Migrated system to use dynamic status', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 06:09:44'),
+(24, 1, 'start_call', 'Started call for order #DYN001', 'order', 22, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 07:12:38'),
+(25, 1, 'end_call', 'Completed call for order #22 (Duration: 00:02:02)', 'order', 22, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 07:14:40'),
+(26, 1, 'complete_cleanup', 'Executed complete system cleanup - removed all hardcoded values', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 09:23:38');
+
+-- --------------------------------------------------------
+
+--
+-- Cấu trúc bảng cho bảng `call_logs`
+--
+
+CREATE TABLE `call_logs` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `order_id` int(10) UNSIGNED NOT NULL,
+  `user_id` int(10) UNSIGNED NOT NULL,
+  `user_name` varchar(100) DEFAULT NULL COMMENT 'Lưu tên nhân viên tại thời điểm gọi',
+  `start_time` datetime NOT NULL,
+  `end_time` datetime DEFAULT NULL,
+  `duration` int(10) UNSIGNED DEFAULT NULL COMMENT 'Thời lượng cuộc gọi (giây)',
+  `note` text DEFAULT NULL COMMENT 'Ghi chú cuộc gọi',
+  `status` enum('active','completed','dropped') DEFAULT 'active',
+  `recording_url` varchar(255) DEFAULT NULL COMMENT 'URL file ghi âm (nếu có)',
+  `customer_feedback` tinyint(1) DEFAULT NULL COMMENT 'Đánh giá của khách (1-5)',
+  `created_at` datetime DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Lịch sử cuộc gọi chi tiết';
+
+--
+-- Đang đổ dữ liệu cho bảng `call_logs`
+--
+
+INSERT INTO `call_logs` (`id`, `order_id`, `user_id`, `user_name`, `start_time`, `end_time`, `duration`, `note`, `status`, `recording_url`, `customer_feedback`, `created_at`) VALUES
+(1, 22, 1, 'Administrator', '2025-10-01 07:12:38', '2025-10-01 07:14:40', 122, 'gọi thử', 'completed', NULL, NULL, '2025-10-01 07:12:38'),
+(2, 22, 1, 'Administrator', '2025-10-01 07:54:49', '2025-10-01 07:57:59', 190, 'gọi thử', 'completed', NULL, NULL, '2025-10-01 07:54:49'),
+(3, 28, 1, 'Administrator', '2025-10-01 07:59:26', '2025-10-01 08:02:05', 159, 'mua thử', 'completed', NULL, NULL, '2025-10-01 07:59:26'),
+(4, 28, 1, 'Administrator', '2025-10-01 08:02:27', '2025-10-01 08:02:35', 8, 'cập nhật', 'completed', NULL, NULL, '2025-10-01 08:02:27');
+
+--
+-- Bẫy `call_logs`
+--
+DELIMITER $$
+CREATE TRIGGER `calculate_call_duration` BEFORE UPDATE ON `call_logs` FOR EACH ROW BEGIN
+    IF NEW.end_time IS NOT NULL AND OLD.end_time IS NULL THEN
+        SET NEW.duration = TIMESTAMPDIFF(SECOND, NEW.start_time, NEW.end_time);
+    END IF;
+END
+$$
+DELIMITER ;
 
 -- --------------------------------------------------------
 
@@ -321,7 +367,7 @@ CREATE TABLE `orders` (
   `payment_method` varchar(50) DEFAULT NULL,
   `products` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL COMMENT 'Danh sách sản phẩm (JSON)' CHECK (json_valid(`products`)),
   `customer_notes` text DEFAULT NULL COMMENT 'Ghi chú của khách',
-  `status` varchar(50) NOT NULL DEFAULT 'n-a',
+  `status` varchar(50) DEFAULT 'new',
   `assigned_to` int(10) UNSIGNED DEFAULT NULL COMMENT 'ID nhân viên được gán',
   `manager_id` int(10) UNSIGNED DEFAULT NULL COMMENT 'ID manager đang giám sát đơn',
   `assigned_at` datetime DEFAULT NULL COMMENT 'Thời gian gán',
@@ -336,24 +382,27 @@ CREATE TABLE `orders` (
   `woo_created_at` datetime DEFAULT NULL COMMENT 'Thời gian tạo đơn trên WooCommerce',
   `created_at` datetime DEFAULT current_timestamp(),
   `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `completed_at` datetime DEFAULT NULL
+  `completed_at` datetime DEFAULT NULL,
+  `is_locked` tinyint(1) DEFAULT 0 COMMENT 'Đơn hàng đã khóa sau khi xử lý xong',
+  `locked_at` datetime DEFAULT NULL COMMENT 'Thời gian khóa đơn hàng',
+  `locked_by` int(10) UNSIGNED DEFAULT NULL COMMENT 'Người khóa đơn hàng'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Bảng đơn hàng';
 
 --
 -- Đang đổ dữ liệu cho bảng `orders`
 --
 
-INSERT INTO `orders` (`id`, `woo_order_id`, `order_number`, `customer_name`, `customer_phone`, `customer_email`, `customer_address`, `total_amount`, `currency`, `payment_method`, `products`, `customer_notes`, `status`, `assigned_to`, `manager_id`, `assigned_at`, `call_count`, `last_call_at`, `callback_time`, `source`, `created_by`, `approval_status`, `approved_by`, `approved_at`, `woo_created_at`, `created_at`, `updated_at`, `completed_at`) VALUES
-(22, NULL, 'DYN001', 'Test Bom hàng', '0900000000', NULL, '123 Test Street, District 1', 450136.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'bom-hang', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 06:09:44', NULL),
-(23, NULL, 'DYN002', 'Test Đang giao', '0900000001', NULL, '123 Test Street, District 2', 1628333.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'dang-giao', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 06:09:44', NULL),
-(24, NULL, 'DYN003', 'Test Đang hoàn', '0900000002', NULL, '123 Test Street, District 3', 1233607.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'dang-hoan', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 06:09:44', NULL),
-(25, NULL, 'DYN004', 'Test Đóng gói sai', '0900000003', NULL, '123 Test Street, District 4', 1030515.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'dong-goi-sai', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 06:09:44', NULL),
-(26, NULL, 'DYN005', 'Test Giao thành công', '0900000004', NULL, '123 Test Street, District 5', 1169812.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'giao-thanh-cong', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 06:09:44', NULL),
-(27, NULL, 'DYN006', 'Test Hoàn thành công', '0900000005', NULL, '123 Test Street, District 6', 1427145.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'hoan-thanh-cong', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 06:09:44', NULL),
-(28, NULL, 'DYN007', 'Test Không nghe', '0900000006', NULL, '123 Test Street, District 7', 339382.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'khong-nghe', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 06:09:44', NULL),
-(29, NULL, 'DYN008', 'Test Đơn mới', '0900000007', NULL, '123 Test Street, District 8', 1925618.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'n-a', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 06:09:44', NULL),
-(30, NULL, 'DYN009', 'Test Đang gọi', '0900000008', NULL, '123 Test Street, District 9', 1795834.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'n-a-1759223929', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 06:09:44', NULL),
-(31, NULL, 'DYN010', 'Test Hẹn gọi lại', '0900000009', NULL, '123 Test Street, District 10', 822067.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'n-a-1759224057', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 06:09:44', NULL);
+INSERT INTO `orders` (`id`, `woo_order_id`, `order_number`, `customer_name`, `customer_phone`, `customer_email`, `customer_address`, `total_amount`, `currency`, `payment_method`, `products`, `customer_notes`, `status`, `assigned_to`, `manager_id`, `assigned_at`, `call_count`, `last_call_at`, `callback_time`, `source`, `created_by`, `approval_status`, `approved_by`, `approved_at`, `woo_created_at`, `created_at`, `updated_at`, `completed_at`, `is_locked`, `locked_at`, `locked_by`) VALUES
+(22, NULL, 'DYN001', 'Anh Hải', '0963864597', '', '55 Ngô Kim Tài, Kênh Dương, Hải Phòng', 300000.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":3,\"price\":100000,\"sku\":\"N/A\",\"regular_price\":100000,\"sale_price\":100000,\"attributes\":[],\"line_total\":300000}]', NULL, 'n-a', 1, NULL, '2025-10-01 07:54:42', 2, '2025-10-01 07:57:59', '0000-00-00 00:00:00', 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 09:22:37', NULL, 0, NULL, NULL),
+(23, NULL, 'DYN002', 'Test Đang giao', '0900000001', NULL, '123 Test Street, District 2', 1628333.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'dang-giao', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 06:09:44', NULL, 0, NULL, NULL),
+(24, NULL, 'DYN003', 'Test Đang hoàn', '0900000002', NULL, '123 Test Street, District 3', 1233607.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'dang-hoan', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 06:09:44', NULL, 0, NULL, NULL),
+(25, NULL, 'DYN004', 'Test Đóng gói sai', '0900000003', NULL, '123 Test Street, District 4', 1030515.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'dong-goi-sai', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 06:09:44', NULL, 0, NULL, NULL),
+(26, NULL, 'DYN005', 'Test Giao thành công', '0900000004', NULL, '123 Test Street, District 5', 1169812.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'giao-thanh-cong', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 06:09:44', NULL, 0, NULL, NULL),
+(27, NULL, 'DYN006', 'Test Hoàn thành công', '0900000005', NULL, '123 Test Street, District 6', 1427145.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'hoan-thanh-cong', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 06:09:44', NULL, 0, NULL, NULL),
+(28, NULL, 'DYN007', 'Trang', '0962864599', 'raintl07@gmail.com', '55 Ngô Kim Tài, Kênh Dương, Hải Phòng', 500000.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":3,\"price\":100000,\"sku\":\"N/A\",\"regular_price\":100000,\"sale_price\":100000,\"attributes\":[],\"line_total\":300000},{\"name\":\"Product Test\",\"qty\":2,\"price\":100000,\"sku\":\"N/A\",\"regular_price\":100000,\"sale_price\":100000,\"attributes\":[],\"line_total\":200000}]', NULL, 'n-a', 1, NULL, '2025-10-01 07:59:00', 2, '2025-10-01 08:02:35', '0000-00-00 00:00:00', 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 09:22:37', NULL, 0, NULL, NULL),
+(29, NULL, 'DYN008', 'Test Đơn mới', '0900000007', NULL, '123 Test Street, District 8', 1925618.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'n-a', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 06:09:44', NULL, 0, NULL, NULL),
+(30, NULL, 'DYN009', 'Test Đang gọi', '0900000008', NULL, '123 Test Street, District 9', 1795834.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'n-a', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 09:22:37', NULL, 0, NULL, NULL),
+(31, NULL, 'DYN010', 'Test Hẹn gọi lại', '0900000009', NULL, '123 Test Street, District 10', 822067.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'n-a', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 09:22:37', NULL, 0, NULL, NULL);
 
 --
 -- Bẫy `orders`
@@ -436,6 +485,32 @@ CREATE TABLE `order_notes` (
   `created_at` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Bảng ghi chú đơn hàng';
 
+--
+-- Đang đổ dữ liệu cho bảng `order_notes`
+--
+
+INSERT INTO `order_notes` (`id`, `order_id`, `user_id`, `note_type`, `content`, `created_at`) VALUES
+(1, 22, 1, '', 'Cuộc gọi 00:02:02 - gọi thử', '2025-10-01 07:14:40'),
+(2, 22, 1, 'system', 'Nhận đơn hàng', '2025-10-01 07:54:42'),
+(3, 22, 1, 'system', 'Cập nhật thông tin khách hàng', '2025-10-01 07:57:36'),
+(4, 22, 1, '', 'gọi thử', '2025-10-01 07:57:59'),
+(5, 22, 1, 'status', 'Trạng thái đổi từ \"Bom hàng\" sang \"Chờ giao\"', '2025-10-01 07:58:15'),
+(6, 22, 1, 'status', 'Cập nhật trạng thái: shipping', '2025-10-01 07:58:15'),
+(7, 28, 1, 'system', 'Nhận đơn hàng', '2025-10-01 07:59:00'),
+(8, 28, 1, '', 'mua thử', '2025-10-01 08:02:05'),
+(9, 28, 1, 'system', 'Cập nhật thông tin khách hàng', '2025-10-01 08:02:16'),
+(10, 28, 1, '', 'cập nhật', '2025-10-01 08:02:35'),
+(11, 28, 1, 'status', 'Trạng thái đổi từ \"Không nghe\" sang \"Chờ giao\"', '2025-10-01 08:02:39'),
+(12, 28, 1, 'status', 'Cập nhật trạng thái: shipping', '2025-10-01 08:02:39'),
+(13, 22, 1, 'status', 'Trạng thái đổi từ \"shipping\" sang \"Đơn mới\"', '2025-10-01 08:21:05'),
+(14, 28, 1, 'status', 'Trạng thái đổi từ \"shipping\" sang \"Đơn mới\"', '2025-10-01 08:21:05'),
+(15, 30, NULL, 'status', 'Trạng thái đổi từ \"n-a-1759223929\" sang \"Đơn mới\"', '2025-10-01 08:21:05'),
+(16, 31, NULL, 'status', 'Trạng thái đổi từ \"n-a-1759224057\" sang \"Đơn mới\"', '2025-10-01 08:21:05'),
+(17, 22, 1, 'status', 'Trạng thái đổi từ \"Đơn mới\" sang \"Đơn mới\"', '2025-10-01 09:22:37'),
+(18, 28, 1, 'status', 'Trạng thái đổi từ \"Đơn mới\" sang \"Đơn mới\"', '2025-10-01 09:22:37'),
+(19, 30, NULL, 'status', 'Trạng thái đổi từ \"Đơn mới\" sang \"Đơn mới\"', '2025-10-01 09:22:37'),
+(20, 31, NULL, 'status', 'Trạng thái đổi từ \"Đơn mới\" sang \"Đơn mới\"', '2025-10-01 09:22:37');
+
 -- --------------------------------------------------------
 
 --
@@ -459,26 +534,14 @@ CREATE TABLE `order_status_configs` (
 --
 
 INSERT INTO `order_status_configs` (`status_key`, `label`, `color`, `icon`, `sort_order`, `logic_json`, `created_by`, `created_at`, `updated_at`) VALUES
-('bom-hang', 'Bom hàng', '#ff0000', 'fa-tag', 15, '', NULL, '2025-09-30 16:34:13', '2025-09-30 16:34:13'),
+('bom-hang', 'Bom hàng', '#dc3545', 'fa-bomb', 12, '', NULL, '2025-09-30 16:34:13', '2025-10-01 08:21:05'),
 ('dang-giao', 'Đang giao', '#639419', 'fa-tag', 11, '', NULL, '2025-09-30 16:28:29', '2025-09-30 16:28:29'),
 ('dang-hoan', 'Đang hoàn', '#8c460d', 'fa-tag', 16, '', NULL, '2025-09-30 16:34:44', '2025-09-30 16:34:44'),
 ('dong-goi-sai', 'Đóng gói sai', '#7c3131', 'fa-tag', 12, '', NULL, '2025-09-30 16:30:16', '2025-09-30 16:30:16'),
 ('giao-thanh-cong', 'Giao thành công', '#00d604', 'fa-tag', 20, '', NULL, '2025-09-30 16:37:32', '2025-09-30 16:37:32'),
 ('hoan-thanh-cong', 'Hoàn thành công', '#1a1a1a', 'fa-tag', 17, '', NULL, '2025-09-30 16:35:25', '2025-09-30 16:35:25'),
 ('khong-nghe', 'Không nghe', '#dfc834', 'fa-tag', 3, '', NULL, '2025-09-30 16:23:37', '2025-09-30 16:23:37'),
-('n-a', 'Đơn mới', '#08f7cf', 'fa-tag', 1, '', NULL, '2025-09-30 16:18:10', '2025-09-30 16:18:10'),
-('n-a-1759223929', 'Đang gọi', '#2a88df', 'fa-tag', 2, '', NULL, '2025-09-30 16:18:49', '2025-09-30 16:18:49'),
-('n-a-1759224057', 'Hẹn gọi lại', '#9e62a3', 'fa-tag', 4, '', NULL, '2025-09-30 16:20:57', '2025-09-30 16:20:57'),
-('n-a-1759224134', 'Sai số', '#d10000', 'fa-tag', 5, '', NULL, '2025-09-30 16:22:14', '2025-09-30 16:22:14'),
-('n-a-1759224173', 'Đơn rác', '#4c2a2a', 'fa-tag', 6, '', NULL, '2025-09-30 16:22:53', '2025-09-30 16:22:53'),
-('n-a-1759224282', 'Từ chối', '#b30036', 'fa-tag', 7, '', NULL, '2025-09-30 16:24:42', '2025-09-30 16:24:42'),
-('n-a-1759224317', 'Xác nhận', '#1d9f4b', 'fa-tag', 8, '', NULL, '2025-09-30 16:25:17', '2025-09-30 16:25:17'),
-('n-a-1759224363', 'Chờ giao', '#e1ff00', 'fa-tag', 9, '', NULL, '2025-09-30 16:26:03', '2025-09-30 16:26:03'),
-('n-a-1759224426', 'Hết hàng', '#4f2a74', 'fa-tag', 10, '', NULL, '2025-09-30 16:27:06', '2025-09-30 16:27:06'),
-('n-a-1759224683', 'Gửi đơn mới', '#624771', 'fa-tag', 13, '', NULL, '2025-09-30 16:31:23', '2025-09-30 16:31:23'),
-('n-a-1759224783', 'Giao một phần', '#15932a', 'fa-tag', 14, '', NULL, '2025-09-30 16:33:03', '2025-09-30 16:33:03'),
-('n-a-1759224985', 'Đổi hàng', '#2a4635', 'fa-tag', 18, '', NULL, '2025-09-30 16:36:25', '2025-09-30 16:36:25'),
-('n-a-1759225011', 'Trả hàng', '#7a0012', 'fa-tag', 19, '', NULL, '2025-09-30 16:36:51', '2025-09-30 16:36:51');
+('n-a', 'Đơn mới', '#08f7cf', 'fa-tag', 1, '', NULL, '2025-09-30 16:18:10', '2025-09-30 16:18:10');
 
 -- --------------------------------------------------------
 
@@ -838,6 +901,50 @@ INSERT INTO `user_labels` (`id`, `label_key`, `label_name`, `description`, `colo
 -- --------------------------------------------------------
 
 --
+-- Cấu trúc đóng vai cho view `v_call_statistics`
+-- (See below for the actual view)
+--
+CREATE TABLE `v_call_statistics` (
+`user_id` int(10) unsigned
+,`full_name` varchar(100)
+,`username` varchar(50)
+,`total_calls` bigint(21)
+,`unique_orders` bigint(21)
+,`avg_duration` decimal(14,4)
+,`total_duration` decimal(32,0)
+,`completed_calls` bigint(21)
+,`dropped_calls` bigint(21)
+,`call_date` date
+);
+
+-- --------------------------------------------------------
+
+--
+-- Cấu trúc đóng vai cho view `v_latest_calls`
+-- (See below for the actual view)
+--
+CREATE TABLE `v_latest_calls` (
+`id` int(10) unsigned
+,`order_id` int(10) unsigned
+,`user_id` int(10) unsigned
+,`user_name` varchar(100)
+,`start_time` datetime
+,`end_time` datetime
+,`duration` int(10) unsigned
+,`note` text
+,`status` enum('active','completed','dropped')
+,`recording_url` varchar(255)
+,`customer_feedback` tinyint(1)
+,`created_at` datetime
+,`order_number` varchar(50)
+,`customer_name` varchar(100)
+,`customer_phone` varchar(20)
+,`order_status` varchar(50)
+);
+
+-- --------------------------------------------------------
+
+--
 -- Cấu trúc đóng vai cho view `v_orders_with_status`
 -- (See below for the actual view)
 --
@@ -907,6 +1014,24 @@ CREATE TABLE `v_status_options` (
 -- --------------------------------------------------------
 
 --
+-- Cấu trúc cho view `v_call_statistics`
+--
+DROP TABLE IF EXISTS `v_call_statistics`;
+
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_call_statistics`  AS SELECT `cl`.`user_id` AS `user_id`, `u`.`full_name` AS `full_name`, `u`.`username` AS `username`, count(`cl`.`id`) AS `total_calls`, count(distinct `cl`.`order_id`) AS `unique_orders`, avg(`cl`.`duration`) AS `avg_duration`, sum(`cl`.`duration`) AS `total_duration`, count(case when `cl`.`status` = 'completed' then 1 end) AS `completed_calls`, count(case when `cl`.`status` = 'dropped' then 1 end) AS `dropped_calls`, cast(`cl`.`start_time` as date) AS `call_date` FROM (`call_logs` `cl` left join `users` `u` on(`cl`.`user_id` = `u`.`id`)) WHERE `cl`.`end_time` is not null GROUP BY `cl`.`user_id`, cast(`cl`.`start_time` as date) ;
+
+-- --------------------------------------------------------
+
+--
+-- Cấu trúc cho view `v_latest_calls`
+--
+DROP TABLE IF EXISTS `v_latest_calls`;
+
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_latest_calls`  AS SELECT `cl1`.`id` AS `id`, `cl1`.`order_id` AS `order_id`, `cl1`.`user_id` AS `user_id`, `cl1`.`user_name` AS `user_name`, `cl1`.`start_time` AS `start_time`, `cl1`.`end_time` AS `end_time`, `cl1`.`duration` AS `duration`, `cl1`.`note` AS `note`, `cl1`.`status` AS `status`, `cl1`.`recording_url` AS `recording_url`, `cl1`.`customer_feedback` AS `customer_feedback`, `cl1`.`created_at` AS `created_at`, `o`.`order_number` AS `order_number`, `o`.`customer_name` AS `customer_name`, `o`.`customer_phone` AS `customer_phone`, `o`.`status` AS `order_status` FROM ((`call_logs` `cl1` join (select `call_logs`.`order_id` AS `order_id`,max(`call_logs`.`start_time`) AS `max_start` from `call_logs` group by `call_logs`.`order_id`) `cl2` on(`cl1`.`order_id` = `cl2`.`order_id` and `cl1`.`start_time` = `cl2`.`max_start`)) left join `orders` `o` on(`cl1`.`order_id` = `o`.`id`)) ;
+
+-- --------------------------------------------------------
+
+--
 -- Cấu trúc cho view `v_orders_with_status`
 --
 DROP TABLE IF EXISTS `v_orders_with_status`;
@@ -951,6 +1076,17 @@ ALTER TABLE `activity_logs`
   ADD PRIMARY KEY (`id`),
   ADD KEY `idx_user_id` (`user_id`),
   ADD KEY `idx_action` (`action`);
+
+--
+-- Chỉ mục cho bảng `call_logs`
+--
+ALTER TABLE `call_logs`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_order_id` (`order_id`),
+  ADD KEY `idx_user_id` (`user_id`),
+  ADD KEY `idx_start_time` (`start_time`),
+  ADD KEY `idx_status` (`status`),
+  ADD KEY `idx_active_calls` (`order_id`,`user_id`,`end_time`);
 
 --
 -- Chỉ mục cho bảng `customer_labels`
@@ -1142,7 +1278,13 @@ ALTER TABLE `action_logs`
 -- AUTO_INCREMENT cho bảng `activity_logs`
 --
 ALTER TABLE `activity_logs`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=24;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=27;
+
+--
+-- AUTO_INCREMENT cho bảng `call_logs`
+--
+ALTER TABLE `call_logs`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT cho bảng `customer_labels`
@@ -1178,7 +1320,7 @@ ALTER TABLE `orders`
 -- AUTO_INCREMENT cho bảng `order_notes`
 --
 ALTER TABLE `order_notes`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=21;
 
 --
 -- AUTO_INCREMENT cho bảng `reminders`
@@ -1249,6 +1391,13 @@ ALTER TABLE `user_labels`
 --
 ALTER TABLE `activity_logs`
   ADD CONSTRAINT `activity_logs_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL;
+
+--
+-- Các ràng buộc cho bảng `call_logs`
+--
+ALTER TABLE `call_logs`
+  ADD CONSTRAINT `call_logs_ibfk_1` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `call_logs_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 --
 -- Các ràng buộc cho bảng `customer_labels`

@@ -73,80 +73,14 @@ define('CURRENCY_POSITION', 'right'); // left or right
 // =============================================
 // ORDER STATUS
 // =============================================
-define('ORDER_STATUS', [
-    'new' => [
-        'label' => 'Đơn mới',
-        'color' => 'primary',
-        'icon' => 'fa-file-alt'
-    ],
-    'assigned' => [
-        'label' => 'Đã nhận',
-        'color' => 'info',
-        'icon' => 'fa-user-check'
-    ],
-    'calling' => [
-        'label' => 'Đang gọi',
-        'color' => 'warning',
-        'icon' => 'fa-phone'
-    ],
-    'confirmed' => [
-        'label' => 'Đã xác nhận',
-        'color' => 'success',
-        'icon' => 'fa-check-circle'
-    ],
-    'rejected' => [
-        'label' => 'Từ chối',
-        'color' => 'danger',
-        'icon' => 'fa-times-circle'
-    ],
-    'no_answer' => [
-        'label' => 'Không bắt máy',
-        'color' => 'secondary',
-        'icon' => 'fa-phone-slash'
-    ],
-    'callback' => [
-        'label' => 'Hẹn gọi lại',
-        'color' => 'info',
-        'icon' => 'fa-clock'
-    ],
-    'completed' => [
-        'label' => 'Hoàn thành',
-        'color' => 'success',
-        'icon' => 'fa-check-double'
-    ],
-    'cancelled' => [
-        'label' => 'Đã hủy',
-        'color' => 'dark',
-        'icon' => 'fa-ban'
-    ]
-]);
+// REMOVED - Using dynamic order_status_configs table instead
+// define('ORDER_STATUS', [...]);
 
 // =============================================
 // USER ROLES
 // =============================================
-define('USER_ROLES', [
-    'admin' => [
-        'label' => 'Quản trị viên',
-        'permissions' => ['all']
-    ],
-    'manager' => [
-        'label' => 'Quản lý',
-        'permissions' => [
-            'view_all_orders',
-            'manage_orders', 
-            'receive_handover_orders',
-            'disable_users', // Không có enable_users
-            'view_statistics',
-            'view_kpi',
-            'transfer_orders',
-            'approve_orders'
-        ]
-    ],
-    'telesale' => [
-        'label' => 'Telesale',
-        'permissions' => ['view_orders', 'claim_orders', 'update_orders']
-    ]
-]);
+// REMOVED - Using dynamic role_permissions table instead
+// define('USER_ROLES', [...]);
 
 // =============================================
 // ERROR REPORTING (Development/Production)

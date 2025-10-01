@@ -528,17 +528,19 @@ function json_error($message = 'Error', $code = 400) {
     ], $code);
 }
 // Load custom order status configs (thay thế ORDER_STATUS)
+// Load order status configs từ database (KHÔNG dùng constant)
+// Load order status configs từ database (KHÔNG dùng constant)
 function get_order_status_configs() {
     static $configs = null;
     if ($configs === null) {
-        $results = db_get_results("SELECT * FROM order_status_configs");
+        $results = db_get_results("SELECT * FROM order_status_configs ORDER BY sort_order");
         $configs = [];
         foreach ($results as $row) {
             $configs[$row['status_key']] = [
                 'label' => $row['label'],
                 'color' => $row['color'],
                 'icon' => $row['icon'],
-                'logic' => json_decode($row['logic_json'], true) ?? []  // Parse JSON logic
+                'logic' => json_decode($row['logic_json'], true) ?? []
             ];
         }
     }
@@ -896,4 +898,130 @@ function get_orders_with_status($filters = []) {
 // Alias để tương thích
 function db_get_value($sql, $params = []) {
     return db_get_var($sql, $params);
+}
+/**
+ * Get status color class for Bootstrap badge
+ */
+function get_status_color($status_key) {
+    // Try to get from database first
+    $color = db_get_var(
+        "SELECT color FROM order_status_configs WHERE status_key = ?",
+        [$status_key]
+    );
+    
+    if ($color) {
+        // Map custom colors to Bootstrap classes
+        $color_map = [
+            '#28a745' => 'success',
+            '#dc3545' => 'danger',
+            '#ffc107' => 'warning',
+            '#17a2b8' => 'info',
+            '#6c757d' => 'secondary',
+            '#007bff' => 'primary',
+            'green' => 'success',
+            'red' => 'danger',
+            'yellow' => 'warning',
+            'blue' => 'primary',
+            'gray' => 'secondary'
+        ];
+        
+        return $color_map[$color] ?? 'secondary';
+    }
+    
+    // Default mappings if not in database
+    $defaults = [
+        'new' => 'primary',
+        'assigned' => 'info',
+        'calling' => 'warning',
+        'confirmed' => 'success',
+        'rejected' => 'danger',
+        'completed' => 'success',
+        'cancelled' => 'dark',
+        'shipping' => 'info',
+        'delivered' => 'success'
+    ];
+    
+    return $defaults[$status_key] ?? 'secondary';
+}
+
+/**
+ * Get status label (user-friendly name)
+ */
+function get_status_label($status_key) {
+    // Get from database
+    $label = db_get_var(
+        "SELECT label FROM order_status_configs WHERE status_key = ?",
+        [$status_key]
+    );
+    
+    if ($label) {
+        return $label;
+    }
+    
+    // Default labels if not in database
+    $defaults = [
+        'new' => 'Đơn mới',
+        'assigned' => 'Đã nhận',
+        'calling' => 'Đang gọi',
+        'confirmed' => 'Đã xác nhận',
+        'rejected' => 'Từ chối',
+        'completed' => 'Hoàn thành',
+        'cancelled' => 'Đã hủy',
+        'shipping' => 'Đang giao',
+        'delivered' => 'Đã giao'
+    ];
+    
+    return $defaults[$status_key] ?? $status_key;
+}
+
+/**
+ * Render status badge with proper label and color
+ */
+function render_status_badge_v2($status_key) {
+    $label = get_status_label($status_key);
+    $color = get_status_color($status_key);
+    
+    return '<span class="badge bg-' . $color . '">' . htmlspecialchars($label) . '</span>';
+}
+
+/**
+ * Get all status options with labels for dropdown
+ */
+function get_status_options_with_labels() {
+    // Get from database first
+    $statuses = db_get_results(
+        "SELECT status_key, label FROM order_status_configs ORDER BY sort_order, id"
+    );
+    
+    if (empty($statuses)) {
+        // Return defaults if database is empty
+        return [
+            ['status_key' => 'new', 'label' => 'Đơn mới'],
+            ['status_key' => 'assigned', 'label' => 'Đã nhận'],
+            ['status_key' => 'calling', 'label' => 'Đang gọi'],
+            ['status_key' => 'confirmed', 'label' => 'Đã xác nhận'],
+            ['status_key' => 'rejected', 'label' => 'Từ chối'],
+            ['status_key' => 'completed', 'label' => 'Hoàn thành'],
+            ['status_key' => 'cancelled', 'label' => 'Đã hủy']
+        ];
+    }
+    
+    return $statuses;
+}
+
+/**
+ * Render status dropdown options with labels
+ */
+function render_status_options_v2($current_status = '') {
+    $statuses = get_status_options_with_labels();
+    $html = '';
+    
+    foreach ($statuses as $status) {
+        $selected = ($status['status_key'] == $current_status) ? 'selected' : '';
+        $html .= '<option value="' . htmlspecialchars($status['status_key']) . '" ' . $selected . '>';
+        $html .= htmlspecialchars($status['label']);
+        $html .= '</option>';
+    }
+    
+    return $html;
 }
