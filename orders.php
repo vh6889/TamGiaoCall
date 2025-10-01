@@ -1,6 +1,7 @@
 <?php
 /**
  * Orders Page - Dynamic Status Version
+ * Hiển thị danh sách đơn hàng với filter động theo status
  */
 define('TSM_ACCESS', true);
 require_once 'config.php';
@@ -12,14 +13,14 @@ require_login();
 $current_user = get_logged_user();
 $page_title = 'Quản lý đơn hàng';
 
-// Get filters
+// Get filters from URL
 $filter_status = $_GET['status'] ?? 'all';
 $filter_search = $_GET['search'] ?? '';
 $filter_date_from = $_GET['date_from'] ?? '';
 $filter_date_to = $_GET['date_to'] ?? '';
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 
-// Build filters
+// Build filters array
 $filters = [
     'page' => $page,
     'per_page' => ITEMS_PER_PAGE
@@ -54,26 +55,8 @@ $total_pages = ceil($total_orders / ITEMS_PER_PAGE);
 // Lấy danh sách telesale cho modal phân công
 $telesales_list = is_admin() || is_manager() ? get_telesales('active') : [];
 
-// Lấy tất cả status từ database
-$all_statuses = db_get_results(
-    "SELECT status_key as value, label as text, color, icon 
-     FROM order_status_configs 
-     ORDER BY sort_order"
-);
-
-// Đảm bảo là array
-if (!is_array($all_statuses)) {
-    $all_statuses = [];
-}
-
-// Lấy default status (đơn mới)
-$default_status_row = db_get_row(
-    "SELECT status_key FROM order_status_configs 
-     WHERE label LIKE '%mới%' OR label LIKE '%new%' 
-     ORDER BY sort_order 
-     LIMIT 1"
-);
-$default_status = $default_status_row ? $default_status_row['status_key'] : 'new';
+// Lấy tất cả USER-DEFINED statuses (không bao gồm free/assigned)
+$user_statuses = get_user_statuses();
 
 include 'includes/header.php';
 ?>
@@ -95,7 +78,7 @@ include 'includes/header.php';
 
     <div class="card">
         <div class="card-body">
-            <!-- Nav tabs với status động -->
+            <!-- Nav tabs với status động - CHỈ HIỂN THỊ USER-DEFINED STATUSES -->
             <ul class="nav nav-tabs mb-3" style="flex-wrap: wrap;">
                 <li class="nav-item">
                     <a class="nav-link <?php echo $filter_status === 'all' ? 'active' : ''; ?>" 
@@ -107,7 +90,7 @@ include 'includes/header.php';
                     </a>
                 </li>
                 
-                <?php foreach($all_statuses as $status): ?>
+                <?php foreach($user_statuses as $status): ?>
                     <?php 
                     $count = count_orders_by_status($status['value'], (!is_admin() && !is_manager()) ? $current_user['id'] : null);
                     if ($count > 0 || $filter_status === $status['value']): // Chỉ hiện status có đơn
@@ -230,7 +213,7 @@ include 'includes/header.php';
                                 </td>
                                 <td>
                                     <?php echo get_status_badge($order['status']); ?>
-                                    <?php if (!empty($order['callback_time'])): ?>
+                                    <?php if (!empty($order['callback_time']) && $order['callback_time'] != '0000-00-00 00:00:00'): ?>
                                     <br><small class="text-muted">
                                         <i class="fas fa-clock"></i> <?php echo format_date($order['callback_time'], 'd/m H:i'); ?>
                                     </small>
@@ -266,8 +249,8 @@ include 'includes/header.php';
                                         </a>
                                         
                                         <?php 
-                                        // Kiểm tra đơn có thể nhận không (status = đơn mới và chưa gán)
-                                        if ($order['status'] === $default_status && empty($order['assigned_to']) && !is_admin() && !is_manager()): 
+                                        // Kiểm tra đơn có thể nhận không: status = free VÀ chưa gán
+                                        if ($order['status'] === get_free_status_key() && empty($order['assigned_to']) && !is_admin() && !is_manager()): 
                                         ?>
                                             <button class="btn btn-primary btn-claim-order" 
                                                     data-order-id="<?php echo $order['id']; ?>"
@@ -348,14 +331,14 @@ include 'includes/header.php';
 
 <!-- Modal phân công đơn hàng -->
 <?php if (is_admin() || is_manager()): ?>
-<div class="modal fade" id="assignOrderModal" tabindex="-1" aria-labelledby="assignOrderModalLabel" aria-hidden="true">
+<div class="modal fade" id="assignOrderModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="assignOrderModalLabel">
+                <h5 class="modal-title">
                     <i class="fas fa-user-plus"></i> Phân công đơn hàng
                 </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <form id="assignOrderForm">
@@ -391,8 +374,37 @@ include 'includes/header.php';
     </div>
 </div>
 <?php endif; ?>
-
 <script>
+// Universal AJAX error handler
+function handleAjaxError(xhr, textStatus, errorThrown) {
+    console.error('AJAX Error:', {xhr, textStatus, errorThrown});
+    
+    let message = 'Có lỗi xảy ra';
+    
+    try {
+        const response = JSON.parse(xhr.responseText);
+        if (response.message) {
+            message = response.message;
+        }
+    } catch (e) {
+        if (xhr.status === 0) {
+            message = 'Không thể kết nối server';
+        } else if (xhr.status === 404) {
+            message = 'API không tồn tại (404)';
+        } else if (xhr.status === 500) {
+            message = 'Lỗi server (500)';
+        } else if (xhr.status === 401) {
+            message = 'Chưa đăng nhập';
+        } else if (xhr.status === 403) {
+            message = 'Không có quyền';
+        } else if (xhr.responseText) {
+            message = xhr.responseText.substring(0, 100);
+        }
+    }
+    
+    showToast(message, 'error');
+}
+
 $(document).ready(function() {
     // Claim order
     $('.btn-claim-order').click(function() {
@@ -408,7 +420,10 @@ $(document).ready(function() {
         $.ajax({
             url: 'api/claim-order.php',
             method: 'POST',
-            data: JSON.stringify({ order_id: orderId }),
+            data: JSON.stringify({ 
+                csrf_token: '<?php echo generate_csrf_token(); ?>',
+                order_id: orderId 
+            }),
             contentType: 'application/json',
             success: function(response) {
                 if (response.success) {
@@ -421,14 +436,11 @@ $(document).ready(function() {
                     button.prop('disabled', false).html('<i class="fas fa-hand-paper"></i>');
                 }
             },
-            error: function() {
-                showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
-                button.prop('disabled', false).html('<i class="fas fa-hand-paper"></i>');
-            }
+            error: handleAjaxError
         });
     });
 
-    // Assign order modal
+    // Assign order modal - populate order ID
     var assignModalEl = document.getElementById('assignOrderModal');
     if (assignModalEl) {
         assignModalEl.addEventListener('show.bs.modal', function (event) {
@@ -458,6 +470,7 @@ $(document).ready(function() {
             method: 'POST',
             contentType: 'application/json',
             data: JSON.stringify({ 
+                csrf_token: '<?php echo generate_csrf_token(); ?>',
                 order_id: orderId, 
                 user_id: userId,
                 note: note 
@@ -466,21 +479,23 @@ $(document).ready(function() {
                 if (response.success) {
                     showToast('Đã phân công đơn hàng thành công!', 'success');
                     const selectedUserName = $('#assignToUser option:selected').text();
+                    
                     // Cập nhật giao diện không cần reload
                     $('#order-row-' + orderId + ' .assigned-user-' + orderId).html(
                         '<span class="badge bg-info"><i class="fas fa-user"></i> ' + selectedUserName + '</span>'
                     );
+                    
+                    // Hide modal
                     var modal = bootstrap.Modal.getInstance(assignModalEl);
                     modal.hide();
+                    
                     // Reset form
                     $('#assignOrderForm')[0].reset();
                 } else {
                     showToast(response.message || 'Có lỗi xảy ra', 'error');
                 }
             },
-            error: function() { 
-                showToast('Không thể kết nối đến máy chủ.', 'error'); 
-            },
+            error: handleAjaxError,
             complete: function() { 
                 btn.prop('disabled', false).html('<i class="fas fa-save"></i> Lưu phân công'); 
             }
@@ -496,7 +511,10 @@ function deleteOrder(orderId) {
     $.ajax({
         url: 'api/delete-order.php',
         method: 'POST',
-        data: JSON.stringify({ order_id: orderId }),
+        data: JSON.stringify({ 
+            csrf_token: '<?php echo generate_csrf_token(); ?>',
+            order_id: orderId 
+        }),
         contentType: 'application/json',
         success: function(response) {
             if (response.success) {
@@ -508,9 +526,7 @@ function deleteOrder(orderId) {
                 showToast(response.message || 'Có lỗi xảy ra', 'error');
             }
         },
-        error: function() {
-            showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
-        }
+        error: handleAjaxError
     });
 }
 
@@ -519,6 +535,31 @@ $('.order-row').hover(
     function() { $(this).addClass('table-active'); },
     function() { $(this).removeClass('table-active'); }
 );
+
+// Toast notification function
+function showToast(message, type = 'info') {
+    if (!$('#toastContainer').length) {
+        $('body').append('<div id="toastContainer" style="position:fixed;top:20px;right:20px;z-index:9999;min-width:300px;"></div>');
+    }
+    
+    const alertClass = type === 'error' ? 'danger' : type;
+    const icon = {
+        'success': 'fa-check-circle',
+        'error': 'fa-exclamation-circle',
+        'warning': 'fa-exclamation-triangle',
+        'info': 'fa-info-circle'
+    }[type] || 'fa-info-circle';
+    
+    const toast = $(`
+        <div class="alert alert-${alertClass} alert-dismissible fade show shadow-sm">
+            <i class="fas ${icon} me-2"></i>${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `);
+    
+    $('#toastContainer').append(toast);
+    setTimeout(() => toast.alert('close'), 4000);
+}
 </script>
 
 <?php include 'includes/footer.php'; ?>

@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Máy chủ: 127.0.0.1
--- Thời gian đã tạo: Th10 01, 2025 lúc 08:11 AM
+-- Thời gian đã tạo: Th10 01, 2025 lúc 09:22 AM
 -- Phiên bản máy phục vụ: 10.4.32-MariaDB
 -- Phiên bản PHP: 8.0.30
 
@@ -171,7 +171,10 @@ INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `related_
 (30, 1, 'login', 'User logged in', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 11:11:01'),
 (31, 1, 'safe_fix_complete', 'Applied 10 fixes', 'system', NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 11:11:12'),
 (32, 1, 'logout', 'User logged out', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 11:32:29'),
-(33, 1, 'login', 'User logged in', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 11:32:32');
+(33, 1, 'login', 'User logged in', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 11:32:32'),
+(34, 1, 'login', 'User logged in', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 13:25:32'),
+(35, 1, 'logout', 'User logged out', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 13:46:22'),
+(36, 2, 'login', 'User logged in', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 13:46:40');
 
 -- --------------------------------------------------------
 
@@ -573,22 +576,25 @@ CREATE TABLE `order_status_configs` (
   `logic_json` text NOT NULL,
   `created_by` int(10) UNSIGNED DEFAULT NULL,
   `created_at` datetime DEFAULT current_timestamp(),
-  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Configs cho trạng thái tùy chỉnh';
+  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `is_system` tinyint(1) DEFAULT 0 COMMENT 'Status hệ thống không được xóa'
+) ;
 
 --
 -- Đang đổ dữ liệu cho bảng `order_status_configs`
 --
 
-INSERT INTO `order_status_configs` (`status_key`, `label`, `color`, `icon`, `sort_order`, `logic_json`, `created_by`, `created_at`, `updated_at`) VALUES
-('bom-hang', 'Bom hàng', '#dc3545', 'fa-bomb', 12, '', NULL, '2025-09-30 16:34:13', '2025-10-01 08:21:05'),
-('dang-giao', 'Đang giao', '#639419', 'fa-tag', 11, '', NULL, '2025-09-30 16:28:29', '2025-09-30 16:28:29'),
-('dang-hoan', 'Đang hoàn', '#8c460d', 'fa-tag', 16, '', NULL, '2025-09-30 16:34:44', '2025-09-30 16:34:44'),
-('dong-goi-sai', 'Đóng gói sai', '#7c3131', 'fa-tag', 12, '', NULL, '2025-09-30 16:30:16', '2025-09-30 16:30:16'),
-('giao-thanh-cong', 'Giao thành công', '#00d604', 'fa-tag', 20, '', NULL, '2025-09-30 16:37:32', '2025-09-30 16:37:32'),
-('hoan-thanh-cong', 'Hoàn thành công', '#1a1a1a', 'fa-tag', 17, '', NULL, '2025-09-30 16:35:25', '2025-09-30 16:35:25'),
-('khong-nghe', 'Không nghe', '#dfc834', 'fa-tag', 3, '', NULL, '2025-09-30 16:23:37', '2025-09-30 16:23:37'),
-('n-a', 'Đơn mới', '#08f7cf', 'fa-tag', 1, '', NULL, '2025-09-30 16:18:10', '2025-09-30 16:18:10');
+INSERT INTO `order_status_configs` (`status_key`, `label`, `color`, `icon`, `sort_order`, `logic_json`, `created_by`, `created_at`, `updated_at`, `is_system`) VALUES
+('assigned', '[HỆ THỐNG] Đã gán', '#17a2b8', 'fa-user-check', -1, '', NULL, '2025-10-01 13:55:12', '2025-10-01 13:55:12', 1),
+('bom-hang', 'Bom hàng', '#dc3545', 'fa-bomb', 12, '', NULL, '2025-09-30 16:34:13', '2025-10-01 08:21:05', 0),
+('dang-giao', 'Đang giao', '#639419', 'fa-tag', 11, '', NULL, '2025-09-30 16:28:29', '2025-09-30 16:28:29', 0),
+('dang-hoan', 'Đang hoàn', '#8c460d', 'fa-tag', 16, '', NULL, '2025-09-30 16:34:44', '2025-09-30 16:34:44', 0),
+('dong-goi-sai', 'Đóng gói sai', '#7c3131', 'fa-tag', 12, '', NULL, '2025-09-30 16:30:16', '2025-09-30 16:30:16', 0),
+('free', '[HỆ THỐNG] Chưa gán', '#6c757d', 'fa-inbox', -1, '', NULL, '2025-10-01 13:55:12', '2025-10-01 13:55:12', 1),
+('giao-thanh-cong', 'Giao thành công', '#00d604', 'fa-tag', 20, '', NULL, '2025-09-30 16:37:32', '2025-09-30 16:37:32', 0),
+('hoan-thanh-cong', 'Hoàn thành công', '#1a1a1a', 'fa-tag', 17, '', NULL, '2025-09-30 16:35:25', '2025-09-30 16:35:25', 0),
+('khong-nghe', 'Không nghe', '#dfc834', 'fa-tag', 3, '', NULL, '2025-09-30 16:23:37', '2025-09-30 16:23:37', 0),
+('n-a', 'Đơn mới', '#08f7cf', 'fa-tag', 1, '', NULL, '2025-09-30 16:18:10', '2025-09-30 16:18:10', 0);
 
 -- --------------------------------------------------------
 
@@ -918,8 +924,8 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`id`, `username`, `password`, `full_name`, `email`, `phone`, `role`, `status`, `avatar`, `last_login_at`, `last_login_ip`, `created_at`, `updated_at`, `suspension_reason`, `suspension_until`, `deleted_at`) VALUES
-(1, 'admin', '$2y$10$5EzgChCuFM.LG/yVCMbuseZFP2fxECDOQJb8FzEmssX4iev/sjbVi', 'Administrator', 'admin@example.com', NULL, 'admin', 'active', NULL, '2025-10-01 11:32:32', '::1', '2025-09-30 09:36:19', '2025-10-01 11:32:32', NULL, NULL, NULL),
-(2, 'telesale1', '$2y$10$lkpRcTFFgJVlNIawkjprY.n7mubXpkH1/Sa0TOf4pl7rZQw6DVuqa', 'Nguyễn Văn Ad', 'vh6889@gmail.com', '0963470944', 'telesale', 'active', NULL, NULL, NULL, '2025-09-30 09:36:19', '2025-09-30 12:46:43', NULL, NULL, NULL),
+(1, 'admin', '$2y$10$5EzgChCuFM.LG/yVCMbuseZFP2fxECDOQJb8FzEmssX4iev/sjbVi', 'Administrator', 'admin@example.com', NULL, 'admin', 'active', NULL, '2025-10-01 13:25:32', '::1', '2025-09-30 09:36:19', '2025-10-01 13:25:32', NULL, NULL, NULL),
+(2, 'telesale1', '$2y$10$lkpRcTFFgJVlNIawkjprY.n7mubXpkH1/Sa0TOf4pl7rZQw6DVuqa', 'Nguyễn Văn Ad', 'vh6889@gmail.com', '0963470944', 'telesale', 'active', NULL, '2025-10-01 13:46:40', '::1', '2025-09-30 09:36:19', '2025-10-01 13:46:40', NULL, NULL, NULL),
 (3, 'telesale2', '$2y$10$lkpRcTFFgJVlNIawkjprY.n7mubXpkH1/Sa0TOf4pl7rZQw6DVuqa', 'Trần Thị Booo', 'telesale2@example.com', '', 'telesale', 'active', NULL, NULL, NULL, '2025-09-30 09:36:19', '2025-09-30 12:54:32', NULL, NULL, NULL),
 (4, 'oigioioi', '$2y$10$AxE8XaE9rkf9G7nvTyTFgu1xQNGMAKItLU/tkocwj2ZTJv/JmGppq', 'Hai Vu', 'raintl07@gmail.com', '0963470944', 'manager', 'active', NULL, NULL, NULL, '2025-09-30 18:50:59', '2025-09-30 18:50:59', NULL, NULL, NULL);
 
@@ -1435,7 +1441,7 @@ ALTER TABLE `action_logs`
 -- AUTO_INCREMENT cho bảng `activity_logs`
 --
 ALTER TABLE `activity_logs`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=34;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=37;
 
 --
 -- AUTO_INCREMENT cho bảng `audit_trail`

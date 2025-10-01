@@ -1,7 +1,7 @@
 <?php
 /**
- * API: Update Order Status (Fixed Version)
- * Cập nhật trạng thái và tự động khóa đơn
+ * API: Update Order Status
+ * Cập nhật trạng thái đơn hàng và tự động khóa nếu là status cuối cùng
  */
 define('TSM_ACCESS', true);
 require_once '../config.php';
@@ -13,14 +13,18 @@ require_once '../includes/status_helper.php';
 
 header('Content-Type: application/json');
 
+// CSRF Protection
 require_csrf();
 
+// Authentication
 if (!is_logged_in()) {
     json_error('Unauthorized', 401);
 }
 
+// Rate limiting
 check_rate_limit('update-status', get_logged_user()['id']);
 
+// Get input
 $input = get_json_input(["order_id", "status"]);
 $order_id = (int)$input['order_id'];
 $status = $input['status'];
@@ -29,16 +33,22 @@ if (!$order_id || !$status) {
     json_error('Dữ liệu không hợp lệ', 400);
 }
 
-// Verify access
-$order = require_order_access($order_id, true);
-
-if ($order['is_locked']) {
-    json_error('Đơn hàng đã khóa, không thể cập nhật', 400);
+// Validate: không cho phép set status hệ thống
+if (is_system_status($status)) {
+    json_error('Không thể chọn trạng thái hệ thống', 400);
 }
 
 // Validate status exists
-if (!is_valid_status($status)) {
+if (!validate_status_change($status)) {
     json_error('Trạng thái không hợp lệ', 400);
+}
+
+// Verify access
+$order = require_order_access($order_id, true);
+
+// Check if order is locked
+if ($order['is_locked']) {
+    json_error('Đơn hàng đã khóa, không thể cập nhật', 400);
 }
 
 // Validate status transition
@@ -49,8 +59,8 @@ if (!validate_status_transition($order['status'], $status)) {
 $current_user = get_logged_user();
 
 try {
-    $pdo = get_db_connection();
-    $pdo->beginTransaction();
+    // Begin transaction
+    begin_transaction();
     
     $update_data = [
         'status' => $status,
@@ -69,6 +79,7 @@ try {
         $update_data['is_locked'] = 1;
         $update_data['locked_at'] = date('Y-m-d H:i:s');
         $update_data['locked_by'] = $current_user['id'];
+        $update_data['completed_at'] = date('Y-m-d H:i:s');
         
         // Cancel pending reminders
         db_update('reminders', 
@@ -95,6 +106,7 @@ try {
         'content' => 'Cập nhật trạng thái: ' . $status
     ]);
     
+    // Log activity
     log_activity(
         'update_status', 
         "Updated order #{$order['order_number']} status to: {$status_label}" . ($is_final_status ? ' (locked)' : ''),
@@ -102,13 +114,17 @@ try {
         $order_id
     );
     
-    $pdo->commit();
+    // Commit transaction
+    commit_transaction();
     
     json_success('Đã cập nhật trạng thái' . ($is_final_status ? ' và khóa đơn hàng' : ''), [
         'is_locked' => $is_final_status
     ]);
     
 } catch (Exception $e) {
-    $pdo->rollBack();
-    json_error('Database error: ' . $e->getMessage(), 500);
+    // Rollback on error
+    rollback_transaction();
+    
+    error_log('[UPDATE_STATUS] Error: ' . $e->getMessage());
+    json_error('Có lỗi xảy ra: ' . $e->getMessage(), 500);
 }

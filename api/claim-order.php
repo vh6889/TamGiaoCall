@@ -50,24 +50,11 @@ try {
         throw new Exception('Đơn hàng đã được nhận bởi người khác');
     }
     
-    // Get "assigned" status dynamically
-    $assigned_status = db_get_var(
-        "SELECT status_key FROM order_status_configs 
-         WHERE label LIKE '%nhận%' OR label LIKE '%assigned%' OR label LIKE '%đã nhận%'
-         ORDER BY sort_order 
-         LIMIT 1"
-    );
-    
-    // Fallback if no status found
-    if (!$assigned_status) {
-        $assigned_status = 'assigned';
-    }
-    
-    // Update order
+    // Update order - only assign to user, keep current status
+    // User sẽ tự chọn status sau khi xử lý xong
     db_update('orders', [
         'assigned_to' => $user['id'],
-        'assigned_at' => date('Y-m-d H:i:s'),
-        'status' => $assigned_status
+        'assigned_at' => date('Y-m-d H:i:s')
     ], 'id = ?', [$order_id]);
     
     // Add system note

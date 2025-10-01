@@ -3,13 +3,99 @@
  * Order Detail Page - Professional Version 5.0
  * Complete workflow: Claim → Start Call → Edit → End Call → Update Status → Lock
  */
+ 
 define('TSM_ACCESS', true);
 require_once 'config.php';
 require_once 'functions.php';
 require_once 'includes/status_helper.php';
-require_once 'simple-rule-handler.php';
 
 require_login();
+// === INLINE SIMPLE RULES ===
+function get_order_reminders($order_id) {
+    return db_get_results(
+        "SELECT * FROM reminders 
+         WHERE order_id = ? AND status = 'pending' 
+         ORDER BY due_time ASC", 
+        [$order_id]
+    );
+}
+
+function get_order_suggestions($order) {
+    $suggestions = [];
+    
+    if (!$order['assigned_to'] && $order['created_at']) {
+        $hours_since_created = (time() - strtotime($order['created_at'])) / 3600;
+        if ($hours_since_created > 24) {
+            $suggestions[] = [
+                'type' => 'warning',
+                'message' => 'Don hang da ton tai hon 24 gio chua duoc xu ly'
+            ];
+        }
+    }
+    
+    if ($order['assigned_to'] && $order['call_count'] == 0) {
+        $hours_since_assigned = (time() - strtotime($order['assigned_at'])) / 3600;
+        if ($hours_since_assigned > 4) {
+            $suggestions[] = [
+                'type' => 'warning',
+                'message' => 'Da phan cong hon 4 gio nhung chua co cuoc goi nao'
+            ];
+        }
+    }
+    
+    if ($order['total_amount'] > 5000000) {
+        $suggestions[] = [
+            'type' => 'info',
+            'message' => 'Khach hang VIP - Don hang gia tri cao, can uu tien xu ly'
+        ];
+    }
+    
+    if ($order['call_count'] >= 3) {
+        $suggestions[] = [
+            'type' => 'warning',
+            'message' => 'Da goi ' . $order['call_count'] . ' lan, can nhac thay doi cach tiep can'
+        ];
+    }
+    
+    if ($order['callback_time'] && $order['callback_time'] != '0000-00-00 00:00:00' && strtotime($order['callback_time']) < time()) {
+        $suggestions[] = [
+            'type' => 'danger',
+            'message' => 'Da qua thoi gian hen goi lai!'
+        ];
+    }
+    
+    $customer_orders = db_get_var(
+        "SELECT COUNT(*) FROM orders WHERE customer_phone = ? AND id != ?",
+        [$order['customer_phone'], $order['id']]
+    );
+    
+    if ($customer_orders > 0) {
+        $suggestions[] = [
+            'type' => 'info',
+            'message' => "Khach hang cu - Da co $customer_orders don hang truoc day"
+        ];
+        
+        $cancelled_orders = db_get_var(
+            "SELECT COUNT(*) FROM orders 
+             WHERE customer_phone = ? 
+             AND status IN (SELECT status_key FROM order_status_configs WHERE label LIKE '%huy%' OR label LIKE '%rejected%' OR label LIKE '%bom%') 
+             AND id != ?",
+            [$order['customer_phone'], $order['id']]
+        );
+        
+        if ($cancelled_orders > 0) {
+            $suggestions[] = [
+                'type' => 'warning',
+                'message' => "Luu y: Khach da tu choi/huy $cancelled_orders don truoc day"
+            ];
+        }
+    }
+    
+    return $suggestions;
+}
+// === END INLINE SIMPLE RULES ===
+
+
 
 $order_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
@@ -520,13 +606,16 @@ include 'includes/header.php';
                         <h6 class="mb-3"><i class="fas fa-clipboard-check"></i> Cập nhật trạng thái</h6>
                         <label class="form-label">Chọn trạng thái đơn hàng *</label>
                         <select class="form-select mb-3" id="orderStatus">
-                            <option value="">-- Chọn trạng thái --</option>
-                            <?php foreach ($status_options as $status): ?>
-                            <option value="<?php echo $status['status_key']; ?>">
-                                <?php echo htmlspecialchars($status['label']); ?>
-                            </option>
-                            <?php endforeach; ?>
-                        </select>
+							<option value="">-- Chọn trạng thái --</option>
+							<?php 
+							$user_statuses = get_user_statuses(); // Chỉ lấy status không phải hệ thống
+							foreach ($user_statuses as $status): 
+							?>
+							<option value="<?php echo $status['status_key']; ?>">
+								<?php echo htmlspecialchars($status['label']); ?>
+							</option>
+							<?php endforeach; ?>
+						</select>
                         <button class="btn btn-primary w-100 btn-lg" onclick="updateStatus()">
                             <i class="fas fa-save"></i> Lưu & Hoàn tất
                         </button>
@@ -706,7 +795,6 @@ include 'includes/header.php';
         </div>
     </div>
 </div>
-
 <script>
 // Global state
 const orderId = <?php echo $order_id; ?>;
@@ -718,6 +806,38 @@ let products = <?php echo json_encode($products); ?>;
 let hasUnsavedChanges = false;
 let callTimer = null;
 let callStartTime = null;
+
+// CRITICAL: Universal AJAX error handler
+function handleAjaxError(xhr, textStatus, errorThrown) {
+    console.error('AJAX Error:', {xhr, textStatus, errorThrown});
+    
+    let message = 'Có lỗi xảy ra';
+    
+    try {
+        // Try to parse JSON response
+        const response = JSON.parse(xhr.responseText);
+        if (response.message) {
+            message = response.message;
+        }
+    } catch (e) {
+        // If not JSON, use status text
+        if (xhr.status === 0) {
+            message = 'Không thể kết nối server';
+        } else if (xhr.status === 404) {
+            message = 'API không tồn tại (404)';
+        } else if (xhr.status === 500) {
+            message = 'Lỗi server (500)';
+        } else if (xhr.status === 401) {
+            message = 'Chưa đăng nhập';
+        } else if (xhr.status === 403) {
+            message = 'Không có quyền';
+        } else if (xhr.responseText) {
+            message = xhr.responseText.substring(0, 100);
+        }
+    }
+    
+    showToast(message, 'error');
+}
 
 // Initialize
 $(document).ready(function() {
@@ -744,7 +864,6 @@ $(document).ready(function() {
     $('#needCallback').change(function() {
         $('#callbackDiv').toggle($(this).is(':checked'));
         if ($(this).is(':checked')) {
-            // Set default callback time to 2 hours later
             const now = new Date();
             now.setHours(now.getHours() + 2);
             $('#callbackTime').val(now.toISOString().slice(0, 16));
@@ -783,7 +902,6 @@ function renderProducts() {
         const lineTotal = product.sale_price * product.qty;
         subtotal += lineTotal;
         
-        // Render attributes
         let attributesHtml = '';
         if (product.attributes && product.attributes.length > 0) {
             product.attributes.forEach(attr => {
@@ -833,7 +951,6 @@ function renderProducts() {
         tbody.append(row);
     });
     
-    // Update totals
     $('#subtotal').text(formatMoney(subtotal));
     const total = <?php echo $order['total_amount']; ?>;
     const discount = Math.max(0, subtotal - total);
@@ -869,7 +986,6 @@ function showAddProduct() {
 }
 
 function addProduct(product) {
-    // Check if product already exists
     const existing = products.find(p => p.id === product.id);
     if (existing) {
         existing.qty += 1;
@@ -911,9 +1027,7 @@ function saveProducts() {
                 showToast('Lỗi lưu sản phẩm: ' + response.message, 'error');
             }
         },
-        error: function() {
-            showToast('Không thể lưu sản phẩm', 'error');
-        }
+        error: handleAjaxError
     });
 }
 
@@ -970,9 +1084,7 @@ function saveCustomer() {
                 showToast('Lỗi: ' + response.message, 'error');
             }
         },
-        error: function() {
-            showToast('Không thể lưu thông tin', 'error');
-        }
+        error: handleAjaxError
     });
 }
 
@@ -997,7 +1109,8 @@ function claimOrder() {
             } else {
                 showToast('Lỗi: ' + response.message, 'error');
             }
-        }
+        },
+        error: handleAjaxError
     });
 }
 
@@ -1017,7 +1130,8 @@ function startCall() {
             } else {
                 showToast('Lỗi: ' + response.message, 'error');
             }
-        }
+        },
+        error: handleAjaxError
     });
 }
 
@@ -1050,7 +1164,6 @@ function endCall() {
                 showToast('Đã kết thúc cuộc gọi', 'success');
                 if (callTimer) clearInterval(callTimer);
                 
-                // Hide call panel, show status update
                 $('.alert-success').fadeOut();
                 $('#callNotes').parent().fadeOut();
                 $('.form-check').fadeOut();
@@ -1063,7 +1176,8 @@ function endCall() {
             } else {
                 showToast('Lỗi: ' + response.message, 'error');
             }
-        }
+        },
+        error: handleAjaxError
     });
 }
 
@@ -1095,7 +1209,8 @@ function updateStatus() {
             } else {
                 showToast('Lỗi: ' + response.message, 'error');
             }
-        }
+        },
+        error: handleAjaxError
     });
 }
 
@@ -1131,7 +1246,8 @@ function confirmTransfer() {
             } else {
                 showToast('Lỗi: ' + response.message, 'error');
             }
-        }
+        },
+        error: handleAjaxError
     });
 }
 
@@ -1153,7 +1269,8 @@ function reclaimOrder() {
             } else {
                 showToast('Lỗi: ' + response.message, 'error');
             }
-        }
+        },
+        error: handleAjaxError
     });
 }
 
@@ -1175,7 +1292,8 @@ function forceUnassign() {
             } else {
                 showToast('Lỗi: ' + response.message, 'error');
             }
-        }
+        },
+        error: handleAjaxError
     });
 }
 
@@ -1195,8 +1313,11 @@ function completeReminder(reminderId) {
             if (response.success) {
                 showToast('Đã đánh dấu hoàn thành', 'success');
                 setTimeout(() => location.reload(), 1000);
+            } else {
+                showToast('Lỗi: ' + response.message, 'error');
             }
-        }
+        },
+        error: handleAjaxError
     });
 }
 

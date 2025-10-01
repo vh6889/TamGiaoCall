@@ -334,46 +334,6 @@ function get_order_status_configs() {
 }
 
 /**
- * Validate status exists in database
- */
-function is_valid_status($status_key) {
-    $configs = get_order_status_configs();
-    return isset($configs[$status_key]);
-}
-
-/**
- * Get status color class for Bootstrap badge
- */
-function get_status_color($status_key) {
-    // Get from database first
-    $color = db_get_var(
-        "SELECT color FROM order_status_configs WHERE status_key = ?",
-        [$status_key]
-    );
-    
-    if ($color) {
-        // Map custom colors to Bootstrap classes
-        $color_map = [
-            '#28a745' => 'success',
-            '#dc3545' => 'danger',
-            '#ffc107' => 'warning',
-            '#17a2b8' => 'info',
-            '#6c757d' => 'secondary',
-            '#007bff' => 'primary',
-            'green' => 'success',
-            'red' => 'danger',
-            'yellow' => 'warning',
-            'blue' => 'primary',
-            'gray' => 'secondary'
-        ];
-        
-        return $color_map[$color] ?? 'secondary';
-    }
-    
-    return 'secondary'; // Default color
-}
-
-/**
  * Get status label from database
  */
 function get_status_label($status_key) {
@@ -385,35 +345,7 @@ function get_status_label($status_key) {
     return $label ?: $status_key; // Return key if no label found
 }
 
-/**
- * Render status badge with label and color
- */
-function get_status_badge($status_key) {
-    $configs = get_order_status_configs();
-    
-    if (isset($configs[$status_key])) {
-        $config = $configs[$status_key];
-        $color_class = get_status_color($status_key);
-        
-        return sprintf(
-            '<span class="badge bg-%s"><i class="fas %s me-1"></i>%s</span>',
-            $color_class,
-            $config['icon'],
-            htmlspecialchars($config['label'])
-        );
-    }
-    
-    return '<span class="badge bg-secondary">' . htmlspecialchars($status_key) . '</span>';
-}
 
-/**
- * Get all status options for dropdowns
- */
-function get_status_options_with_labels() {
-    return db_get_results(
-        "SELECT status_key, label FROM order_status_configs ORDER BY sort_order"
-    );
-}
 
 // =============================================
 // ORDER FUNCTIONS - FULLY DYNAMIC

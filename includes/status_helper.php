@@ -1,100 +1,166 @@
 <?php
 /**
- * Status Helper - CHỈ khai báo functions CHƯA có trong functions.php
+ * Status Helper - System Status Management
+ * Chỉ có 2 status hệ thống cố định: free và assigned
  */
 
-// get_order_status_configs() - ĐÃ CÓ trong functions.php line 532
-// KHÔNG khai báo lại
-
-// Function này orders.php cần ở dòng 58
-if (!function_exists('get_all_statuses')) {
-    function get_all_statuses() {
-        $configs = get_order_status_configs(); // Dùng function có sẵn
-        $statuses = [];
-        foreach ($configs as $key => $config) {
-            $statuses[$key] = $config['label'];
-        }
-        return $statuses;
-    }
+if (!defined('TSM_ACCESS')) {
+    die('Direct access not allowed');
 }
 
-// Các functions khác CHỈ khai báo nếu CHƯA có
-if (!function_exists('render_status_badge')) {
-    function render_status_badge($status_key) {
-        $configs = get_order_status_configs();
-        if (isset($configs[$status_key])) {
-            $config = $configs[$status_key];
-            return sprintf(
-                '<span class="badge" style="background-color: %s">%s</span>',
-                $config['color'],
-                htmlspecialchars($config['label'])
-            );
-        }
-        return '<span class="badge bg-secondary">' . htmlspecialchars($status_key) . '</span>';
-    }
+/**
+ * Get system status: FREE (chưa gán)
+ */
+function get_free_status_key() {
+    return 'free';
 }
 
-if (!function_exists('render_status_options')) {
-    function render_status_options($current_status = '') {
-        $configs = get_order_status_configs();
-        $html = '';
-        foreach ($configs as $key => $config) {
-            $selected = ($key == $current_status) ? 'selected' : '';
-            $html .= sprintf(
-                '<option value="%s" %s>%s</option>',
-                htmlspecialchars($key),
-                $selected,
-                htmlspecialchars($config['label'])
-            );
-        }
-        return $html;
-    }
+/**
+ * Get system status: ASSIGNED (đã gán)
+ */
+function get_assigned_status_key() {
+    return 'assigned';
 }
 
-
-// Get pending status keys (đang xử lý)
-function get_pending_statuses() {
-    return db_get_col(
-        "SELECT status_key FROM order_status_configs 
-         WHERE label NOT LIKE '%mới%' 
-           AND label NOT LIKE '%hoàn%' 
-           AND label NOT LIKE '%hủy%'"
-    ) ?: [];
+/**
+ * Check if status is system status
+ */
+function is_system_status($status_key) {
+    return in_array($status_key, ['free', 'assigned']);
 }
 
-
-// Get confirmed status key
-function get_confirmed_status() {
-    $status = db_get_var("SELECT status_key FROM order_status_configs WHERE label LIKE '%xác nhận%' OR label LIKE '%hoàn%' LIMIT 1");
-    return $status ?: db_get_var("SELECT status_key FROM order_status_configs ORDER BY sort_order DESC LIMIT 1");
+/**
+ * Get all user-defined statuses (excluding system statuses)
+ */
+function get_user_statuses() {
+    return db_get_results(
+        "SELECT status_key as value, label as text, color, icon 
+         FROM order_status_configs 
+         WHERE is_system = 0 
+         ORDER BY sort_order ASC"
+    );
 }
 
-// Get new status key  
-function get_new_status_key() {
-    $status = db_get_var("SELECT status_key FROM order_status_configs WHERE label LIKE '%mới%' LIMIT 1");
-    return $status ?: db_get_var("SELECT status_key FROM order_status_configs ORDER BY sort_order ASC LIMIT 1");
+/**
+ * Get all statuses including system
+ */
+function get_all_statuses() {
+    return db_get_results(
+        "SELECT status_key as value, label as text, color, icon, is_system
+         FROM order_status_configs 
+         ORDER BY is_system DESC, sort_order ASC"
+    );
 }
 
-// Get calling status key
-function get_calling_status_key() {
-    $status = db_get_var("SELECT status_key FROM order_status_configs WHERE label LIKE '%gọi%' LIMIT 1");
-    return $status ?: get_new_status_key();
+/**
+ * Get status options for select dropdown (excluding system statuses)
+ */
+function get_status_options_with_labels() {
+    return db_get_results(
+        "SELECT status_key, label FROM order_status_configs 
+         WHERE is_system = 0 
+         ORDER BY sort_order ASC"
+    );
 }
 
-
+/**
+ * Get confirmed statuses (for statistics)
+ */
 function get_confirmed_statuses() {
-    return db_get_col(
+    $statuses = db_get_col(
         "SELECT status_key FROM order_status_configs 
-         WHERE label LIKE '%xác nhận%' OR label LIKE '%hoàn%' 
-            OR label LIKE '%thành công%' OR label LIKE '%completed%'"
-    ) ?: [];
+         WHERE is_system = 0 
+         AND (label LIKE '%thành công%' OR label LIKE '%hoàn thành%' OR label LIKE '%completed%')"
+    );
+    return $statuses ?: [];
 }
 
+/**
+ * Get cancelled statuses (for statistics)
+ */
 function get_cancelled_statuses() {
-    return db_get_col(
+    $statuses = db_get_col(
         "SELECT status_key FROM order_status_configs 
-         WHERE label LIKE '%hủy%' OR label LIKE '%cancelled%' 
-            OR label LIKE '%rejected%'"
-    ) ?: [];
+         WHERE is_system = 0 
+         AND (label LIKE '%hủy%' OR label LIKE '%cancelled%' OR label LIKE '%bom%')"
+    );
+    return $statuses ?: [];
 }
-?>
+
+/**
+ * Check if status exists in database
+ */
+function is_valid_status($status_key) {
+    return (bool)db_get_var(
+        "SELECT COUNT(*) FROM order_status_configs WHERE status_key = ?",
+        [$status_key]
+    );
+}
+
+/**
+ * Validate status change
+ * System statuses cannot be manually set by user
+ */
+function validate_status_change($new_status) {
+    if (is_system_status($new_status)) {
+        return false; // Không cho phép user chọn status hệ thống
+    }
+    
+    return is_valid_status($new_status);
+}
+
+/**
+ * Validate status transition
+ * Kiểm tra xem có thể chuyển từ status hiện tại sang status mới không
+ */
+function validate_status_transition($current_status, $new_status) {
+    // System statuses cannot be set by user
+    if (is_system_status($new_status)) {
+        return false;
+    }
+    
+    // Cannot change from locked/final statuses
+    $final_statuses = array_merge(
+        get_confirmed_statuses(),
+        get_cancelled_statuses()
+    );
+    
+    if (in_array($current_status, $final_statuses)) {
+        return false;
+    }
+    
+    return true;
+}
+
+/**
+ * Get status badge HTML
+ */
+function get_status_badge($status_key) {
+    $status = db_get_row(
+        "SELECT label, color, icon FROM order_status_configs WHERE status_key = ?",
+        [$status_key]
+    );
+    
+    if (!$status) {
+        return '<span class="badge bg-secondary">N/A</span>';
+    }
+    
+    return sprintf(
+        '<span class="badge" style="background-color: %s"><i class="fas %s"></i> %s</span>',
+        htmlspecialchars($status['color']),
+        htmlspecialchars($status['icon']),
+        htmlspecialchars($status['label'])
+    );
+}
+
+/**
+ * Get status color for badge/display
+ */
+function get_status_color($status_key) {
+    $color = db_get_var(
+        "SELECT color FROM order_status_configs WHERE status_key = ?",
+        [$status_key]
+    );
+    
+    return $color ?: '#6c757d'; // Default gray
+}

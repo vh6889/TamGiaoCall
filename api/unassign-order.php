@@ -1,7 +1,7 @@
 <?php
 /**
  * API: Unassign Order (Force Unassign)
- * Hủy phân công đơn hàng - đưa đơn về trạng thái mới (kho chung)
+ * Hủy phân công đơn hàng - đưa đơn về trạng thái free (kho chung)
  * Chỉ Admin mới có quyền thực hiện
  */
 define('TSM_ACCESS', true);
@@ -53,29 +53,15 @@ try {
     // Begin transaction
     begin_transaction();
     
-    // Lấy trạng thái "Đơn mới" từ database
-    $new_status = db_get_var(
-        "SELECT status_key FROM order_status_configs 
-         WHERE label LIKE '%mới%' OR label LIKE '%new%' 
-         ORDER BY sort_order 
-         LIMIT 1"
-    );
-    
-    // Fallback nếu không tìm thấy
-    if (!$new_status) {
-        $new_status = 'n-a';
-    }
-    
     // Get assigned user info for logging
     $assigned_user = get_user($order['assigned_to']);
     $assigned_user_name = $assigned_user ? $assigned_user['full_name'] : 'Unknown';
     
-    // Update order: remove assignment and reset to new status
+    // Update order to free status
     db_update('orders', [
-        'assigned_to' => null,
-        'assigned_at' => null,
-        'status' => $new_status,
-        'manager_id' => null
+        'assigned_to' => NULL,
+        'assigned_at' => NULL,
+        'status' => get_free_status_key()
     ], 'id = ?', [$order_id]);
     
     // Add system note
@@ -88,7 +74,11 @@ try {
     ]);
     
     // Cancel any pending reminders for this order
-    cancel_pending_reminders($order_id);
+    db_update('reminders', 
+        ['status' => 'cancelled', 'completed_at' => date('Y-m-d H:i:s')],
+        'order_id = ? AND status = ?',
+        [$order_id, 'pending']
+    );
     
     // Log activity
     log_activity(
@@ -101,7 +91,7 @@ try {
     // Commit transaction
     commit_transaction();
     
-    json_success('Đã hủy phán công thành công. Đơn hàng đã trở về kho chung.');
+    json_success('Đã hủy phân công thành công. Đơn hàng đã trở về kho chung.');
     
 } catch (Exception $e) {
     // Rollback on error
