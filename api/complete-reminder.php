@@ -42,9 +42,10 @@ if (!is_admin() && $reminder['user_id'] != $current_user['id']) {
 
 try {
     db_update('reminders', [
-        'status' => 'completed',
-        'completed_at' => date('Y-m-d H:i:s')
-    ], 'id = ?', [$reminder_id]);
+    'status' => 'completed'
+		// Bỏ completed_at vì không tồn tại
+		// updated_at sẽ tự động cập nhật nhờ ON UPDATE current_timestamp()
+	], 'id = ?', [$reminder_id]);
     
     log_activity('complete_reminder', "Completed reminder #{$reminder_id}", 'reminder', $reminder_id);
     

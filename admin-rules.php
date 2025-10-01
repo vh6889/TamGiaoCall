@@ -22,7 +22,7 @@ if (!is_admin() && !is_manager()) {
 $user = get_logged_user();
 
 // Load labels from database with CORRECT column names
-$orderLabels = db_get_results("SELECT label_key AS status_key, label FROM order_labels ORDER BY sort_order");
+$orderLabels = db_get_results("SELECT label_key AS status_key, label_name AS label FROM order_labels ORDER BY sort_order");
 $customerLabels = db_get_results("SELECT label_key, label_name FROM customer_labels ORDER BY sort_order");  
 $userLabels = db_get_results("SELECT label_key, label_name FROM user_labels ORDER BY sort_order");
 

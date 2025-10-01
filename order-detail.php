@@ -628,10 +628,10 @@ include 'includes/header.php';
 							$statuses = db_get_results("
 								SELECT label_key, label_name, label_value, color, icon
 								FROM order_labels 
-								WHERE is_system = 0   -- Loại trừ label hệ thống
-								   OR label_key = 'lbl_completed'  -- Nhưng GIỮ lại label Hoàn thành
+								WHERE (is_system = 0 OR label_key = 'lbl_completed')
+								  AND label_key != 'lbl_new_order'  -- Loại trừ 'Đơn mới'
 								ORDER BY 
-									CASE WHEN label_key = 'lbl_completed' THEN 999 ELSE sort_order END ASC
+									CASE WHEN label_value = 1 THEN 999 ELSE sort_order END ASC
 							");
 							
 							foreach ($statuses as $status): 

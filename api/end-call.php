@@ -2,6 +2,10 @@
 /**
  * API: End Call
  * Kết thúc cuộc gọi
+ * 
+ * ✅ FIXED VERSION:
+ * - Sửa call_logs.primary_label → status
+ * - Sửa query order_labels đúng cú pháp
  */
 define('TSM_ACCESS', true);
 require_once '../config.php';
@@ -47,6 +51,7 @@ try {
         json_error('Bạn không có quyền kết thúc cuộc gọi này', 403);
     }
     
+    // Find active call
     $call = db_get_row(
         "SELECT * FROM call_logs 
          WHERE order_id = ? AND user_id = ? AND end_time IS NULL
@@ -61,24 +66,27 @@ try {
     
     begin_transaction();
     
+    // ✅ FIX: Update call log - thay "primary_label" → "status"
     db_update('call_logs', [
         'end_time' => date('Y-m-d H:i:s'),
         'note' => sanitize($notes),
-        'primary_label' => 'completed'
+        'status' => 'completed'  // ✅ FIXED: Dùng đúng cột 'status'
     ], 'id = ?', [$call['id']]);
     
+    // Calculate new call count
     $new_call_count = intval($order['call_count'] ?? 0) + 1;
     
+    // Prepare order update data
     $update_data = [
         'call_count' => $new_call_count,
         'last_call_at' => date('Y-m-d H:i:s')
     ];
     
+    // If callback time is set, update it
     if ($callback_time) {
         $update_data['callback_time'] = date('Y-m-d H:i:s', strtotime($callback_time));
         
-        // LỖI CŨ: SELECT label_key FROM ... (dấu phẩy thừa)
-        // SỬA THÀNH:
+        // ✅ ALREADY FIXED: Query nhãn "gọi lại" đúng cú pháp
         $callback_label = db_get_var("
             SELECT label_key 
             FROM order_labels 
@@ -94,34 +102,41 @@ try {
         }
     }
     
+    // Update order
     db_update('orders', $update_data, 'id = ?', [$order_id]);
     
+    // Add note
     db_insert('order_notes', [
         'order_id' => $order_id,
         'user_id' => $user['id'],
-        'note_type' => 'call',
+        'note_type' => 'manual',
         'content' => $notes
     ]);
     
-    $duration = strtotime($call['end_time'] ?? 'now') - strtotime($call['start_time']);
-    $duration_formatted = gmdate('H:i:s', $duration);
+    // Calculate duration for logging
+    $duration_seconds = strtotime(date('Y-m-d H:i:s')) - strtotime($call['start_time']);
+    $duration_minutes = round($duration_seconds / 60, 1);
     
+    // Log activity
     log_activity(
         'end_call', 
-        "Completed call for order #{$order['order_number']} (Duration: {$duration_formatted})",
+        "Ended call for order #{$order['order_number']} (Duration: {$duration_minutes} minutes)", 
         'order', 
         $order_id
     );
     
     commit_transaction();
     
-    json_success('Đã kết thúc cuộc gọi', [
-        'call_duration' => $duration,
-        'call_count' => $new_call_count
+    json_success('Đã kết thúc cuộc gọi!', [
+        'order_id' => $order_id,
+        'call_count' => $new_call_count,
+        'duration_seconds' => $duration_seconds,
+        'callback_scheduled' => !empty($callback_time)
     ]);
     
 } catch (Exception $e) {
     rollback_transaction();
+    
     error_log('[END_CALL] Error: ' . $e->getMessage());
-    json_error('Có lỗi xảy ra: ' . $e->getMessage(), 500);
+    json_error($e->getMessage(), 500);
 }

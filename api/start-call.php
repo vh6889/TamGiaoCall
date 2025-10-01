@@ -2,6 +2,10 @@
 /**
  * API: Start Call
  * Bắt đầu cuộc gọi cho đơn hàng
+ * 
+ * ✅ FIXED VERSION:
+ * - Sửa call_logs.primary_label → status
+ * - Sửa query order_labels: label → label_name
  */
 define('TSM_ACCESS', true);
 require_once '../config.php';
@@ -61,26 +65,28 @@ try {
     // Begin transaction
     begin_transaction();
     
-    // Get "calling" status dynamically
+    // ✅ FIX: Sửa query - thay "label LIKE" → "label_name LIKE"
     $calling_status = db_get_var(
         "SELECT label_key FROM order_labels 
-         WHERE label_name LIKE '%gọi%' OR label LIKE '%calling%' OR label LIKE '%đang gọi%'
+         WHERE label_name LIKE '%gọi%' 
+            OR label_name LIKE '%calling%' 
+            OR label_name LIKE '%đang gọi%'
          ORDER BY sort_order 
          LIMIT 1"
     );
     
-    // Fallback
+    // Fallback - nếu không tìm thấy nhãn "đang gọi", giữ nguyên nhãn hiện tại
     if (!$calling_status) {
-        $calling_status = 'calling';
+        $calling_status = $order['primary_label'];
     }
     
-    // Create call log
+    // ✅ FIX: Create call log - thay "primary_label" → "status"
     $call_id = db_insert('call_logs', [
         'order_id' => $order_id,
         'user_id' => $user['id'],
         'user_name' => $user['full_name'],
         'start_time' => date('Y-m-d H:i:s'),
-        'primary_label' => 'active'
+        'status' => 'active'  // ✅ FIXED: Dùng đúng cột 'status'
     ]);
     
     // Update order status

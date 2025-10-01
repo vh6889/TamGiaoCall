@@ -2,6 +2,7 @@
 /**
  * API: Assign Order to a Telesale user
  * Allows an admin to manually assign an order to a specific user.
+ * ✅ FIXED VERSION: Loại bỏ code duplicate
  */
 define('TSM_ACCESS', true);
 require_once '../config.php';
@@ -24,21 +25,6 @@ if (!is_admin()) {
 
 check_rate_limit('assign-order', get_logged_user()['id']);
 
-$input = get_json_input(["order_id","user_id"]);
-$order_id = (int)$input['order_id'];
-$user_id = (int)$input['user_id'];
-
-// Only Admins can assign orders
-require_csrf();
-
-require_csrf();
-
-require_csrf();
-
-if (!is_logged_in() || !is_admin()) {
-    json_error('Unauthorized', 403);
-}
-
 $input = get_json_input(['order_id', 'user_id']);
 $order_id = (int)($input['order_id'] ?? 0);
 $assign_to_user_id = (int)($input['user_id'] ?? 0);
@@ -59,14 +45,16 @@ if (!$user_to_assign || $user_to_assign['role'] !== 'telesale' || $user_to_assig
     json_error('Nhân viên được chọn không hợp lệ hoặc không hoạt động.', 400);
 }
 
-try {\n    $pdo = get_db_connection();\n    $pdo->beginTransaction();\n    $pdo = get_db_connection();\n    $pdo->beginTransaction();\n    $pdo = get_db_connection();\n    $pdo->beginTransaction();
+try {
+    begin_transaction();
+    
     // 3. Update the order
-		db_update('orders', [
-		'assigned_to' => $assign_to_user_id,
-		'assigned_at' => date('Y-m-d H:i:s'),
-		'system_status' => 'assigned'
-		// KHÔNG set primary_label - giữ nguyên nhãn hiện tại
-	], 'id = ?', [$order_id]);
+    db_update('orders', [
+        'assigned_to' => $assign_to_user_id,
+        'assigned_at' => date('Y-m-d H:i:s'),
+        'system_status' => 'assigned'
+        // KHÔNG set primary_label - giữ nguyên nhãn hiện tại
+    ], 'id = ?', [$order_id]);
 
     // 4. Add a system note for the assignment
     $current_user_name = get_logged_user()['full_name'];
@@ -81,13 +69,12 @@ try {\n    $pdo = get_db_connection();\n    $pdo->beginTransaction();\n    $pdo 
 
     log_activity('assign_order', "Assigned order #{$order['order_number']} to {$user_to_assign['username']}", 'order', $order_id);
 
-    $pdo->commit();\n    $pdo->commit();\n    $pdo->commit();\n    json_success('Đã phân công đơn hàng thành công!');
-    $pdo->commit();
+    commit_transaction();
+    
+    json_success('Đã phân công đơn hàng thành công!');
+    
 } catch (Exception $e) {
-    $pdo->rollBack();
-    json_error('Error: ' . $e->getMessage(), 500);
-}
-
-} catch (Exception $e) {\n    if (isset($pdo)) $pdo->rollBack();\n    if (isset($pdo)) $pdo->rollBack();\n    if (isset($pdo)) $pdo->rollBack();
+    rollback_transaction();
+    error_log('[ASSIGN_ORDER] Error: ' . $e->getMessage());
     json_error('Database error: ' . $e->getMessage(), 500);
 }

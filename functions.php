@@ -322,7 +322,7 @@ function get_order($order_id) {
             ol.label_name,
             ol.color AS label_color,
             ol.icon AS label_icon,
-            ol.is_final AS label_is_final,
+            ol.label_value AS label_is_final,  -- ✅ FIXED
             u.full_name AS assigned_to_name,
             u.username AS assigned_to_username
         FROM orders o
@@ -927,7 +927,7 @@ function label_exists($label_key) {
  */
 function is_final_label($label_key) {
     return (bool)db_get_var("
-        SELECT is_final FROM order_labels WHERE label_key = ?
+        SELECT label_value FROM order_labels WHERE label_key = ?
     ", [$label_key]);
 }
 

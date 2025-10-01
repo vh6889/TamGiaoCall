@@ -77,7 +77,7 @@ $stats_query = "
 
 $stats = db_get_row($stats_query, $date_params);
 
-// Get status breakdown for chart (SỬA: đổi bảng và cột)
+// ✅ CHỈ lấy labels có đơn hàng
 $status_breakdown_query = "
     SELECT 
         ol.label_key as status_key,
@@ -86,11 +86,11 @@ $status_breakdown_query = "
         ol.icon,
         COUNT(o.id) as count,
         SUM(o.total_amount) as revenue
-    FROM order_labels ol
-    LEFT JOIN orders o ON o.primary_label = ol.label_key 
-        AND ($where_base)
-        AND DATE(o.created_at) BETWEEN ? AND ?
-    WHERE ol.is_system = 0
+    FROM orders o
+    INNER JOIN order_labels ol ON o.primary_label = ol.label_key
+    WHERE ($where_base)
+      AND DATE(o.created_at) BETWEEN ? AND ?
+      AND ol.is_system = 0
     GROUP BY ol.label_key, ol.label_name, ol.color, ol.icon
     ORDER BY ol.sort_order";
 
