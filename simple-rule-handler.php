@@ -4,6 +4,10 @@
  * Xử lý rules và reminders đơn giản mà không cần RuleEngine phức tạp
  */
 
+if (!defined('TSM_ACCESS')) {
+    die('Direct access not allowed');
+}
+
 /**
  * Get applicable reminders for order
  */
@@ -54,15 +58,15 @@ function get_order_suggestions($order) {
     }
     
     // Rule 4: Nhiều cuộc gọi không thành công
-    if ($order['call_count'] >= 3 && in_array($order['status'], ['no_answer', 'callback'])) {
+    if ($order['call_count'] >= 3) {
         $suggestions[] = [
             'type' => 'warning',
-            'message' => 'Đã gọi ' . $order['call_count'] . ' lần chưa liên lạc được, cân nhắc thay đổi cách tiếp cận'
+            'message' => 'Đã gọi ' . $order['call_count'] . ' lần, cân nhắc thay đổi cách tiếp cận'
         ];
     }
     
     // Rule 5: Đơn hàng callback đã quá hạn
-    if ($order['callback_time'] && strtotime($order['callback_time']) < time()) {
+    if ($order['callback_time'] && $order['callback_time'] != '0000-00-00 00:00:00' && strtotime($order['callback_time']) < time()) {
         $suggestions[] = [
             'type' => 'danger',
             'message' => 'Đã quá thời gian hẹn gọi lại!'
@@ -85,7 +89,7 @@ function get_order_suggestions($order) {
         $cancelled_orders = db_get_var(
             "SELECT COUNT(*) FROM orders 
              WHERE customer_phone = ? 
-             AND status IN (SELECT status_key FROM order_status_configs WHERE label LIKE '%hủy%' OR label LIKE '%rejected%') 
+             AND status IN (SELECT status_key FROM order_status_configs WHERE label LIKE '%hủy%' OR label LIKE '%rejected%' OR label LIKE '%bom%') 
              AND id != ?",
             [$order['customer_phone'], $order['id']]
         );
@@ -139,7 +143,8 @@ function create_auto_reminders($order_id, $order_status, $user_id) {
     }
     
     // Auto reminder for no_answer after multiple attempts
-    if (in_array($order_status, db_get_col("SELECT status_key FROM order_status_configs WHERE label LIKE '%không nghe%' OR label LIKE '%no_answer%'"))) {
+    $no_answer_statuses = db_get_col("SELECT status_key FROM order_status_configs WHERE label LIKE '%không nghe%' OR label LIKE '%no_answer%'");
+    if (!empty($no_answer_statuses) && in_array($order_status, $no_answer_statuses)) {
         $call_count = db_get_var(
             "SELECT call_count FROM orders WHERE id = ?",
             [$order_id]
@@ -162,8 +167,14 @@ function create_auto_reminders($order_id, $order_status, $user_id) {
  * Mark reminders as completed when order status changes
  */
 function complete_order_reminders($order_id, $new_status) {
+    // Get confirmed and cancelled statuses
+    $confirmed_statuses = db_get_col("SELECT status_key FROM order_status_configs WHERE label LIKE '%xác nhận%' OR label LIKE '%hoàn%' OR label LIKE '%thành công%'");
+    $cancelled_statuses = db_get_col("SELECT status_key FROM order_status_configs WHERE label LIKE '%hủy%' OR label LIKE '%rejected%' OR label LIKE '%bom%'");
+    
+    $final_statuses = array_merge($confirmed_statuses ?: [], $cancelled_statuses ?: []);
+    
     // Complete reminders when order is finalized
-    if (in_array($new_status, array_merge(get_confirmed_statuses(), db_get_col("SELECT status_key FROM order_status_configs WHERE label LIKE '%hủy%' OR label LIKE '%rejected%'")))) {
+    if (in_array($new_status, $final_statuses)) {
         db_update('reminders', 
             ['status' => 'completed', 'completed_at' => date('Y-m-d H:i:s')],
             'order_id = ? AND status = ?',
@@ -178,26 +189,32 @@ function complete_order_reminders($order_id, $new_status) {
 function get_employee_warnings($user_id) {
     $warnings = [];
     
-    // Check violation count
-    $violations = db_get_var(
-        "SELECT violation_count FROM employee_performance WHERE user_id = ?",
-        [$user_id]
-    );
+    // Check if employee_performance table exists
+    $table_exists = db_get_var("SHOW TABLES LIKE 'employee_performance'");
     
-    if ($violations > 0) {
-        $warnings[] = [
-            'type' => 'warning',
-            'message' => "Bạn có $violations vi phạm, hãy cẩn thận trong xử lý đơn hàng"
-        ];
+    if ($table_exists) {
+        // Check violation count
+        $violations = db_get_var(
+            "SELECT violation_count FROM employee_performance WHERE user_id = ?",
+            [$user_id]
+        );
+        
+        if ($violations && $violations > 0) {
+            $warnings[] = [
+                'type' => 'warning',
+                'message' => "Bạn có $violations vi phạm, hãy cẩn thận trong xử lý đơn hàng"
+            ];
+        }
     }
     
     // Check today's performance
     $today_orders = db_get_row(
         "SELECT COUNT(*) as total,
-                SUM(CASE WHEN status IN (SELECT status_key FROM order_status_configs WHERE label LIKE '%xác nhận%' OR label LIKE '%hoàn%') THEN 1 ELSE 0 END) as confirmed
-         FROM orders 
-         WHERE assigned_to = ? 
-         AND DATE(updated_at) = CURDATE()",
+                SUM(CASE WHEN osc.label LIKE '%xác nhận%' OR osc.label LIKE '%hoàn%' OR osc.label LIKE '%thành công%' THEN 1 ELSE 0 END) as confirmed
+         FROM orders o
+         LEFT JOIN order_status_configs osc ON o.status = osc.status_key
+         WHERE o.assigned_to = ? 
+         AND DATE(o.updated_at) = CURDATE()",
         [$user_id]
     );
     
@@ -213,4 +230,3 @@ function get_employee_warnings($user_id) {
     
     return $warnings;
 }
-?>

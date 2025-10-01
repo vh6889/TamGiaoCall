@@ -1,0 +1,114 @@
+<?php
+/**
+ * API: Unassign Order (Force Unassign)
+ * Hủy phân công đơn hàng - đưa đơn về trạng thái mới (kho chung)
+ * Chỉ Admin mới có quyền thực hiện
+ */
+define('TSM_ACCESS', true);
+require_once '../config.php';
+require_once '../includes/transaction_helper.php';
+require_once '../includes/error_handler.php';
+require_once '../functions.php';
+require_once '../includes/security_helper.php';
+require_once '../includes/status_helper.php';
+
+header('Content-Type: application/json');
+
+// CSRF Protection
+require_csrf();
+
+// Authentication check
+if (!is_logged_in()) {
+    json_error('Unauthorized', 401);
+}
+
+// Authorization check - Only Admin
+if (!is_admin()) {
+    json_error('Admin only', 403);
+}
+
+// Rate limiting
+check_rate_limit('unassign-order', get_logged_user()['id']);
+
+// Get and validate input
+$input = get_json_input(["order_id"]);
+$order_id = (int)$input['order_id'];
+
+if (!$order_id || $order_id <= 0) {
+    json_error('Invalid order ID', 400);
+}
+
+// Get order info
+$order = get_order($order_id);
+if (!$order) {
+    json_error('Không tìm thấy đơn hàng', 404);
+}
+
+// Check if order is already unassigned
+if (!$order['assigned_to']) {
+    json_error('Đơn hàng chưa được phân công', 400);
+}
+
+try {
+    // Begin transaction
+    begin_transaction();
+    
+    // Lấy trạng thái "Đơn mới" từ database
+    $new_status = db_get_var(
+        "SELECT status_key FROM order_status_configs 
+         WHERE label LIKE '%mới%' OR label LIKE '%new%' 
+         ORDER BY sort_order 
+         LIMIT 1"
+    );
+    
+    // Fallback nếu không tìm thấy
+    if (!$new_status) {
+        $new_status = 'n-a';
+    }
+    
+    // Get assigned user info for logging
+    $assigned_user = get_user($order['assigned_to']);
+    $assigned_user_name = $assigned_user ? $assigned_user['full_name'] : 'Unknown';
+    
+    // Update order: remove assignment and reset to new status
+    db_update('orders', [
+        'assigned_to' => null,
+        'assigned_at' => null,
+        'status' => $new_status,
+        'manager_id' => null
+    ], 'id = ?', [$order_id]);
+    
+    // Add system note
+    $current_user = get_logged_user();
+    db_insert('order_notes', [
+        'order_id' => $order_id,
+        'user_id' => $current_user['id'],
+        'note_type' => 'system',
+        'content' => "Admin {$current_user['full_name']} đã hủy phân công từ {$assigned_user_name}. Đơn hàng trở về kho chung."
+    ]);
+    
+    // Cancel any pending reminders for this order
+    cancel_pending_reminders($order_id);
+    
+    // Log activity
+    log_activity(
+        'unassign_order', 
+        "Unassigned order #{$order['order_number']} from {$assigned_user_name}", 
+        'order', 
+        $order_id
+    );
+    
+    // Commit transaction
+    commit_transaction();
+    
+    json_success('Đã hủy phán công thành công. Đơn hàng đã trở về kho chung.');
+    
+} catch (Exception $e) {
+    // Rollback on error
+    rollback_transaction();
+    
+    // Log error
+    error_log('[UNASSIGN_ORDER] Error: ' . $e->getMessage());
+    
+    json_error('Có lỗi xảy ra: ' . $e->getMessage(), 500);
+}
