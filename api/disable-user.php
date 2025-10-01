@@ -26,7 +26,7 @@ check_rate_limit('disable-user', get_logged_user()['id']);
 
 $input = get_json_input(["user_id"]);
 $user_id_to_disable = (int)$input['user_id'];
-$handover_option = $input['handover_option'] ?? 'reclaim'; // 'reclaim' or 'transfer'
+$handover_option = $input['handover_option'] ?? 'reclaim';
 $target_user_id = (int)($input['target_user_id'] ?? 0);
 
 $current_user = get_logged_user();
@@ -46,8 +46,7 @@ if ($handover_option === 'transfer' && !$target_user_id) {
 try {
     begin_transaction();
 
-    // LỖI CŨ: Query có lỗi SQL syntax
-    // SỬA THÀNH: Lấy đơn hàng chưa hoàn thành
+    // Lấy đơn hàng chưa hoàn thành
     $final_labels = array_merge(
         get_confirmed_statuses(), 
         get_cancelled_statuses()
@@ -70,7 +69,6 @@ try {
         $placeholders = implode(',', array_fill(0, count($order_ids), '?'));
 
         if ($handover_option === 'reclaim') {
-            // Trả về kho (release orders)
             $new_label = get_new_status_key();
             db_query(
                 "UPDATE orders 
@@ -84,7 +82,6 @@ try {
             log_activity('handover_reclaim', 'Reclaimed ' . count($order_ids) . ' orders from user #' . $user_id_to_disable);
             
         } elseif ($handover_option === 'transfer') {
-            // Bàn giao cho nhân viên khác
             db_query(
                 "UPDATE orders 
                  SET assigned_to = ?,
@@ -96,8 +93,8 @@ try {
         }
     }
 
-    // Vô hiệu hóa tài khoản
-    db_update('users', ['primary_label' => 'inactive'], 'id = ?', [$user_id_to_disable]);
+    // ✅ FIX: Sửa cột 'primary_label' thành 'status'
+    db_update('users', ['status' => 'inactive'], 'id = ?', [$user_id_to_disable]);
     log_activity('disable_user', 'Disabled user #' . $user_id_to_disable);
 
     commit_transaction();

@@ -55,14 +55,12 @@ try {
         $assigned_user_name = $assigned_user ? $assigned_user['full_name'] : 'Unknown';
     }
     
-    // Update order to free status
+    // ✅ FIX: Xóa duplicate fields, sửa thứ tự hợp lý
     db_update('orders', [
+        'system_status' => 'free',
         'assigned_to' => NULL,
         'assigned_at' => NULL,
-        'system_status' => 'free',
-		'primary_label' => get_new_status_key(),
-		'assigned_to' => NULL,
-		'assigned_at' => NULL
+        'primary_label' => get_new_status_key()
     ], 'id = ?', [$order_id]);
     
     // Add system note
@@ -75,9 +73,9 @@ try {
                      ($order['assigned_to'] ? " từ {$assigned_user_name}" : "")
     ]);
     
-    // Cancel pending reminders
+    // ✅ FIX: Sửa cột 'primary_label' thành 'status'
     db_update('reminders', 
-        ['primary_label' => 'cancelled', 'completed_at' => date('Y-m-d H:i:s')],
+        ['status' => 'cancelled'],
         'order_id = ? AND status = ?',
         [$order_id, 'pending']
     );

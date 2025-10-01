@@ -46,7 +46,7 @@ if ($handover_option === 'transfer' && !$target_user_id) {
 try {
     begin_transaction();
 
-    // Lấy đơn hàng chưa hoàn thành (tương tự disable-user.php)
+    // Lấy đơn hàng chưa hoàn thành
     $final_labels = array_merge(
         get_confirmed_statuses(), 
         get_cancelled_statuses()

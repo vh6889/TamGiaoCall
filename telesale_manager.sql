@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Máy chủ: 127.0.0.1
--- Thời gian đã tạo: Th10 01, 2025 lúc 12:58 PM
+-- Thời gian đã tạo: Th10 01, 2025 lúc 02:14 PM
 -- Phiên bản máy phục vụ: 10.4.32-MariaDB
 -- Phiên bản PHP: 8.0.30
 
@@ -20,26 +20,6 @@ SET time_zone = "+00:00";
 --
 -- Cơ sở dữ liệu: `telesale_manager`
 --
-
--- --------------------------------------------------------
-
---
--- Cấu trúc bảng cho bảng `action_logs`
---
-
-CREATE TABLE `action_logs` (
-  `id` int(11) NOT NULL,
-  `entity_id` int(11) NOT NULL,
-  `entity_type` varchar(50) NOT NULL,
-  `user_id` int(10) UNSIGNED DEFAULT NULL,
-  `action_type` varchar(100) NOT NULL,
-  `action_data` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`action_data`)),
-  `old_value` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`old_value`)),
-  `new_value` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`new_value`)),
-  `ip_address` varchar(45) DEFAULT NULL,
-  `user_agent` text DEFAULT NULL,
-  `created_at` datetime DEFAULT current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -100,25 +80,6 @@ INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `related_
 (34, 1, 'login', 'User logged in', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 13:25:32'),
 (35, 1, 'logout', 'User logged out', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 13:46:22'),
 (36, 2, 'login', 'User logged in', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 13:46:40');
-
--- --------------------------------------------------------
-
---
--- Cấu trúc bảng cho bảng `audit_trail`
---
-
-CREATE TABLE `audit_trail` (
-  `id` int(11) NOT NULL,
-  `table_name` varchar(100) NOT NULL,
-  `record_id` int(11) NOT NULL,
-  `action` enum('CREATE','UPDATE','DELETE') NOT NULL,
-  `old_values` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`old_values`)),
-  `new_values` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`new_values`)),
-  `user_id` int(11) DEFAULT NULL,
-  `ip_address` varchar(45) DEFAULT NULL,
-  `user_agent` text DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -431,11 +392,11 @@ DELIMITER ;
 CREATE TABLE `order_labels` (
   `label_key` varchar(50) NOT NULL,
   `label_name` varchar(100) NOT NULL,
+  `label_value` tinyint(1) NOT NULL DEFAULT 0 COMMENT '0=không tính doanh thu, 1=hoàn thành (tính doanh thu)',
   `description` text DEFAULT NULL,
   `color` varchar(20) NOT NULL DEFAULT '#6c757d',
   `icon` varchar(50) NOT NULL DEFAULT 'fa-tag',
   `sort_order` int(11) NOT NULL DEFAULT 0,
-  `is_final` tinyint(1) DEFAULT 0,
   `is_system` tinyint(1) DEFAULT 0,
   `auto_lock` tinyint(1) DEFAULT 0,
   `metadata` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`metadata`)),
@@ -448,17 +409,9 @@ CREATE TABLE `order_labels` (
 -- Đang đổ dữ liệu cho bảng `order_labels`
 --
 
-INSERT INTO `order_labels` (`label_key`, `label_name`, `description`, `color`, `icon`, `sort_order`, `is_final`, `is_system`, `auto_lock`, `metadata`, `created_by`, `created_at`, `updated_at`) VALUES
-('assigned', '[HỆ THỐNG] Đã gán', 'Trạng thái hệ thống: Đơn hàng đã được gán cho nhân viên', '#17a2b8', 'fa-user-check', -1, 0, 1, 0, NULL, NULL, '2025-10-01 15:48:34', '2025-10-01 15:48:34'),
-('bom-hang', 'Bom hàng', NULL, '#dc3545', 'fa-bomb', 12, 0, 0, 0, NULL, NULL, '2025-09-30 16:34:13', '2025-10-01 08:21:05'),
-('dang-giao', 'Đang giao', NULL, '#639419', 'fa-tag', 11, 0, 0, 0, NULL, NULL, '2025-09-30 16:28:29', '2025-09-30 16:28:29'),
-('dang-hoan', 'Đang hoàn', NULL, '#8c460d', 'fa-tag', 16, 0, 0, 0, NULL, NULL, '2025-09-30 16:34:44', '2025-09-30 16:34:44'),
-('dong-goi-sai', 'Đóng gói sai', NULL, '#7c3131', 'fa-tag', 12, 0, 0, 0, NULL, NULL, '2025-09-30 16:30:16', '2025-09-30 16:30:16'),
-('free', '[HỆ THỐNG] Chưa gán', 'Trạng thái hệ thống: Đơn hàng chưa được gán cho nhân viên nào', '#6c757d', 'fa-inbox', -2, 0, 1, 0, NULL, NULL, '2025-10-01 15:48:33', '2025-10-01 15:48:33'),
-('giao-thanh-cong', 'Giao thành công', NULL, '#00d604', 'fa-tag', 20, 0, 0, 0, NULL, NULL, '2025-09-30 16:37:32', '2025-09-30 16:37:32'),
-('hoan-thanh-cong', 'Hoàn thành công', NULL, '#1a1a1a', 'fa-tag', 17, 0, 0, 0, NULL, NULL, '2025-09-30 16:35:25', '2025-09-30 16:35:25'),
-('khong-nghe', 'Không nghe', NULL, '#dfc834', 'fa-tag', 3, 0, 0, 0, NULL, NULL, '2025-09-30 16:23:37', '2025-09-30 16:23:37'),
-('n-a', 'Đơn mới', NULL, '#08f7cf', 'fa-tag', 1, 0, 0, 0, NULL, NULL, '2025-09-30 16:18:10', '2025-09-30 16:18:10');
+INSERT INTO `order_labels` (`label_key`, `label_name`, `label_value`, `description`, `color`, `icon`, `sort_order`, `is_system`, `auto_lock`, `metadata`, `created_by`, `created_at`, `updated_at`) VALUES
+('lbl_completed', 'Hoàn thành', 1, NULL, '#28a745', 'fa-check-circle', 9999, 1, 0, NULL, NULL, '2025-10-01 18:54:28', '2025-10-01 18:54:28'),
+('lbl_new_order', 'Đơn mới', 0, NULL, '#17a2b8', 'fa-plus-circle', -1, 1, 0, NULL, NULL, '2025-10-01 18:54:28', '2025-10-01 18:54:28');
 
 -- --------------------------------------------------------
 
@@ -490,25 +443,6 @@ CREATE TABLE `order_notes` (
   `created_at` datetime DEFAULT current_timestamp(),
   `deleted_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Bảng ghi chú đơn hàng';
-
--- --------------------------------------------------------
-
---
--- Cấu trúc bảng cho bảng `order_status_configs_old_backup`
---
-
-CREATE TABLE `order_status_configs_old_backup` (
-  `status_key` varchar(50) NOT NULL,
-  `label` varchar(100) NOT NULL,
-  `color` varchar(20) NOT NULL,
-  `icon` varchar(50) NOT NULL,
-  `sort_order` int(11) NOT NULL DEFAULT 0,
-  `logic_json` text NOT NULL,
-  `created_by` int(10) UNSIGNED DEFAULT NULL,
-  `created_at` datetime DEFAULT current_timestamp(),
-  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `is_system` tinyint(1) DEFAULT 0 COMMENT 'Status hệ thống không được xóa'
-) ;
 
 -- --------------------------------------------------------
 
@@ -738,52 +672,6 @@ INSERT INTO `settings` (`setting_key`, `setting_value`) VALUES
 -- --------------------------------------------------------
 
 --
--- Cấu trúc bảng cho bảng `status_definitions`
---
-
-CREATE TABLE `status_definitions` (
-  `id` int(11) NOT NULL,
-  `entity_type` enum('order','customer','employee','task') NOT NULL,
-  `status_key` varchar(50) NOT NULL,
-  `label` varchar(100) NOT NULL,
-  `description` text DEFAULT NULL,
-  `color` varchar(20) DEFAULT '#6c757d',
-  `icon` varchar(50) DEFAULT 'fa-circle',
-  `sort_order` int(11) DEFAULT 0,
-  `is_system` tinyint(1) DEFAULT 0,
-  `is_final` tinyint(1) DEFAULT 0,
-  `required_fields` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`required_fields`)),
-  `validation_rules` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`validation_rules`)),
-  `created_by` int(10) UNSIGNED DEFAULT NULL,
-  `created_at` datetime DEFAULT current_timestamp(),
-  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Đang đổ dữ liệu cho bảng `status_definitions`
---
-
-INSERT INTO `status_definitions` (`id`, `entity_type`, `status_key`, `label`, `description`, `color`, `icon`, `sort_order`, `is_system`, `is_final`, `required_fields`, `validation_rules`, `created_by`, `created_at`, `updated_at`) VALUES
-(1, 'order', 'new', 'Đơn mới', 'Đơn hàng vừa được tạo', '#007bff', 'fa-plus-circle', 1, 1, 0, NULL, NULL, NULL, '2025-09-30 21:02:03', '2025-09-30 21:02:03'),
-(2, 'order', 'assigned', 'Đã phân công', 'Đã giao cho nhân viên', '#17a2b8', 'fa-user-check', 2, 1, 0, NULL, NULL, NULL, '2025-09-30 21:02:03', '2025-09-30 21:02:03'),
-(3, 'order', 'processing', 'Đang xử lý', 'Nhân viên đang xử lý', '#ffc107', 'fa-spinner', 3, 1, 0, NULL, NULL, NULL, '2025-09-30 21:02:03', '2025-09-30 21:02:03'),
-(4, 'order', 'calling', 'Đang gọi', 'Đang liên hệ khách hàng', '#fd7e14', 'fa-phone', 4, 0, 0, NULL, NULL, NULL, '2025-09-30 21:02:03', '2025-09-30 21:02:03'),
-(5, 'order', 'no_answer', 'Không nghe máy', 'Khách không nghe máy', '#dc3545', 'fa-phone-slash', 5, 0, 0, NULL, NULL, NULL, '2025-09-30 21:02:03', '2025-09-30 21:02:03'),
-(6, 'order', 'callback_scheduled', 'Hẹn gọi lại', 'Đã hẹn thời gian gọi lại', '#6f42c1', 'fa-clock', 6, 0, 0, NULL, NULL, NULL, '2025-09-30 21:02:03', '2025-09-30 21:02:03'),
-(7, 'order', 'confirmed', 'Đã xác nhận', 'Khách đã xác nhận đặt hàng', '#28a745', 'fa-check-circle', 7, 0, 0, NULL, NULL, NULL, '2025-09-30 21:02:03', '2025-09-30 21:02:03'),
-(8, 'order', 'shipping', 'Đang giao', 'Đơn hàng đang được giao', '#20c997', 'fa-truck', 8, 0, 0, NULL, NULL, NULL, '2025-09-30 21:02:03', '2025-09-30 21:02:03'),
-(9, 'order', 'completed', 'Hoàn thành', 'Giao hàng thành công', '#198754', 'fa-check-double', 9, 1, 0, NULL, NULL, NULL, '2025-09-30 21:02:03', '2025-09-30 21:02:03'),
-(10, 'order', 'cancelled', 'Đã hủy', 'Đơn hàng bị hủy', '#6c757d', 'fa-times-circle', 10, 1, 0, NULL, NULL, NULL, '2025-09-30 21:02:03', '2025-09-30 21:02:03'),
-(11, 'order', 'returned', 'Hoàn trả', 'Hàng bị trả lại', '#dc3545', 'fa-undo', 11, 1, 0, NULL, NULL, NULL, '2025-09-30 21:02:03', '2025-09-30 21:02:03'),
-(12, 'task', 'pending', 'Chờ xử lý', 'Task chưa bắt đầu', '#6c757d', 'fa-hourglass-start', 1, 1, 0, NULL, NULL, NULL, '2025-09-30 21:02:04', '2025-09-30 21:02:04'),
-(13, 'task', 'in_progress', 'Đang thực hiện', 'Task đang được xử lý', '#ffc107', 'fa-spinner', 2, 1, 0, NULL, NULL, NULL, '2025-09-30 21:02:04', '2025-09-30 21:02:04'),
-(14, 'task', 'completed', 'Hoàn thành', 'Task đã hoàn thành', '#28a745', 'fa-check', 3, 1, 0, NULL, NULL, NULL, '2025-09-30 21:02:04', '2025-09-30 21:02:04'),
-(15, 'task', 'overdue', 'Quá hạn', 'Task đã quá thời hạn', '#dc3545', 'fa-exclamation-triangle', 4, 1, 0, NULL, NULL, NULL, '2025-09-30 21:02:04', '2025-09-30 21:02:04'),
-(16, 'task', 'cancelled', 'Đã hủy', 'Task bị hủy', '#6c757d', 'fa-times', 5, 1, 0, NULL, NULL, NULL, '2025-09-30 21:02:04', '2025-09-30 21:02:04');
-
--- --------------------------------------------------------
-
---
 -- Cấu trúc bảng cho bảng `tasks`
 --
 
@@ -916,15 +804,6 @@ INSERT INTO `user_labels` (`id`, `label_key`, `label_name`, `description`, `colo
 --
 
 --
--- Chỉ mục cho bảng `action_logs`
---
-ALTER TABLE `action_logs`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `idx_entity` (`entity_id`,`entity_type`),
-  ADD KEY `idx_user_action` (`user_id`,`action_type`),
-  ADD KEY `idx_created_at` (`created_at`);
-
---
 -- Chỉ mục cho bảng `activity_logs`
 --
 ALTER TABLE `activity_logs`
@@ -933,15 +812,6 @@ ALTER TABLE `activity_logs`
   ADD KEY `idx_action` (`action`),
   ADD KEY `idx_activity_user` (`user_id`),
   ADD KEY `idx_created_at` (`created_at`);
-
---
--- Chỉ mục cho bảng `audit_trail`
---
-ALTER TABLE `audit_trail`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `idx_table_record` (`table_name`,`record_id`),
-  ADD KEY `idx_user` (`user_id`),
-  ADD KEY `idx_created` (`created_at`);
 
 --
 -- Chỉ mục cho bảng `call_logs`
@@ -1045,8 +915,7 @@ ALTER TABLE `orders`
 --
 ALTER TABLE `order_labels`
   ADD PRIMARY KEY (`label_key`),
-  ADD KEY `idx_sort_order` (`sort_order`),
-  ADD KEY `idx_is_final` (`is_final`);
+  ADD KEY `idx_sort_order` (`sort_order`);
 
 --
 -- Chỉ mục cho bảng `order_label_history`
@@ -1149,15 +1018,6 @@ ALTER TABLE `settings`
   ADD PRIMARY KEY (`setting_key`);
 
 --
--- Chỉ mục cho bảng `status_definitions`
---
-ALTER TABLE `status_definitions`
-  ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `entity_status` (`entity_type`,`status_key`),
-  ADD KEY `idx_entity_type` (`entity_type`),
-  ADD KEY `created_by` (`created_by`);
-
---
 -- Chỉ mục cho bảng `tasks`
 --
 ALTER TABLE `tasks`
@@ -1198,22 +1058,10 @@ ALTER TABLE `user_labels`
 --
 
 --
--- AUTO_INCREMENT cho bảng `action_logs`
---
-ALTER TABLE `action_logs`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
 -- AUTO_INCREMENT cho bảng `activity_logs`
 --
 ALTER TABLE `activity_logs`
   MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=37;
-
---
--- AUTO_INCREMENT cho bảng `audit_trail`
---
-ALTER TABLE `audit_trail`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT cho bảng `call_logs`
@@ -1324,12 +1172,6 @@ ALTER TABLE `security_logs`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
--- AUTO_INCREMENT cho bảng `status_definitions`
---
-ALTER TABLE `status_definitions`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
-
---
 -- AUTO_INCREMENT cho bảng `tasks`
 --
 ALTER TABLE `tasks`
@@ -1419,12 +1261,6 @@ ALTER TABLE `order_notes`
 ALTER TABLE `reminders`
   ADD CONSTRAINT `reminders_ibfk_1` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `reminders_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
-
---
--- Các ràng buộc cho bảng `status_definitions`
---
-ALTER TABLE `status_definitions`
-  ADD CONSTRAINT `status_definitions_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL;
 
 --
 -- Các ràng buộc cho bảng `tasks`

@@ -455,7 +455,8 @@ function get_user($user_id) {
 }
 
 /**
- * Get user statistics - FULLY DYNAMIC
+ * Get user statistics
+ * ✅ Chỉ đếm label_value = 1 (hoàn thành)
  */
 function get_user_statistics($user_id = null, $date_from = null, $date_to = null) {
     $where = ['1=1'];
@@ -476,21 +477,16 @@ function get_user_statistics($user_id = null, $date_from = null, $date_to = null
         $params[] = $date_to;
     }
     
-    // Build dynamic query using LABEL configs (updated)
     $sql = "SELECT 
                 COUNT(*) as total_orders,
-                SUM(CASE WHEN ol.label_name LIKE '%xác nhận%' OR ol.label_name LIKE '%hoàn%' 
-                         OR ol.label_name LIKE '%thành công%' THEN 1 ELSE 0 END) as confirmed_orders,
-                SUM(CASE WHEN ol.label_name LIKE '%từ chối%' OR ol.label_name LIKE '%rejected%' 
-                         THEN 1 ELSE 0 END) as rejected_orders,
-                SUM(CASE WHEN ol.label_name LIKE '%không nghe%' OR ol.label_name LIKE '%no answer%' 
-                         THEN 1 ELSE 0 END) as no_answer_orders,
+                COUNT(CASE WHEN ol.label_value = 1 THEN 1 END) as completed_orders,
+                COUNT(CASE WHEN ol.label_value = 0 THEN 1 END) as in_progress_orders,
                 SUM(o.call_count) as total_calls,
+                SUM(CASE WHEN ol.label_value = 1 THEN o.total_amount ELSE 0 END) as total_revenue,
                 ROUND(
-                    SUM(CASE WHEN ol.label_name LIKE '%xác nhận%' OR ol.label_name LIKE '%hoàn%' 
-                             OR ol.label_name LIKE '%thành công%' THEN 1 ELSE 0 END) * 100.0 / 
+                    COUNT(CASE WHEN ol.label_value = 1 THEN 1 END) * 100.0 / 
                     NULLIF(COUNT(*), 0), 2
-                ) as success_rate
+                ) as completion_rate
             FROM orders o
             LEFT JOIN order_labels ol ON o.primary_label = ol.label_key
             WHERE " . implode(' AND ', $where);
