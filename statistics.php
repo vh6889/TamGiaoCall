@@ -1,13 +1,12 @@
 <?php
 /**
  * Statistics Page (Admin only)
+ * ✅ FIXED: Dùng primary_label + label_value thay vì status
  */
 define('TSM_ACCESS', true);
 require_once 'config.php';
 require_once 'functions.php';
 require_once 'includes/status_helper.php';
-
-
 
 require_admin();
 
@@ -17,55 +16,55 @@ $page_title = 'Thống kê & Báo cáo';
 $date_from = $_GET['date_from'] ?? date('Y-m-d', strtotime('-29 days'));
 $date_to = $_GET['date_to'] ?? date('Y-m-d');
 
-// -- 1. LẤY DỮ LIỆU THỐNG KÊ TỔNG QUAN --
+// ✅ FIXED: Dùng label_value thay vì hardcode status
 $sql_overall = "SELECT
-                    COUNT(id) AS total_orders,
-                    SUM(CASE WHEN status = 'giao-thanh-cong' THEN total_amount ELSE 0 END) AS total_revenue,
-                    COUNT(CASE WHEN status = 'giao-thanh-cong' THEN 1 END) AS confirmed_orders,
-                    COUNT(CASE WHEN status = 'rejected' THEN 1 END) AS rejected_orders,
-                    ROUND(COUNT(CASE WHEN status = 'giao-thanh-cong' THEN 1 END) * 100.0 / NULLIF(COUNT(id), 0), 2) as success_rate
-                FROM orders
-                WHERE DATE(created_at) BETWEEN ? AND ?";
+                    COUNT(o.id) AS total_orders,
+                    SUM(CASE WHEN ol.label_value = 1 THEN o.total_amount ELSE 0 END) AS total_revenue,
+                    COUNT(CASE WHEN ol.label_value = 1 THEN 1 END) AS confirmed_orders,
+                    COUNT(CASE WHEN ol.label_value = 0 THEN 1 END) AS in_progress_orders,
+                    ROUND(COUNT(CASE WHEN ol.label_value = 1 THEN 1 END) * 100.0 / NULLIF(COUNT(o.id), 0), 2) as success_rate
+                FROM orders o
+                LEFT JOIN order_labels ol ON o.primary_label = ol.label_key
+                WHERE DATE(o.created_at) BETWEEN ? AND ?";
 $overall_stats = db_get_row($sql_overall, [$date_from, $date_to]);
 
-
-// -- 2. LẤY DỮ LIỆU CHO BIỂU ĐỒ TRẠNG THÁI --
-$sql_status_dist = "SELECT status, COUNT(id) as count
-                    FROM orders
-                    WHERE DATE(created_at) BETWEEN ? AND ?
-                    GROUP BY status";
+// ✅ FIXED: Dùng primary_label + label_name thay vì status
+$sql_status_dist = "SELECT ol.label_name as status, COUNT(o.id) as count
+                    FROM orders o
+                    LEFT JOIN order_labels ol ON o.primary_label = ol.label_key
+                    WHERE DATE(o.created_at) BETWEEN ? AND ?
+                    GROUP BY ol.label_name
+                    ORDER BY count DESC";
 $status_distribution = db_get_results($sql_status_dist, [$date_from, $date_to]);
 
-
-// -- 3. LẤY DỮ LIỆU CHO BIỂU ĐỒ ĐƠN HÀNG THEO NGÀY --
+// ✅ FIXED: Dùng label_value để đếm confirmed
 $sql_daily_orders = "SELECT
-                        DATE(created_at) as order_date,
-                        COUNT(id) as total_orders,
-                        COUNT(CASE WHEN status = 'giao-thanh-cong' THEN 1 END) as confirmed_orders
-                     FROM orders
-                     WHERE DATE(created_at) BETWEEN ? AND ?
+                        DATE(o.created_at) as order_date,
+                        COUNT(o.id) as total_orders,
+                        COUNT(CASE WHEN ol.label_value = 1 THEN 1 END) as confirmed_orders
+                     FROM orders o
+                     LEFT JOIN order_labels ol ON o.primary_label = ol.label_key
+                     WHERE DATE(o.created_at) BETWEEN ? AND ?
                      GROUP BY order_date
                      ORDER BY order_date ASC";
 $daily_orders_data = db_get_results($sql_daily_orders, [$date_from, $date_to]);
 
-
-// -- 4. LẤY DỮ LIỆU HIỆU SUẤT CỦA TỪNG TELESALE --
+// ✅ FIXED: Dùng label_value để đếm confirmed
 $sql_telesale_perf = "SELECT
                         u.id,
                         u.full_name,
                         COUNT(o.id) as assigned_orders,
-                        COUNT(CASE WHEN o.primary_label = 'giao-thanh-cong' THEN 1 END) as confirmed,
-                        COUNT(CASE WHEN o.primary_label = 'rejected' THEN 1 END) as rejected,
-                        COUNT(CASE WHEN o.primary_label = 'no_answer' THEN 1 END) as no_answer,
+                        COUNT(CASE WHEN ol.label_value = 1 THEN 1 END) as confirmed,
+                        COUNT(CASE WHEN ol.label_value = 0 AND o.is_locked = 0 THEN 1 END) as in_progress,
                         SUM(o.call_count) as total_calls,
-                        ROUND(COUNT(CASE WHEN o.primary_label = 'giao-thanh-cong' THEN 1 END) * 100.0 / NULLIF(COUNT(o.id), 0), 2) as success_rate
+                        ROUND(COUNT(CASE WHEN ol.label_value = 1 THEN 1 END) * 100.0 / NULLIF(COUNT(o.id), 0), 2) as success_rate
                       FROM users u
                       LEFT JOIN orders o ON u.id = o.assigned_to AND DATE(o.created_at) BETWEEN ? AND ?
+                      LEFT JOIN order_labels ol ON o.primary_label = ol.label_key
                       WHERE u.role = 'telesale' AND u.status = 'active'
                       GROUP BY u.id, u.full_name
                       ORDER BY confirmed DESC";
 $telesale_performance = db_get_results($sql_telesale_perf, [$date_from, $date_to]);
-
 
 include 'includes/header.php';
 ?>
@@ -104,7 +103,7 @@ include 'includes/header.php';
     </div>
     <div class="col-md-3">
         <div class="stat-card">
-            <h6 class="text-muted">Đơn xác nhận</h6>
+            <h6 class="text-muted">Đơn hoàn thành</h6>
             <h2 class="mb-0"><?php echo number_format($overall_stats['confirmed_orders'] ?? 0); ?></h2>
         </div>
     </div>
@@ -139,24 +138,22 @@ include 'includes/header.php';
                 <tr>
                     <th>Nhân viên</th>
                     <th>Tổng đơn</th>
-                    <th>Xác nhận</th>
-                    <th>Từ chối</th>
-                    <th>Không nghe máy</th>
+                    <th>Hoàn thành</th>
+                    <th>Đang xử lý</th>
                     <th>Tổng cuộc gọi</th>
                     <th>Tỷ lệ chốt (%)</th>
                 </tr>
             </thead>
             <tbody>
                 <?php if (empty($telesale_performance)): ?>
-                    <tr><td colspan="7" class="text-center text-muted">Không có dữ liệu.</td></tr>
+                    <tr><td colspan="6" class="text-center text-muted">Không có dữ liệu.</td></tr>
                 <?php else: ?>
                     <?php foreach ($telesale_performance as $perf): ?>
                     <tr>
                         <td><strong><?php echo htmlspecialchars($perf['full_name']); ?></strong></td>
                         <td><?php echo number_format($perf['assigned_orders']); ?></td>
                         <td class="text-success fw-bold"><?php echo number_format($perf['confirmed']); ?></td>
-                        <td class="text-danger"><?php echo number_format($perf['rejected']); ?></td>
-                        <td><?php echo number_format($perf['no_answer']); ?></td>
+                        <td><?php echo number_format($perf['in_progress'] ?? 0); ?></td>
                         <td><?php echo number_format($perf['total_calls'] ?? 0); ?></td>
                         <td>
                             <span class="badge bg-primary fs-6"><?php echo $perf['success_rate']; ?>%</span>
@@ -173,12 +170,11 @@ include 'includes/header.php';
 document.addEventListener("DOMContentLoaded", function() {
     // 1. Status Distribution Chart (Pie Chart)
     const statusData = <?php echo json_encode($status_distribution); ?>;
-    const statusLabels = <?php echo json_encode($labels_array); ?>;
     const statusCtx = document.getElementById('statusDistributionChart').getContext('2d');
     new Chart(statusCtx, {
         type: 'doughnut',
         data: {
-            labels: statusData.map(item => statusLabels[item.status] || item.status),
+            labels: statusData.map(item => item.status || 'Không xác định'),
             datasets: [{
                 data: statusData.map(item => item.count),
                 backgroundColor: ['#667eea', '#17a2b8', '#ffc107', '#28a745', '#dc3545', '#6c757d', '#343a40']
@@ -208,7 +204,7 @@ document.addEventListener("DOMContentLoaded", function() {
                     tension: 0.3
                 },
                 {
-                    label: 'Đơn xác nhận',
+                    label: 'Đơn hoàn thành',
                     data: dailyData.map(item => item.confirmed_orders),
                     borderColor: '#28a745',
                     backgroundColor: 'rgba(40, 167, 69, 0.1)',

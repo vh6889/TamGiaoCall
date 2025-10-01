@@ -1,7 +1,10 @@
 <?php
 /**
- * API: Update Order Label (formerly update-status.php)
- * Cập nhật NHÃN (primary_label) cho đơn hàng và tự động khóa nếu là nhãn cuối cùng
+ * API: Update Order Label (PATCHED VERSION)
+ * ✅ THAY ĐỔI:
+ * 1. Check label_value thay vì is_final
+ * 2. Tự động lock khi label_value = 1
+ * 3. Cancel reminders khi hoàn thành
  */
 define('TSM_ACCESS', true);
 require_once '../config.php';
@@ -29,23 +32,11 @@ if (!$order_id || !$new_label) {
     json_error('Dữ liệu không hợp lệ', 400);
 }
 
-if (is_system_status($new_label)) {
-    json_error('Không thể chọn trạng thái hệ thống. Chỉ có thể chọn nhãn nghiệp vụ.', 400);
-}
-
-if (!validate_status_change($new_label)) {
-    json_error('Nhãn không hợp lệ', 400);
-}
-
-$order = require_order_access($order_id, true);
+// Verify user has access to this order
+$order = require_order_access($order_id, false);
 
 if ($order['is_locked']) {
     json_error('Đơn hàng đã khóa, không thể cập nhật', 400);
-}
-
-$current_label = $order['primary_label'];
-if (!validate_status_transition($current_label, $new_label)) {
-    json_error('Không thể thay đổi từ nhãn hiện tại', 400);
 }
 
 $current_user = get_logged_user();
@@ -53,14 +44,16 @@ $current_user = get_logged_user();
 try {
     begin_transaction();
     
+    // ✅ THAY ĐỔI: Query label_value thay vì is_final
     $label_info = db_get_row("
-        SELECT label_key, label_name, is_final 
+        SELECT label_key, label_name, label_value 
         FROM order_labels 
         WHERE label_key = ?
     ", [$new_label]);
     
     if (!$label_info) {
-        throw new Exception('Nhãn không tồn tại');
+        rollback_transaction();
+        json_error('Nhãn không tồn tại', 400);
     }
     
     $update_data = [
@@ -68,15 +61,14 @@ try {
         'updated_at' => date('Y-m-d H:i:s')
     ];
     
-    $is_final_label = (bool)$label_info['is_final'];
-    
-    if ($is_final_label) {
+    // ✅ THÊM MỚI: Check label_value = 1 để auto-lock
+    if ($label_info['label_value'] == 1) {
         $update_data['is_locked'] = 1;
         $update_data['locked_at'] = date('Y-m-d H:i:s');
         $update_data['locked_by'] = $current_user['id'];
         $update_data['completed_at'] = date('Y-m-d H:i:s');
         
-        // ✅ FIX: Sửa cột 'primary_label' thành 'status'
+        // ✅ THÊM MỚI: Cancel pending reminders
         db_update('reminders', 
             ['status' => 'cancelled'],
             'order_id = ? AND status = ?',
@@ -84,7 +76,17 @@ try {
         );
     }
     
+    // Update order
     db_update('orders', $update_data, 'id = ?', [$order_id]);
+    
+    // Add note
+    db_insert('order_notes', [
+        'order_id' => $order_id,
+        'user_id' => $current_user['id'],
+        'note_type' => 'system',
+        'content' => "Cập nhật nhãn: {$label_info['label_name']}" . 
+                     ($label_info['label_value'] == 1 ? ' (Đơn đã hoàn thành và bị khóa)' : '')
+    ]);
     
     log_activity(
         'update_status', 
@@ -98,7 +100,7 @@ try {
     json_success('Đã cập nhật nhãn thành công', [
         'order_id' => $order_id,
         'new_label' => $new_label,
-        'is_locked' => $is_final_label
+        'is_locked' => ($label_info['label_value'] == 1)
     ]);
     
 } catch (Exception $e) {

@@ -610,28 +610,49 @@ include 'includes/header.php';
                     <?php endif; ?>
                     
                     <!-- Update Status Panel (shown after end call) -->
-                    <div id="updateStatusPanel" style="display:none;" class="mt-3">
-                        <hr>
-                        <h6 class="mb-3"><i class="fas fa-clipboard-check"></i> Cập nhật trạng thái</h6>
-                        <label class="form-label">Chọn trạng thái đơn hàng *</label>
-                        <select class="form-select mb-3" id="orderStatus">
+					<div id="updateStatusPanel" style="display:none;" class="mt-3">
+						<hr>
+						<h6 class="mb-3"><i class="fas fa-clipboard-check"></i> Cập nhật trạng thái</h6>
+						
+						<!-- ✅ WARNING ALERT -->
+						<div class="alert alert-warning" id="completedWarning" style="display:none;">
+							<i class="fas fa-exclamation-triangle"></i>
+							<strong>Cảnh báo:</strong> Đơn sẽ bị khóa và không thể chỉnh sửa nữa!
+						</div>
+						
+						<label class="form-label">Chọn trạng thái đơn hàng *</label>
+						<select class="form-select mb-3" id="orderStatus">
 							<option value="">-- Chọn trạng thái --</option>
 							<?php 
-							$user_statuses = get_user_statuses(); // Chỉ lấy status không phải hệ thống
-							foreach ($user_statuses as $status): 
+							// ✅ THAY ĐỔI: Query mới với filter đúng
+							$statuses = db_get_results("
+								SELECT label_key, label_name, label_value, color, icon
+								FROM order_labels 
+								WHERE is_system = 0   -- Loại trừ label hệ thống
+								   OR label_key = 'lbl_completed'  -- Nhưng GIỮ lại label Hoàn thành
+								ORDER BY 
+									CASE WHEN label_key = 'lbl_completed' THEN 999 ELSE sort_order END ASC
+							");
+							
+							foreach ($statuses as $status): 
 							?>
-							<option value="<?php echo $status['status_key']; ?>">
-								<?php echo htmlspecialchars($status['label']); ?>
+							<option value="<?php echo htmlspecialchars($status['label_key']); ?>"
+									data-is-final="<?php echo $status['label_value']; ?>">
+								<?php echo htmlspecialchars($status['label_name']); ?>
+								<?php if ($status['label_value'] == 1): ?>
+									⚠️
+								<?php endif; ?>
 							</option>
 							<?php endforeach; ?>
 						</select>
-                        <button class="btn btn-primary w-100 btn-lg" onclick="updateStatus()">
-                            <i class="fas fa-save"></i> Lưu & Hoàn tất
-                        </button>
-                        <small class="text-muted d-block mt-2">
-                            Sau khi lưu, đơn hàng sẽ bị khóa và không thể chỉnh sửa
-                        </small>
-                    </div>
+						
+						<button class="btn btn-primary w-100 btn-lg" onclick="updateStatus()">
+							<i class="fas fa-save"></i> Lưu & Hoàn tất
+						</button>
+						<small class="text-muted d-block mt-2">
+							Sau khi lưu, bạn không thể chỉnh sửa đơn hàng này nữa
+						</small>
+					</div>
                     
                 <?php elseif (is_admin() || is_manager()): ?>
                     <!-- Assigned to someone else, but admin/manager can view -->
@@ -805,6 +826,7 @@ include 'includes/header.php';
     </div>
 </div>
 <script>
+
 // Global state
 const orderId = <?php echo $order_id; ?>;
 const canEdit = <?php echo $can_edit ? 'true' : 'false'; ?>;
@@ -815,6 +837,64 @@ let products = <?php echo json_encode($products); ?>;
 let hasUnsavedChanges = false;
 let callTimer = null;
 let callStartTime = null;
+
+// ✅ THÊM: Show warning khi chọn label hoàn thành
+$(document).ready(function() {
+    $('#orderStatus').change(function() {
+        const selectedOption = $(this).find('option:selected');
+        const isFinal = selectedOption.data('is-final');
+        
+        if (isFinal == 1) {
+            $('#completedWarning').slideDown();
+        } else {
+            $('#completedWarning').slideUp();
+        }
+    });
+});
+
+// ✅ CẬP NHẬT: updateStatus() function với confirm động
+function updateStatus() {
+    const status = $('#orderStatus').val();
+    
+    if (!status) {
+        showToast('Vui lòng chọn trạng thái đơn hàng', 'error');
+        return;
+    }
+    
+    // ✅ Check nếu là label hoàn thành
+    const selectedOption = $('#orderStatus').find('option:selected');
+    const isFinal = selectedOption.data('is-final');
+    const labelName = selectedOption.text().trim();
+    
+    let confirmMsg = `Xác nhận cập nhật trạng thái thành "${labelName}"?`;
+    if (isFinal == 1) {
+        confirmMsg = `⚠️ XÁC NHẬN HOÀN THÀNH?\n\nĐơn hàng sẽ được đánh dấu "${labelName}" và BỊ KHÓA vĩnh viễn.\nBạn sẽ KHÔNG THỂ chỉnh sửa lại.\n\nBạn có chắc chắn?`;
+    }
+    
+    if (!confirm(confirmMsg)) return;
+    
+    hasUnsavedChanges = false;
+    
+    $.ajax({
+        url: 'api/update-status.php',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            csrf_token: csrfToken,
+            order_id: orderId,
+            status: status
+        }),
+        success: function(response) {
+            if (response.success) {
+                showToast('Đã cập nhật trạng thái thành công!', 'success');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                showToast('Lỗi: ' + response.message, 'error');
+            }
+        },
+        error: handleAjaxError
+    });
+}
 
 // CRITICAL: Universal AJAX error handler
 function handleAjaxError(xhr, textStatus, errorThrown) {

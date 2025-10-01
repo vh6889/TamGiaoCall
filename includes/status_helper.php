@@ -1,7 +1,13 @@
 <?php
+/**
+ * Status Helper - SIMPLIFIED & NO DUPLICATE
+ * ✅ FIXED: Xóa hàm trùng với functions.php
+ */
 if (!defined('TSM_ACCESS')) die('Direct access not allowed');
 
-// SYSTEM STATUS
+// ==================================================
+// SYSTEM STATUS FUNCTIONS
+// ==================================================
 function get_free_status_key() {
     return 'free';
 }
@@ -14,7 +20,13 @@ function is_system_status($status_key) {
     return in_array($status_key, ['free', 'assigned']);
 }
 
+// ==================================================
 // LABEL FUNCTIONS
+// ==================================================
+
+/**
+ * Get all user-created labels (is_system = 0)
+ */
 function get_all_statuses() {
     return db_get_results("
         SELECT label_key AS status_key, 
@@ -28,10 +40,16 @@ function get_all_statuses() {
     ");
 }
 
+/**
+ * Alias for get_all_statuses()
+ */
 function get_user_statuses() {
     return get_all_statuses();
 }
 
+/**
+ * Get status info by key
+ */
 function get_status_info($status_key) {
     $label = db_get_row("
         SELECT label_key AS status_key, 
@@ -43,6 +61,7 @@ function get_status_info($status_key) {
     
     if ($label) return $label;
     
+    // Fallback for system statuses
     if ($status_key === 'free') {
         return [
             'status_key' => 'free',
@@ -63,6 +82,7 @@ function get_status_info($status_key) {
         ];
     }
     
+    // Unknown status
     return [
         'status_key' => $status_key,
         'label' => $status_key,
@@ -72,7 +92,10 @@ function get_status_info($status_key) {
     ];
 }
 
-// VALIDATION
+// ==================================================
+// VALIDATION FUNCTIONS
+// ==================================================
+
 function is_valid_status($status_key) {
     return (bool)db_get_var("SELECT COUNT(*) FROM order_labels WHERE label_key = ?", [$status_key]);
 }
@@ -87,39 +110,86 @@ function validate_status_transition($current_status, $new_status) {
     return validate_status_change($new_status);
 }
 
-// GET DEFAULT LABEL
+// ==================================================
+// DEFAULT LABEL FUNCTIONS
+// ==================================================
+
+/**
+ * ✅ PATCHED: Hardcode return 'lbl_new_order'
+ */
 function get_new_status_key() {
-    // Lấy label "Đơn mới" (label_value = 0, is_system = 1)
-    $status = db_get_var("
-        SELECT label_key 
+    return 'lbl_new_order';
+}
+
+/**
+ * ✅ NEW: Get completed status key
+ */
+function get_completed_status_key() {
+    return 'lbl_completed';
+}
+
+// ==================================================
+// LABEL MANAGEMENT (KHÔNG TRÙNG VỚI functions.php)
+// ==================================================
+
+/**
+ * ✅ NEW: Get user labels for dropdown (exclude lbl_new_order, include lbl_completed)
+ * Hàm này KHÔNG trùng với get_order_labels() trong functions.php
+ */
+function get_user_labels_for_dropdown() {
+    return db_get_results("
+        SELECT label_key, label_name, label_value, color, icon
         FROM order_labels 
-        WHERE is_system = 1 AND label_value = 0
-        LIMIT 1
+        WHERE is_system = 0 OR label_key = 'lbl_completed'
+        ORDER BY 
+            CASE WHEN label_key = 'lbl_completed' THEN 999 ELSE sort_order END ASC
     ");
+}
+
+/**
+ * Generate unique label key for admin-created labels
+ */
+function generate_label_key() {
+    return 'lbl_' . time() . '_' . bin2hex(random_bytes(4));
+}
+
+// ==================================================
+// ORDER COMPLETION CHECKS
+// ==================================================
+
+/**
+ * ✅ NEW: Check if order is completed (based on label_value)
+ */
+function is_order_completed($order_id) {
+    $label_value = db_get_var("
+        SELECT ol.label_value
+        FROM orders o
+        JOIN order_labels ol ON o.primary_label = ol.label_key
+        WHERE o.id = ?
+    ", [$order_id]);
     
-    return $status ?: 'lbl_new_order';
+    return ($label_value == 1);
 }
 
-// DISPLAY
-function get_status_badge($status_key) {
-    $info = get_status_info($status_key);
-    return format_status_badge($status_key, $info['label'], $info['color'], $info['icon']);
-}
-
-function format_status_badge($status_key, $label = null, $color = null, $icon = null) {
-    if (!$label) {
-        $info = get_status_info($status_key);
-        $label = $info['label'];
-        $color = $info['color'];
-        $icon = $info['icon'];
+/**
+ * ✅ NEW: Count orders by completion status
+ */
+function count_orders_by_completion($user_id = null) {
+    $where = ['1=1'];
+    $params = [];
+    
+    if ($user_id) {
+        $where[] = 'o.assigned_to = ?';
+        $params[] = $user_id;
     }
     
-    return sprintf(
-        '<span class="badge" style="background-color: %s; color: #fff;">
-            <i class="fas %s me-1"></i> %s
-        </span>',
-        htmlspecialchars($color),
-        htmlspecialchars($icon),
-        htmlspecialchars($label)
-    );
+    $sql = "
+        SELECT 
+            SUM(CASE WHEN ol.label_value = 0 THEN 1 ELSE 0 END) as pending_orders,
+            SUM(CASE WHEN ol.label_value = 1 THEN 1 ELSE 0 END) as completed_orders
+        FROM orders o
+        JOIN order_labels ol ON o.primary_label = ol.label_key
+        WHERE " . implode(' AND ', $where);
+    
+    return db_get_row($sql, $params);
 }

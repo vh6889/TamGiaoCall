@@ -1,6 +1,7 @@
 <?php
 /**
  * KPI Management Page (Admin only)
+ * ✅ FIXED: Dùng label_value thay vì hardcode status
  */
 define('TSM_ACCESS', true);
 require_once 'config.php';
@@ -10,39 +11,45 @@ require_admin();
 
 $page_title = 'Quản lý KPIs & Mục tiêu';
 
-// Lấy tháng/năm để xem, mặc định là tháng hiện tại
 $target_month_input = $_GET['month'] ?? date('Y-m');
 $target_month_date = new DateTime($target_month_input . '-01');
 $target_month_sql = $target_month_date->format('Y-m-01');
 $month_start = $target_month_date->format('Y-m-01');
 $month_end = $target_month_date->format('Y-m-t');
 
-// 1. Lấy danh sách tất cả telesale đang hoạt động
 $telesales = get_telesales('active');
 
-// 2. Lấy dữ liệu KPI đã thiết lập và đã đạt được của tháng đang xem
 $kpi_data = [];
 if (!empty($telesales)) {
     foreach ($telesales as $ts) {
         $user_id = $ts['id'];
         
-        // Lấy mục tiêu đã set từ bảng `kpis`
-        $targets = db_get_results("SELECT target_type, target_value FROM kpis WHERE user_id = ? AND target_month = ?", [$user_id, $target_month_sql]);
+        $targets = db_get_results(
+            "SELECT target_type, target_value FROM kpis WHERE user_id = ? AND target_month = ?", 
+            [$user_id, $target_month_sql]
+        );
+        
         $kpi_data[$user_id]['targets'] = [
             'confirmed_orders' => 0,
             'total_revenue' => 0
         ];
+        
         foreach($targets as $target) {
             $kpi_data[$user_id]['targets'][$target['target_type']] = $target['target_value'];
         }
 
-        // Lấy kết quả đã đạt được từ bảng `orders`
+        // ✅ FIXED: Dùng label_value thay vì hardcode status
         $achieved = db_get_row(
-            "SELECT COUNT(id) as confirmed_orders, SUM(CASE WHEN status = " . get_confirmed_status() . " THEN total_amount ELSE 0 END) as total_revenue
-             FROM orders
-             WHERE assigned_to = ? AND status = " . get_confirmed_status() . " AND DATE(completed_at) BETWEEN ? AND ?",
+            "SELECT 
+                COUNT(CASE WHEN ol.label_value = 1 THEN 1 END) as confirmed_orders,
+                SUM(CASE WHEN ol.label_value = 1 THEN o.total_amount ELSE 0 END) as total_revenue
+             FROM orders o
+             LEFT JOIN order_labels ol ON o.primary_label = ol.label_key
+             WHERE o.assigned_to = ? 
+               AND DATE(o.created_at) BETWEEN ? AND ?",
             [$user_id, $month_start, $month_end]
         );
+        
         $kpi_data[$user_id]['achieved'] = [
             'confirmed_orders' => $achieved['confirmed_orders'] ?? 0,
             'total_revenue' => $achieved['total_revenue'] ?? 0
@@ -58,7 +65,8 @@ include 'includes/header.php';
         <h5 class="mb-0"><i class="fas fa-bullseye me-2"></i>Quản lý KPIs & Mục tiêu</h5>
         <form method="GET" class="d-flex align-items-center">
             <label for="month" class="form-label me-2 mb-0">Chọn tháng:</label>
-            <input type="month" class="form-control form-control-sm" id="month" name="month" value="<?php echo $target_month_input; ?>" onchange="this.form.submit()">
+            <input type="month" class="form-control form-control-sm" id="month" name="month" 
+                   value="<?php echo $target_month_input; ?>" onchange="this.form.submit()">
         </form>
     </div>
     
@@ -100,9 +108,7 @@ include 'includes/header.php';
                             <div class="progress" style="height: 20px;">
                                 <div class="progress-bar <?php echo $orders_progress >= 100 ? 'bg-success' : ''; ?>" 
                                      role="progressbar" 
-                                     style="width: <?php echo min(100, $orders_progress); ?>%;" 
-                                     aria-valuenow="<?php echo $orders_progress; ?>" 
-                                     aria-valuemin="0" aria-valuemax="100">
+                                     style="width: <?php echo min(100, $orders_progress); ?>%;">
                                     <?php echo $orders_progress; ?>%
                                 </div>
                             </div>
@@ -122,9 +128,7 @@ include 'includes/header.php';
                             <div class="progress" style="height: 20px;">
                                 <div class="progress-bar <?php echo $revenue_progress >= 100 ? 'bg-success' : ''; ?>" 
                                      role="progressbar" 
-                                     style="width: <?php echo min(100, $revenue_progress); ?>%;" 
-                                     aria-valuenow="<?php echo $revenue_progress; ?>" 
-                                     aria-valuemin="0" aria-valuemax="100">
+                                     style="width: <?php echo min(100, $revenue_progress); ?>%;">
                                     <?php echo $revenue_progress; ?>%
                                 </div>
                             </div>
@@ -161,7 +165,6 @@ $(document).ready(function() {
             if (item.name === 'target_month') {
                 postData.target_month = item.value;
             } else {
-                // Parse names like kpis[1][confirmed_orders]
                 const match = item.name.match(/kpis\[(\d+)\]\[(\w+)\]/);
                 if (match) {
                     const userId = match[1];
@@ -182,8 +185,6 @@ $(document).ready(function() {
             success: function(response) {
                 if (response.success) {
                     showToast('Đã lưu mục tiêu thành công!', 'success');
-                    // Optional: reload to show updated progress, though not necessary
-                    // setTimeout(() => location.reload(), 1500);
                 } else {
                     showToast(response.message || 'Có lỗi xảy ra', 'error');
                 }
@@ -197,6 +198,10 @@ $(document).ready(function() {
         });
     });
 });
+
+function showToast(message, type) {
+    alert(message);
+}
 </script>
 
 <?php include 'includes/footer.php'; ?>

@@ -1,6 +1,7 @@
 <?php
 /**
  * API: Disable User and Handle Work Handover
+ * ✅ PATCHED: Hardcode 'lbl_new_order'
  */
 define('TSM_ACCESS', true);
 require_once '../config.php';
@@ -8,7 +9,6 @@ require_once '../includes/transaction_helper.php';
 require_once '../includes/error_handler.php';
 require_once '../functions.php';
 require_once '../includes/security_helper.php';
-require_once '../includes/status_helper.php';
 
 header('Content-Type: application/json');
 
@@ -46,22 +46,14 @@ if ($handover_option === 'transfer' && !$target_user_id) {
 try {
     begin_transaction();
 
-    // Lấy đơn hàng chưa hoàn thành
-    $final_labels = array_merge(
-        get_confirmed_statuses(), 
-        get_cancelled_statuses()
-    );
-    
-    $placeholders_labels = implode(',', array_fill(0, count($final_labels), '?'));
-    
+    // Lấy đơn hàng chưa hoàn thành (is_locked = 0)
     $pending_orders = db_get_results(
         "SELECT id, order_number 
          FROM orders 
          WHERE assigned_to = ? 
            AND system_status = 'assigned'
-           AND is_locked = 0
-           AND primary_label NOT IN ($placeholders_labels)",
-        array_merge([$user_id_to_disable], $final_labels)
+           AND is_locked = 0",
+        [$user_id_to_disable]
     );
 
     if (!empty($pending_orders)) {
@@ -69,15 +61,15 @@ try {
         $placeholders = implode(',', array_fill(0, count($order_ids), '?'));
 
         if ($handover_option === 'reclaim') {
-            $new_label = get_new_status_key();
+            // ✅ PATCH: Hardcode 'lbl_new_order'
             db_query(
                 "UPDATE orders 
                  SET assigned_to = NULL, 
                      system_status = 'free',
-                     primary_label = ?,
+                     primary_label = 'lbl_new_order',
                      assigned_at = NULL
                  WHERE id IN ($placeholders)", 
-                array_merge([$new_label], $order_ids)
+                $order_ids
             );
             log_activity('handover_reclaim', 'Reclaimed ' . count($order_ids) . ' orders from user #' . $user_id_to_disable);
             
@@ -93,7 +85,6 @@ try {
         }
     }
 
-    // ✅ FIX: Sửa cột 'primary_label' thành 'status'
     db_update('users', ['status' => 'inactive'], 'id = ?', [$user_id_to_disable]);
     log_activity('disable_user', 'Disabled user #' . $user_id_to_disable);
 
