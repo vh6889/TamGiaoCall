@@ -71,12 +71,6 @@ define('CURRENCY_SYMBOL', '₫');
 define('CURRENCY_POSITION', 'right'); // left or right
 
 // =============================================
-// ORDER STATUS
-// =============================================
-// REMOVED - Using dynamic order_status_configs table instead
-// define('ORDER_STATUS', [...]);
-
-// =============================================
 // USER ROLES
 // =============================================
 // REMOVED - Using dynamic role_permissions table instead

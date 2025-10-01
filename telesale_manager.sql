@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Máy chủ: 127.0.0.1
--- Thời gian đã tạo: Th10 01, 2025 lúc 11:01 AM
+-- Thời gian đã tạo: Th10 01, 2025 lúc 12:07 PM
 -- Phiên bản máy phục vụ: 10.4.32-MariaDB
 -- Phiên bản PHP: 8.0.30
 
@@ -217,17 +217,6 @@ CREATE TABLE `call_logs` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Lịch sử cuộc gọi chi tiết';
 
 --
--- Đang đổ dữ liệu cho bảng `call_logs`
---
-
-INSERT INTO `call_logs` (`id`, `order_id`, `user_id`, `user_name`, `start_time`, `end_time`, `duration`, `note`, `status`, `recording_url`, `customer_feedback`, `created_at`) VALUES
-(1, 22, 1, 'Administrator', '2025-10-01 07:12:38', '2025-10-01 07:14:40', 122, 'gọi thử', 'completed', NULL, NULL, '2025-10-01 07:12:38'),
-(2, 22, 1, 'Administrator', '2025-10-01 07:54:49', '2025-10-01 07:57:59', 190, 'gọi thử', 'completed', NULL, NULL, '2025-10-01 07:54:49'),
-(3, 28, 1, 'Administrator', '2025-10-01 07:59:26', '2025-10-01 08:02:05', 159, 'mua thử', 'completed', NULL, NULL, '2025-10-01 07:59:26'),
-(4, 28, 1, 'Administrator', '2025-10-01 08:02:27', '2025-10-01 08:02:35', 8, 'cập nhật', 'completed', NULL, NULL, '2025-10-01 08:02:27'),
-(5, 27, 1, 'Administrator', '2025-10-01 09:56:24', '2025-10-01 09:57:10', 46, 'test', 'completed', NULL, NULL, '2025-10-01 09:56:24');
-
---
 -- Bẫy `call_logs`
 --
 DELIMITER $$
@@ -411,7 +400,6 @@ CREATE TABLE `orders` (
   `payment_method` varchar(50) DEFAULT NULL,
   `products` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL COMMENT 'Danh sách sản phẩm (JSON)' CHECK (json_valid(`products`)),
   `customer_notes` text DEFAULT NULL COMMENT 'Ghi chú của khách',
-  `status` varchar(50) DEFAULT 'new',
   `system_status` enum('free','assigned') NOT NULL DEFAULT 'free',
   `primary_label` varchar(50) DEFAULT NULL,
   `assigned_to` int(10) UNSIGNED DEFAULT NULL COMMENT 'ID nhân viên được gán',
@@ -440,17 +428,27 @@ CREATE TABLE `orders` (
 -- Đang đổ dữ liệu cho bảng `orders`
 --
 
-INSERT INTO `orders` (`id`, `woo_order_id`, `order_number`, `customer_name`, `customer_phone`, `customer_email`, `customer_address`, `total_amount`, `currency`, `payment_method`, `products`, `customer_notes`, `status`, `system_status`, `primary_label`, `assigned_to`, `manager_id`, `assigned_at`, `call_count`, `last_call_at`, `callback_time`, `source`, `created_by`, `approval_status`, `approved_by`, `approved_at`, `woo_created_at`, `created_at`, `updated_at`, `completed_at`, `is_locked`, `locked_at`, `locked_by`, `deleted_at`, `version`) VALUES
-(22, NULL, 'DYN001', 'Anh Hải', '0963864597', '', '55 Ngô Kim Tài, Kênh Dương, Hải Phòng', 300000.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":3,\"price\":100000,\"sku\":\"N/A\",\"regular_price\":100000,\"sale_price\":100000,\"attributes\":[],\"line_total\":300000}]', NULL, 'n-a', 'assigned', 'n-a', 1, NULL, '2025-10-01 07:54:42', 2, '2025-10-01 07:57:59', '0000-00-00 00:00:00', 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 14:40:47', NULL, 0, NULL, NULL, NULL, 1),
-(23, NULL, 'DYN002', 'Test Đang giao', '0900000001', NULL, '123 Test Street, District 2', 1628333.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'dang-giao', 'free', 'dang-giao', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 14:40:47', NULL, 0, NULL, NULL, NULL, 1),
-(24, NULL, 'DYN003', 'Test Đang hoàn', '0900000002', NULL, '123 Test Street, District 3', 1233607.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'dang-hoan', 'free', 'dang-hoan', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 14:40:47', NULL, 0, NULL, NULL, NULL, 1),
-(25, NULL, 'DYN004', 'Test Đóng gói sai', '0900000003', NULL, '123 Test Street, District 4', 1030515.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'dong-goi-sai', 'free', 'dong-goi-sai', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 14:40:47', NULL, 0, NULL, NULL, NULL, 1),
-(26, NULL, 'DYN005', 'Test Giao thành công', '0900000004', NULL, '123 Test Street, District 5', 1169812.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'giao-thanh-cong', 'free', 'giao-thanh-cong', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 14:40:47', NULL, 0, NULL, NULL, NULL, 1),
-(27, NULL, 'DYN006', 'Test Hoàn thành công', '0900000005', NULL, '123 Test Street, District 6', 400000.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000,\"id\":1,\"sku\":\"N/A\",\"regular_price\":100000,\"sale_price\":100000,\"line_total\":100000},{\"id\":202,\"name\":\"Sản phẩm bổ sung B\",\"price\":300000,\"sku\":\"ADD-B\",\"regular_price\":300000,\"sale_price\":300000,\"qty\":1,\"line_total\":300000}]', NULL, 'dong-goi-sai', 'assigned', 'dong-goi-sai', 1, NULL, '2025-10-01 09:56:18', 1, '2025-10-01 09:57:10', '0000-00-00 00:00:00', 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 14:40:47', NULL, 0, NULL, NULL, NULL, 1),
-(28, NULL, 'DYN007', 'Trang', '0962864599', 'raintl07@gmail.com', '55 Ngô Kim Tài, Kênh Dương, Hải Phòng', 500000.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":3,\"price\":100000,\"sku\":\"N/A\",\"regular_price\":100000,\"sale_price\":100000,\"attributes\":[],\"line_total\":300000},{\"name\":\"Product Test\",\"qty\":2,\"price\":100000,\"sku\":\"N/A\",\"regular_price\":100000,\"sale_price\":100000,\"attributes\":[],\"line_total\":200000}]', NULL, 'n-a', 'assigned', 'n-a', 1, NULL, '2025-10-01 07:59:00', 2, '2025-10-01 08:02:35', '0000-00-00 00:00:00', 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 14:40:47', NULL, 0, NULL, NULL, NULL, 1),
-(29, NULL, 'DYN008', 'Test Đơn mới', '0900000007', NULL, '123 Test Street, District 8', 1925618.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'n-a', 'free', 'n-a', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 14:40:47', NULL, 0, NULL, NULL, NULL, 1),
-(30, NULL, 'DYN009', 'Test Đang gọi', '0900000008', NULL, '123 Test Street, District 9', 1795834.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'n-a', 'free', 'n-a', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 14:40:47', NULL, 0, NULL, NULL, NULL, 1),
-(31, NULL, 'DYN010', 'Test Hẹn gọi lại', '0900000009', NULL, '123 Test Street, District 10', 822067.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'n-a', 'free', 'n-a', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 14:40:47', NULL, 0, NULL, NULL, NULL, 1);
+INSERT INTO `orders` (`id`, `woo_order_id`, `order_number`, `customer_name`, `customer_phone`, `customer_email`, `customer_address`, `total_amount`, `currency`, `payment_method`, `products`, `customer_notes`, `system_status`, `primary_label`, `assigned_to`, `manager_id`, `assigned_at`, `call_count`, `last_call_at`, `callback_time`, `source`, `created_by`, `approval_status`, `approved_by`, `approved_at`, `woo_created_at`, `created_at`, `updated_at`, `completed_at`, `is_locked`, `locked_at`, `locked_by`, `deleted_at`, `version`) VALUES
+(32, NULL, 'ORD-001', 'Nguyễn Văn An', '0901234567', 'an@gmail.com', '123 Lê Lợi, Hà Nội', 1500000.00, 'VND', NULL, '[{\"name\":\"Sản phẩm A\",\"qty\":2,\"price\":750000}]', NULL, 'free', 'n-a', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, 'approved', NULL, NULL, NULL, '2025-10-01 15:02:47', '2025-10-01 17:02:47', NULL, 0, NULL, NULL, NULL, 1),
+(33, NULL, 'ORD-002', 'Trần Thị Bình', '0902345678', 'binh@yahoo.com', '456 Nguyễn Huệ, TP.HCM', 2500000.00, 'VND', NULL, '[{\"name\":\"Sản phẩm B\",\"qty\":1,\"price\":2500000}]', NULL, 'free', 'n-a', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, 'approved', NULL, NULL, NULL, '2025-10-01 12:02:47', '2025-10-01 17:02:47', NULL, 0, NULL, NULL, NULL, 1),
+(34, NULL, 'ORD-003', 'Lê Văn Cường', '0903456789', 'cuong@gmail.com', '789 Trần Hưng Đạo, Đà Nẵng', 3200000.00, 'VND', NULL, '[{\"name\":\"Sản phẩm C\",\"qty\":4,\"price\":800000}]', NULL, 'free', 'n-a', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, 'approved', NULL, NULL, NULL, '2025-10-01 09:02:47', '2025-10-01 17:02:47', NULL, 0, NULL, NULL, NULL, 1),
+(35, NULL, 'ORD-004', 'Phạm Thị Dung', '0904567890', NULL, '321 Hai Bà Trưng, Hải Phòng', 1800000.00, 'VND', NULL, '[{\"name\":\"Sản phẩm D\",\"qty\":3,\"price\":600000}]', 'Giao buổi chiều', 'free', 'n-a', NULL, NULL, NULL, 0, NULL, NULL, 'manual', NULL, 'approved', NULL, NULL, NULL, '2025-10-01 05:02:47', '2025-10-01 17:02:47', NULL, 0, NULL, NULL, NULL, 1),
+(36, NULL, 'ORD-005', 'Hoàng Văn Em', '0905678901', 'em@outlook.com', '654 Lý Thường Kiệt, Cần Thơ', 950000.00, 'VND', NULL, '[{\"name\":\"Sản phẩm E\",\"qty\":1,\"price\":950000}]', NULL, 'free', 'n-a', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, 'approved', NULL, NULL, NULL, '2025-09-30 17:02:47', '2025-10-01 17:02:47', NULL, 0, NULL, NULL, NULL, 1),
+(37, NULL, 'ORD-006', 'Đặng Thị Phương', '0906789012', NULL, '987 Điện Biên Phủ, Huế', 4500000.00, 'VND', NULL, '[{\"name\":\"Sản phẩm F\",\"qty\":5,\"price\":900000}]', 'Khách VIP', 'free', 'n-a', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, 'approved', NULL, NULL, NULL, '2025-09-30 17:02:47', '2025-10-01 17:02:47', NULL, 0, NULL, NULL, NULL, 1),
+(38, NULL, 'ORD-007', 'Vũ Văn Giang', '0907890123', 'giang@gmail.com', '147 Phan Chu Trinh, Nha Trang', 2100000.00, 'VND', NULL, '[{\"name\":\"Sản phẩm G\",\"qty\":3,\"price\":700000}]', NULL, 'free', 'n-a', NULL, NULL, NULL, 0, NULL, NULL, 'manual', NULL, 'approved', NULL, NULL, NULL, '2025-09-29 17:02:47', '2025-10-01 17:02:47', NULL, 0, NULL, NULL, NULL, 1),
+(39, NULL, 'ORD-008', 'Bùi Thị Hoa', '0908901234', 'hoa@yahoo.com', '258 Quang Trung, Vũng Tàu', 1650000.00, 'VND', NULL, '[{\"name\":\"Sản phẩm H\",\"qty\":2,\"price\":825000}]', NULL, 'free', 'n-a', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, 'approved', NULL, NULL, NULL, '2025-09-29 17:02:47', '2025-10-01 17:02:47', NULL, 0, NULL, NULL, NULL, 1),
+(40, NULL, 'ORD-009', 'Trương Văn Inh', '0909012345', NULL, '369 Lê Duẩn, Quy Nhơn', 3800000.00, 'VND', NULL, '[{\"name\":\"Sản phẩm I\",\"qty\":4,\"price\":950000}]', 'Gọi trước khi giao', 'free', 'n-a', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, 'approved', NULL, NULL, NULL, '2025-09-28 17:02:47', '2025-10-01 17:02:47', NULL, 0, NULL, NULL, NULL, 1),
+(41, NULL, 'ORD-010', 'Lý Thị Kim', '0900123456', 'kim@gmail.com', '741 Hoàng Văn Thụ, Biên Hòa', 2750000.00, 'VND', NULL, '[{\"name\":\"Sản phẩm J\",\"qty\":5,\"price\":550000}]', NULL, 'free', 'n-a', NULL, NULL, NULL, 0, NULL, NULL, 'manual', NULL, 'approved', NULL, NULL, NULL, '2025-09-28 17:02:47', '2025-10-01 17:02:47', NULL, 0, NULL, NULL, NULL, 1),
+(42, NULL, 'ORD-011', 'Phan Văn Long', '0911234567', 'long@gmail.com', '852 Cách Mạng Tháng 8, Hà Nội', 1200000.00, 'VND', NULL, '[{\"name\":\"Sản phẩm K\",\"qty\":2,\"price\":600000}]', NULL, 'free', 'khong-nghe', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, 'approved', NULL, NULL, NULL, '2025-09-27 17:02:47', '2025-10-01 17:02:47', NULL, 0, NULL, NULL, NULL, 1),
+(43, NULL, 'ORD-012', 'Võ Thị Mai', '0912345678', NULL, '963 Ngô Quyền, TP.HCM', 5500000.00, 'VND', NULL, '[{\"name\":\"Sản phẩm L\",\"qty\":10,\"price\":550000}]', 'Khách hay không nghe máy', 'free', 'n-a', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, 'approved', NULL, NULL, NULL, '2025-09-27 17:02:47', '2025-10-01 17:02:47', NULL, 0, NULL, NULL, NULL, 1),
+(44, NULL, 'ORD-013', 'Đỗ Văn Nam', '0913456789', 'nam@yahoo.com', '159 Võ Văn Kiệt, Đà Nẵng', 3300000.00, 'VND', NULL, '[{\"name\":\"Sản phẩm M\",\"qty\":3,\"price\":1100000}]', NULL, 'free', 'dang-giao', NULL, NULL, NULL, 0, NULL, NULL, 'manual', NULL, 'approved', NULL, NULL, NULL, '2025-09-26 17:02:47', '2025-10-01 17:02:47', NULL, 0, NULL, NULL, NULL, 1),
+(45, NULL, 'ORD-014', 'Ngô Thị Oanh', '0914567890', 'oanh@gmail.com', '753 Lạc Long Quân, Hải Phòng', 2900000.00, 'VND', NULL, '[{\"name\":\"Sản phẩm N\",\"qty\":4,\"price\":725000}]', NULL, 'free', 'khong-nghe', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, 'approved', NULL, NULL, NULL, '2025-09-26 17:02:47', '2025-10-01 17:02:47', NULL, 0, NULL, NULL, NULL, 1),
+(46, NULL, 'ORD-015', 'Hồ Văn Phúc', '0915678901', NULL, '357 Trường Chinh, Cần Thơ', 1450000.00, 'VND', NULL, '[{\"name\":\"Sản phẩm O\",\"qty\":2,\"price\":725000}]', 'Gọi sau 3h chiều', 'free', 'n-a', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, 'approved', NULL, NULL, NULL, '2025-09-25 17:02:47', '2025-10-01 17:02:47', NULL, 0, NULL, NULL, NULL, 1),
+(47, NULL, 'ORD-016', 'Mai Văn Quang', '0916789012', 'quang@outlook.com', '951 Ba Tháng Hai, Huế', 6800000.00, 'VND', NULL, '[{\"name\":\"Sản phẩm P\",\"qty\":8,\"price\":850000}]', 'Đơn hàng số lượng lớn', 'free', 'n-a', NULL, NULL, NULL, 0, NULL, NULL, 'manual', NULL, 'pending', NULL, NULL, NULL, '2025-10-01 16:02:47', '2025-10-01 17:02:47', NULL, 0, NULL, NULL, NULL, 1),
+(48, NULL, 'ORD-017', 'Chu Thị Rung', '0917890123', NULL, '246 Hùng Vương, Nha Trang', 1900000.00, 'VND', NULL, '[{\"name\":\"Sản phẩm Q\",\"qty\":2,\"price\":950000}]', NULL, 'free', 'n-a', NULL, NULL, NULL, 0, NULL, NULL, 'manual', NULL, 'pending', NULL, NULL, NULL, '2025-10-01 14:02:47', '2025-10-01 17:02:47', NULL, 0, NULL, NULL, NULL, 1),
+(49, NULL, 'ORD-018', 'Lưu Văn Sơn', '0918901234', 'son@gmail.com', '468 Xô Viết Nghệ Tĩnh, Vũng Tàu', 4200000.00, 'VND', NULL, '[{\"name\":\"Sản phẩm R\",\"qty\":6,\"price\":700000}]', NULL, 'free', 'giao-thanh-cong', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, 'approved', NULL, NULL, NULL, '2025-09-24 17:02:47', '2025-10-01 17:02:47', NULL, 0, NULL, NULL, NULL, 1),
+(50, NULL, 'ORD-019', 'Tô Thị Thảo', '0919012345', 'thao@yahoo.com', '579 Hoàng Hoa Thám, Quy Nhơn', 3600000.00, 'VND', NULL, '[{\"name\":\"Sản phẩm S\",\"qty\":4,\"price\":900000}]', NULL, 'free', 'hoan-thanh-cong', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, 'approved', NULL, NULL, NULL, '2025-09-23 17:02:47', '2025-10-01 17:02:47', NULL, 0, NULL, NULL, NULL, 1),
+(51, NULL, 'ORD-020', 'Đinh Văn Ưu', '0920123456', NULL, '680 Phan Đăng Lưu, Biên Hòa', 2200000.00, 'VND', NULL, '[{\"name\":\"Sản phẩm T\",\"qty\":4,\"price\":550000}]', 'Khách không nhận hàng', 'free', 'bom-hang', NULL, NULL, NULL, 0, NULL, NULL, 'manual', NULL, 'approved', NULL, NULL, NULL, '2025-09-22 17:02:47', '2025-10-01 17:02:47', NULL, 0, NULL, NULL, NULL, 1);
 
 --
 -- Bẫy `orders`
@@ -528,6 +526,66 @@ DELIMITER ;
 -- --------------------------------------------------------
 
 --
+-- Cấu trúc bảng cho bảng `orders_backup_before_drop_status`
+--
+
+CREATE TABLE `orders_backup_before_drop_status` (
+  `id` int(10) UNSIGNED NOT NULL DEFAULT 0,
+  `woo_order_id` int(10) UNSIGNED DEFAULT NULL COMMENT 'ID đơn hàng từ WooCommerce (NULL nếu tạo thủ công)',
+  `order_number` varchar(50) NOT NULL COMMENT 'Mã đơn hàng',
+  `customer_name` varchar(100) NOT NULL,
+  `customer_phone` varchar(20) NOT NULL,
+  `customer_email` varchar(100) DEFAULT NULL,
+  `customer_address` text DEFAULT NULL,
+  `total_amount` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `currency` varchar(10) DEFAULT 'VND',
+  `payment_method` varchar(50) DEFAULT NULL,
+  `products` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL COMMENT 'Danh sách sản phẩm (JSON)' CHECK (json_valid(`products`)),
+  `customer_notes` text DEFAULT NULL COMMENT 'Ghi chú của khách',
+  `status` varchar(50) DEFAULT 'new',
+  `system_status` enum('free','assigned') NOT NULL DEFAULT 'free',
+  `primary_label` varchar(50) DEFAULT NULL,
+  `assigned_to` int(10) UNSIGNED DEFAULT NULL COMMENT 'ID nhân viên được gán',
+  `manager_id` int(10) UNSIGNED DEFAULT NULL COMMENT 'ID manager đang giám sát đơn',
+  `assigned_at` datetime DEFAULT NULL COMMENT 'Thời gian gán',
+  `call_count` int(10) UNSIGNED DEFAULT 0,
+  `last_call_at` datetime DEFAULT NULL,
+  `callback_time` datetime DEFAULT NULL,
+  `source` enum('woocommerce','manual') NOT NULL DEFAULT 'woocommerce' COMMENT 'Nguồn đơn hàng',
+  `created_by` int(10) UNSIGNED DEFAULT NULL COMMENT 'ID nhân viên tạo đơn thủ công',
+  `approval_status` varchar(50) DEFAULT NULL,
+  `approved_by` int(10) UNSIGNED DEFAULT NULL COMMENT 'ID admin duyệt đơn',
+  `approved_at` datetime DEFAULT NULL,
+  `woo_created_at` datetime DEFAULT NULL COMMENT 'Thời gian tạo đơn trên WooCommerce',
+  `created_at` datetime DEFAULT current_timestamp(),
+  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `completed_at` datetime DEFAULT NULL,
+  `is_locked` tinyint(1) DEFAULT 0 COMMENT 'Đơn hàng đã khóa sau khi xử lý xong',
+  `locked_at` datetime DEFAULT NULL COMMENT 'Thời gian khóa đơn hàng',
+  `locked_by` int(10) UNSIGNED DEFAULT NULL COMMENT 'Người khóa đơn hàng',
+  `deleted_at` timestamp NULL DEFAULT NULL,
+  `version` int(11) NOT NULL DEFAULT 1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Đang đổ dữ liệu cho bảng `orders_backup_before_drop_status`
+--
+
+INSERT INTO `orders_backup_before_drop_status` (`id`, `woo_order_id`, `order_number`, `customer_name`, `customer_phone`, `customer_email`, `customer_address`, `total_amount`, `currency`, `payment_method`, `products`, `customer_notes`, `status`, `system_status`, `primary_label`, `assigned_to`, `manager_id`, `assigned_at`, `call_count`, `last_call_at`, `callback_time`, `source`, `created_by`, `approval_status`, `approved_by`, `approved_at`, `woo_created_at`, `created_at`, `updated_at`, `completed_at`, `is_locked`, `locked_at`, `locked_by`, `deleted_at`, `version`) VALUES
+(22, NULL, 'DYN001', 'Anh Hải', '0963864597', '', '55 Ngô Kim Tài, Kênh Dương, Hải Phòng', 300000.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":3,\"price\":100000,\"sku\":\"N/A\",\"regular_price\":100000,\"sale_price\":100000,\"attributes\":[],\"line_total\":300000}]', NULL, 'n-a', 'assigned', 'n-a', 1, NULL, '2025-10-01 07:54:42', 2, '2025-10-01 07:57:59', '0000-00-00 00:00:00', 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 14:40:47', NULL, 0, NULL, NULL, NULL, 1),
+(23, NULL, 'DYN002', 'Test Đang giao', '0900000001', NULL, '123 Test Street, District 2', 1628333.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'dang-giao', 'free', 'dang-giao', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 14:40:47', NULL, 0, NULL, NULL, NULL, 1),
+(24, NULL, 'DYN003', 'Test Đang hoàn', '0900000002', NULL, '123 Test Street, District 3', 1233607.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'dang-hoan', 'free', 'dang-hoan', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 14:40:47', NULL, 0, NULL, NULL, NULL, 1),
+(25, NULL, 'DYN004', 'Test Đóng gói sai', '0900000003', NULL, '123 Test Street, District 4', 1030515.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'dong-goi-sai', 'free', 'dong-goi-sai', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 14:40:47', NULL, 0, NULL, NULL, NULL, 1),
+(26, NULL, 'DYN005', 'Test Giao thành công', '0900000004', NULL, '123 Test Street, District 5', 1169812.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'giao-thanh-cong', 'free', 'giao-thanh-cong', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 14:40:47', NULL, 0, NULL, NULL, NULL, 1),
+(27, NULL, 'DYN006', 'Test Hoàn thành công', '0900000005', NULL, '123 Test Street, District 6', 400000.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000,\"id\":1,\"sku\":\"N/A\",\"regular_price\":100000,\"sale_price\":100000,\"line_total\":100000},{\"id\":202,\"name\":\"Sản phẩm bổ sung B\",\"price\":300000,\"sku\":\"ADD-B\",\"regular_price\":300000,\"sale_price\":300000,\"qty\":1,\"line_total\":300000}]', NULL, 'dong-goi-sai', 'assigned', 'dong-goi-sai', 1, NULL, '2025-10-01 09:56:18', 1, '2025-10-01 09:57:10', '0000-00-00 00:00:00', 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 14:40:47', NULL, 0, NULL, NULL, NULL, 1),
+(28, NULL, 'DYN007', 'Trang', '0962864599', 'raintl07@gmail.com', '55 Ngô Kim Tài, Kênh Dương, Hải Phòng', 500000.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":3,\"price\":100000,\"sku\":\"N/A\",\"regular_price\":100000,\"sale_price\":100000,\"attributes\":[],\"line_total\":300000},{\"name\":\"Product Test\",\"qty\":2,\"price\":100000,\"sku\":\"N/A\",\"regular_price\":100000,\"sale_price\":100000,\"attributes\":[],\"line_total\":200000}]', NULL, 'n-a', 'assigned', 'n-a', 1, NULL, '2025-10-01 07:59:00', 2, '2025-10-01 08:02:35', '0000-00-00 00:00:00', 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 14:40:47', NULL, 0, NULL, NULL, NULL, 1),
+(29, NULL, 'DYN008', 'Test Đơn mới', '0900000007', NULL, '123 Test Street, District 8', 1925618.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'n-a', 'free', 'n-a', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 14:40:47', NULL, 0, NULL, NULL, NULL, 1),
+(30, NULL, 'DYN009', 'Test Đang gọi', '0900000008', NULL, '123 Test Street, District 9', 1795834.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'n-a', 'free', 'n-a', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 14:40:47', NULL, 0, NULL, NULL, NULL, 1),
+(31, NULL, 'DYN010', 'Test Hẹn gọi lại', '0900000009', NULL, '123 Test Street, District 10', 822067.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'n-a', 'free', 'n-a', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 14:40:47', NULL, 0, NULL, NULL, NULL, 1);
+
+-- --------------------------------------------------------
+
+--
 -- Cấu trúc bảng cho bảng `order_labels`
 --
 
@@ -578,22 +636,6 @@ CREATE TABLE `order_label_history` (
   `created_at` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Đang đổ dữ liệu cho bảng `order_label_history`
---
-
-INSERT INTO `order_label_history` (`id`, `order_id`, `label_key`, `action`, `assigned_by`, `created_at`) VALUES
-(1, 22, 'n-a', 'assigned', 1, '2025-10-01 14:40:47'),
-(2, 23, 'dang-giao', 'assigned', NULL, '2025-10-01 14:40:47'),
-(3, 24, 'dang-hoan', 'assigned', NULL, '2025-10-01 14:40:47'),
-(4, 25, 'dong-goi-sai', 'assigned', NULL, '2025-10-01 14:40:47'),
-(5, 26, 'giao-thanh-cong', 'assigned', NULL, '2025-10-01 14:40:47'),
-(6, 27, 'dong-goi-sai', 'assigned', 1, '2025-10-01 14:40:47'),
-(7, 28, 'n-a', 'assigned', 1, '2025-10-01 14:40:47'),
-(8, 29, 'n-a', 'assigned', NULL, '2025-10-01 14:40:47'),
-(9, 30, 'n-a', 'assigned', NULL, '2025-10-01 14:40:47'),
-(10, 31, 'n-a', 'assigned', NULL, '2025-10-01 14:40:47');
-
 -- --------------------------------------------------------
 
 --
@@ -609,35 +651,6 @@ CREATE TABLE `order_notes` (
   `created_at` datetime DEFAULT current_timestamp(),
   `deleted_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Bảng ghi chú đơn hàng';
-
---
--- Đang đổ dữ liệu cho bảng `order_notes`
---
-
-INSERT INTO `order_notes` (`id`, `order_id`, `user_id`, `note_type`, `content`, `created_at`, `deleted_at`) VALUES
-(1, 22, 1, '', 'Cuộc gọi 00:02:02 - gọi thử', '2025-10-01 07:14:40', NULL),
-(2, 22, 1, 'system', 'Nhận đơn hàng', '2025-10-01 07:54:42', NULL),
-(3, 22, 1, 'system', 'Cập nhật thông tin khách hàng', '2025-10-01 07:57:36', NULL),
-(4, 22, 1, '', 'gọi thử', '2025-10-01 07:57:59', NULL),
-(5, 22, 1, 'status', 'Trạng thái đổi từ \"Bom hàng\" sang \"Chờ giao\"', '2025-10-01 07:58:15', NULL),
-(6, 22, 1, 'status', 'Cập nhật trạng thái: shipping', '2025-10-01 07:58:15', NULL),
-(7, 28, 1, 'system', 'Nhận đơn hàng', '2025-10-01 07:59:00', NULL),
-(8, 28, 1, '', 'mua thử', '2025-10-01 08:02:05', NULL),
-(9, 28, 1, 'system', 'Cập nhật thông tin khách hàng', '2025-10-01 08:02:16', NULL),
-(10, 28, 1, '', 'cập nhật', '2025-10-01 08:02:35', NULL),
-(11, 28, 1, 'status', 'Trạng thái đổi từ \"Không nghe\" sang \"Chờ giao\"', '2025-10-01 08:02:39', NULL),
-(12, 28, 1, 'status', 'Cập nhật trạng thái: shipping', '2025-10-01 08:02:39', NULL),
-(13, 22, 1, 'status', 'Trạng thái đổi từ \"shipping\" sang \"Đơn mới\"', '2025-10-01 08:21:05', NULL),
-(14, 28, 1, 'status', 'Trạng thái đổi từ \"shipping\" sang \"Đơn mới\"', '2025-10-01 08:21:05', NULL),
-(15, 30, NULL, 'status', 'Trạng thái đổi từ \"n-a-1759223929\" sang \"Đơn mới\"', '2025-10-01 08:21:05', NULL),
-(16, 31, NULL, 'status', 'Trạng thái đổi từ \"n-a-1759224057\" sang \"Đơn mới\"', '2025-10-01 08:21:05', NULL),
-(17, 22, 1, 'status', 'Trạng thái đổi từ \"Đơn mới\" sang \"Đơn mới\"', '2025-10-01 09:22:37', NULL),
-(18, 28, 1, 'status', 'Trạng thái đổi từ \"Đơn mới\" sang \"Đơn mới\"', '2025-10-01 09:22:37', NULL),
-(19, 30, NULL, 'status', 'Trạng thái đổi từ \"Đơn mới\" sang \"Đơn mới\"', '2025-10-01 09:22:37', NULL),
-(20, 31, NULL, 'status', 'Trạng thái đổi từ \"Đơn mới\" sang \"Đơn mới\"', '2025-10-01 09:22:37', NULL),
-(21, 27, 1, 'system', 'Nhận đơn hàng', '2025-10-01 09:56:18', NULL),
-(22, 27, 1, 'status', 'Trạng thái đổi từ \"Hoàn thành công\" sang \"Đóng gói sai\"', '2025-10-01 09:56:24', NULL),
-(23, 27, 1, '', 'test', '2025-10-01 09:57:10', NULL);
 
 -- --------------------------------------------------------
 
@@ -657,22 +670,6 @@ CREATE TABLE `order_status_configs_old_backup` (
   `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `is_system` tinyint(1) DEFAULT 0 COMMENT 'Status hệ thống không được xóa'
 ) ;
-
---
--- Đang đổ dữ liệu cho bảng `order_status_configs_old_backup`
---
-
-INSERT INTO `order_status_configs_old_backup` (`status_key`, `label`, `color`, `icon`, `sort_order`, `logic_json`, `created_by`, `created_at`, `updated_at`, `is_system`) VALUES
-('assigned', '[HỆ THỐNG] Đã gán', '#17a2b8', 'fa-user-check', -1, '', NULL, '2025-10-01 13:55:12', '2025-10-01 13:55:12', 1),
-('bom-hang', 'Bom hàng', '#dc3545', 'fa-bomb', 12, '', NULL, '2025-09-30 16:34:13', '2025-10-01 08:21:05', 0),
-('dang-giao', 'Đang giao', '#639419', 'fa-tag', 11, '', NULL, '2025-09-30 16:28:29', '2025-09-30 16:28:29', 0),
-('dang-hoan', 'Đang hoàn', '#8c460d', 'fa-tag', 16, '', NULL, '2025-09-30 16:34:44', '2025-09-30 16:34:44', 0),
-('dong-goi-sai', 'Đóng gói sai', '#7c3131', 'fa-tag', 12, '', NULL, '2025-09-30 16:30:16', '2025-09-30 16:30:16', 0),
-('free', '[HỆ THỐNG] Chưa gán', '#6c757d', 'fa-inbox', -1, '', NULL, '2025-10-01 13:55:12', '2025-10-01 13:55:12', 1),
-('giao-thanh-cong', 'Giao thành công', '#00d604', 'fa-tag', 20, '', NULL, '2025-09-30 16:37:32', '2025-09-30 16:37:32', 0),
-('hoan-thanh-cong', 'Hoàn thành công', '#1a1a1a', 'fa-tag', 17, '', NULL, '2025-09-30 16:35:25', '2025-09-30 16:35:25', 0),
-('khong-nghe', 'Không nghe', '#dfc834', 'fa-tag', 3, '', NULL, '2025-09-30 16:23:37', '2025-09-30 16:23:37', 0),
-('n-a', 'Đơn mới', '#08f7cf', 'fa-tag', 1, '', NULL, '2025-09-30 16:18:10', '2025-09-30 16:18:10', 0);
 
 -- --------------------------------------------------------
 
@@ -1101,22 +1098,6 @@ CREATE TABLE `v_call_statistics` (
 -- (See below for the actual view)
 --
 CREATE TABLE `v_latest_calls` (
-`id` int(10) unsigned
-,`order_id` int(10) unsigned
-,`user_id` int(10) unsigned
-,`user_name` varchar(100)
-,`start_time` datetime
-,`end_time` datetime
-,`duration` int(10) unsigned
-,`note` text
-,`status` enum('active','completed','dropped')
-,`recording_url` varchar(255)
-,`customer_feedback` tinyint(1)
-,`created_at` datetime
-,`order_number` varchar(50)
-,`customer_name` varchar(100)
-,`customer_phone` varchar(20)
-,`order_status` varchar(50)
 );
 
 -- --------------------------------------------------------
@@ -1126,45 +1107,6 @@ CREATE TABLE `v_latest_calls` (
 -- (See below for the actual view)
 --
 CREATE TABLE `v_orders_with_labels` (
-`id` int(10) unsigned
-,`woo_order_id` int(10) unsigned
-,`order_number` varchar(50)
-,`customer_name` varchar(100)
-,`customer_phone` varchar(20)
-,`customer_email` varchar(100)
-,`customer_address` text
-,`customer_notes` text
-,`total_amount` decimal(15,2)
-,`currency` varchar(10)
-,`payment_method` varchar(50)
-,`products` longtext
-,`status` varchar(50)
-,`system_status` enum('free','assigned')
-,`primary_label` varchar(50)
-,`assigned_to` int(10) unsigned
-,`manager_id` int(10) unsigned
-,`assigned_at` datetime
-,`call_count` int(10) unsigned
-,`last_call_at` datetime
-,`callback_time` datetime
-,`source` enum('woocommerce','manual')
-,`created_by` int(10) unsigned
-,`approval_status` varchar(50)
-,`approved_by` int(10) unsigned
-,`approved_at` datetime
-,`woo_created_at` datetime
-,`created_at` datetime
-,`updated_at` datetime
-,`completed_at` datetime
-,`is_locked` tinyint(1)
-,`locked_at` datetime
-,`locked_by` int(10) unsigned
-,`deleted_at` timestamp
-,`version` int(11)
-,`label_name` varchar(100)
-,`label_color` varchar(20)
-,`label_icon` varchar(50)
-,`label_is_final` int(4)
 );
 
 -- --------------------------------------------------------
@@ -1174,45 +1116,6 @@ CREATE TABLE `v_orders_with_labels` (
 -- (See below for the actual view)
 --
 CREATE TABLE `v_orders_with_status` (
-`id` int(10) unsigned
-,`woo_order_id` int(10) unsigned
-,`order_number` varchar(50)
-,`customer_name` varchar(100)
-,`customer_phone` varchar(20)
-,`customer_email` varchar(100)
-,`customer_address` text
-,`total_amount` decimal(15,2)
-,`currency` varchar(10)
-,`payment_method` varchar(50)
-,`products` longtext
-,`customer_notes` text
-,`status` varchar(50)
-,`system_status` enum('free','assigned')
-,`primary_label` varchar(50)
-,`assigned_to` int(10) unsigned
-,`manager_id` int(10) unsigned
-,`assigned_at` datetime
-,`call_count` int(10) unsigned
-,`last_call_at` datetime
-,`callback_time` datetime
-,`source` enum('woocommerce','manual')
-,`created_by` int(10) unsigned
-,`approval_status` varchar(50)
-,`approved_by` int(10) unsigned
-,`approved_at` datetime
-,`woo_created_at` datetime
-,`created_at` datetime
-,`updated_at` datetime
-,`completed_at` datetime
-,`is_locked` tinyint(1)
-,`locked_at` datetime
-,`locked_by` int(10) unsigned
-,`deleted_at` timestamp
-,`version` int(11)
-,`label_name` varchar(100)
-,`label_color` varchar(20)
-,`label_icon` varchar(50)
-,`label_is_final` int(4)
 );
 
 -- --------------------------------------------------------
@@ -1416,8 +1319,6 @@ ALTER TABLE `orders`
   ADD KEY `created_by` (`created_by`),
   ADD KEY `approved_by` (`approved_by`),
   ADD KEY `idx_manager_id` (`manager_id`),
-  ADD KEY `idx_status` (`status`),
-  ADD KEY `idx_orders_status` (`status`),
   ADD KEY `idx_orders_assigned_to` (`assigned_to`),
   ADD KEY `idx_orders_created_at` (`created_at`),
   ADD KEY `idx_orders_assigned` (`assigned_to`),
@@ -1614,7 +1515,7 @@ ALTER TABLE `audit_trail`
 -- AUTO_INCREMENT cho bảng `call_logs`
 --
 ALTER TABLE `call_logs`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT cho bảng `customer_labels`
@@ -1650,19 +1551,19 @@ ALTER TABLE `notifications`
 -- AUTO_INCREMENT cho bảng `orders`
 --
 ALTER TABLE `orders`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=32;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=52;
 
 --
 -- AUTO_INCREMENT cho bảng `order_label_history`
 --
 ALTER TABLE `order_label_history`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT cho bảng `order_notes`
 --
 ALTER TABLE `order_notes`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=24;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT cho bảng `password_history`

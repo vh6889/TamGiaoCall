@@ -1196,20 +1196,3 @@ function count_user_assigned_orders($user_id) {
     ", [$user_id]);
 }
 
-// =============================================
-// BACKWARD COMPATIBILITY (Giữ tên hàm cũ)
-// =============================================
-
-/**
- * @deprecated Dùng get_order_labels() thay thế
- */
-function get_order_status_configs($include_system = false) {
-    return get_order_labels($include_system);
-}
-
-/**
- * @deprecated Dùng get_order_label() thay thế
- */
-function get_status_config($status_key) {
-    return get_order_label($status_key);
-}
