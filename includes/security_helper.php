@@ -1,7 +1,7 @@
 <?php
 /**
  * Security Helper Functions
- * Version: 1.0
+ * Version: 2.0 - Enhanced & Fixed
  */
 
 if (!defined('TSM_ACCESS')) {
@@ -9,43 +9,47 @@ if (!defined('TSM_ACCESS')) {
 }
 
 /**
- * Verify CSRF token from request
+ * Enhanced CSRF verification
  */
 function require_csrf() {
     $token = null;
+    $content_type = isset($_SERVER['CONTENT_TYPE']) ? $_SERVER['CONTENT_TYPE'] : '';
     
-    // Check JSON body
-    if ($_SERVER['CONTENT_TYPE'] === 'application/json') {
+    if (strpos($content_type, 'application/json') !== false) {
         $input = json_decode(file_get_contents('php://input'), true);
-        $token = $input['csrf_token'] ?? null;
+        $token = isset($input['csrf_token']) ? $input['csrf_token'] : null;
     } else {
-        // Check POST/GET
-        $token = $_POST['csrf_token'] ?? $_GET['csrf_token'] ?? null;
+        $token = isset($_POST['csrf_token']) ? $_POST['csrf_token'] : (isset($_GET['csrf_token']) ? $_GET['csrf_token'] : null);
     }
     
-    if (!$token || !verify_csrf_token($token)) {
+    $origin_valid = true;
+    if (isset($_SERVER['HTTP_ORIGIN'])) {
+        $allowed = parse_url(SITE_URL, PHP_URL_SCHEME) . '://' . parse_url(SITE_URL, PHP_URL_HOST);
+        $origin_valid = (strpos($_SERVER['HTTP_ORIGIN'], $allowed) === 0);
+    }
+    
+    if (!$token || !verify_csrf_token($token) || !$origin_valid) {
         http_response_code(403);
         if (is_ajax_request()) {
-            json_error('CSRF token invalid', 403);
+            json_error('Security validation failed', 403);
         } else {
-            die('CSRF token invalid');
+            die('Security validation failed');
         }
     }
 }
 
 /**
- * Check if request is AJAX
+ * Check if AJAX request
  */
 function is_ajax_request() {
-    return !empty($_SERVER['HTTP_X_REQUESTED_WITH']) 
-        && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+    return !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
 }
 
 /**
  * Validate JSON input
  */
-function get_json_input($required_fields = []) {
-    if ($_SERVER['CONTENT_TYPE'] !== 'application/json') {
+function get_json_input($required_fields = array()) {
+    if (!isset($_SERVER['CONTENT_TYPE']) || $_SERVER['CONTENT_TYPE'] !== 'application/json') {
         json_error('Content-Type must be application/json', 400);
     }
     
@@ -55,7 +59,6 @@ function get_json_input($required_fields = []) {
         json_error('Invalid JSON: ' . json_last_error_msg(), 400);
     }
     
-    // Validate required fields
     foreach ($required_fields as $field) {
         if (!isset($input[$field])) {
             json_error("Missing required field: $field", 400);
@@ -66,7 +69,7 @@ function get_json_input($required_fields = []) {
 }
 
 /**
- * Check if user owns the order
+ * Check order access
  */
 function require_order_access($order_id, $allow_admin = true) {
     $order = get_order($order_id);
@@ -76,12 +79,10 @@ function require_order_access($order_id, $allow_admin = true) {
     
     $user = get_logged_user();
     
-    // Admin has full access
     if ($allow_admin && is_admin()) {
         return $order;
     }
     
-    // Manager can access assigned telesales' orders
     if (is_manager()) {
         $telesales = get_manager_telesales($user['id']);
         $telesale_ids = array_column($telesales, 'id');
@@ -90,7 +91,6 @@ function require_order_access($order_id, $allow_admin = true) {
         }
     }
     
-    // User can only access their own orders
     if ($order['assigned_to'] != $user['id']) {
         json_error('Access denied to this order', 403);
     }
@@ -99,85 +99,180 @@ function require_order_access($order_id, $allow_admin = true) {
 }
 
 /**
- * Validate order status transition
+ * Validate status transition
  */
 function validate_status_transition($current_status, $new_status) {
-    // Get status configs
     $statuses = get_order_status_configs();
     
     if (!isset($statuses[$new_status])) {
         return false;
     }
     
-    // Check if order is locked
     $locked_statuses = array_merge(
         get_confirmed_statuses(),
         get_cancelled_statuses()
     );
     
     if (in_array($current_status, $locked_statuses)) {
-        return false; // Cannot change locked orders
+        return false;
     }
     
     return true;
 }
 
 /**
- * Validate products JSON structure
+ * Validate products JSON
  */
 function validate_products_json($products) {
     if (!is_array($products)) {
-        return ['valid' => false, 'error' => 'Products must be an array'];
+        return array('valid' => false, 'error' => 'Products must be an array');
     }
     
     foreach ($products as $index => $product) {
         if (!isset($product['id']) || !isset($product['name'])) {
-            return ['valid' => false, 'error' => "Product at index $index missing id or name"];
+            return array('valid' => false, 'error' => "Product at index $index missing id or name");
         }
         
         if (!isset($product['qty']) || $product['qty'] <= 0) {
-            return ['valid' => false, 'error' => "Product at index $index has invalid quantity"];
+            return array('valid' => false, 'error' => "Product at index $index has invalid quantity");
         }
         
         if (!isset($product['price']) || $product['price'] < 0) {
-            return ['valid' => false, 'error' => "Product at index $index has invalid price"];
+            return array('valid' => false, 'error' => "Product at index $index has invalid price");
         }
     }
     
-    return ['valid' => true];
+    return array('valid' => true);
 }
 
 /**
- * Rate limiting
+ * Database-based rate limiting
  */
 function check_rate_limit($action, $user_id, $limit = 60, $window = 60) {
     $key = "rate_limit_{$action}_{$user_id}";
-    $cache_file = sys_get_temp_dir() . '/' . md5($key) . '.txt';
+    $cutoff = date('Y-m-d H:i:s', time() - $window);
     
-    $attempts = 0;
-    if (file_exists($cache_file)) {
-        $data = json_decode(file_get_contents($cache_file), true);
-        if ($data && $data['time'] > time() - $window) {
-            $attempts = $data['attempts'];
-        }
+    if (rand(1, 100) === 1) {
+        db_query("DELETE FROM rate_limits WHERE created_at < ?", array($cutoff));
     }
+    
+    $attempts = db_get_var(
+        "SELECT COUNT(*) FROM rate_limits WHERE rate_key = ? AND created_at > ?",
+        array($key, $cutoff)
+    );
     
     if ($attempts >= $limit) {
-        json_error('Rate limit exceeded. Please try again later.', 429);
+        json_error('Rate limit exceeded. Please wait.', 429);
     }
     
-    // Increment
-    file_put_contents($cache_file, json_encode([
-        'attempts' => $attempts + 1,
-        'time' => time()
-    ]));
+    try {
+        db_insert('rate_limits', array(
+            'rate_key' => $key,
+            'user_id' => $user_id,
+            'action' => $action,
+            'created_at' => date('Y-m-d H:i:s')
+        ));
+    } catch (Exception $e) {
+        error_log('[RATE_LIMIT] ' . $e->getMessage());
+    }
 }
 
 /**
- * Sanitize array deeply
+ * Validate ID
+ */
+function validate_id($id, $field_name = 'ID') {
+    $id = (int)$id;
+    if ($id <= 0) {
+        json_error("Invalid $field_name", 400);
+    }
+    return $id;
+}
+
+/**
+ * Validate required string
+ */
+function validate_required_string($value, $field_name, $min = 1, $max = 255) {
+    $value = trim(sanitize($value));
+    $len = mb_strlen($value);
+    
+    if ($len < $min) {
+        json_error("$field_name is required", 400);
+    }
+    if ($len > $max) {
+        json_error("$field_name is too long (max $max)", 400);
+    }
+    
+    return $value;
+}
+
+/**
+ * Validate phone
+ */
+function validate_phone($phone) {
+    $phone = preg_replace('/[^0-9+]/', '', $phone);
+    if (strlen($phone) < 10 || strlen($phone) > 15) {
+        json_error('Invalid phone number', 400);
+    }
+    return $phone;
+}
+
+/**
+ * Validate email
+ */
+function validate_email_input($email) {
+    if (empty($email)) return null;
+    $email = filter_var($email, FILTER_VALIDATE_EMAIL);
+    if ($email === false) {
+        json_error('Invalid email format', 400);
+    }
+    return $email;
+}
+
+/**
+ * Execute in transaction
+ */
+function execute_in_transaction($callback) {
+    $pdo = get_db_connection();
+    $pdo->beginTransaction();
+    
+    try {
+        $result = call_user_func($callback, $pdo);
+        $pdo->commit();
+        return $result;
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        error_log('[TRANSACTION] ' . $e->getMessage());
+        throw $e;
+    }
+}
+
+/**
+ * Execute with retry
+ */
+function execute_with_retry($callback, $max_retries = 3) {
+    $attempt = 0;
+    
+    while ($attempt < $max_retries) {
+        try {
+            return execute_in_transaction($callback);
+        } catch (Exception $e) {
+            $attempt++;
+            
+            if (stripos($e->getMessage(), 'deadlock') !== false && $attempt < $max_retries) {
+                usleep(100000 * $attempt);
+                continue;
+            }
+            
+            throw $e;
+        }
+    }
+}
+
+/**
+ * Sanitize array
  */
 function sanitize_array($array) {
-    $result = [];
+    $result = array();
     foreach ($array as $key => $value) {
         $clean_key = sanitize($key);
         if (is_array($value)) {
