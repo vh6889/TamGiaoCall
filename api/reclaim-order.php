@@ -59,7 +59,10 @@ try {
     db_update('orders', [
         'assigned_to' => NULL,
         'assigned_at' => NULL,
-        'status' => get_free_status_key()
+        'system_status' => 'free',
+		'primary_label' => get_new_status_key(),
+		'assigned_to' => NULL,
+		'assigned_at' => NULL
     ], 'id = ?', [$order_id]);
     
     // Add system note

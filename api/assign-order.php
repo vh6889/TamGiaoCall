@@ -61,11 +61,12 @@ if (!$user_to_assign || $user_to_assign['role'] !== 'telesale' || $user_to_assig
 
 try {\n    $pdo = get_db_connection();\n    $pdo->beginTransaction();\n    $pdo = get_db_connection();\n    $pdo->beginTransaction();\n    $pdo = get_db_connection();\n    $pdo->beginTransaction();
     // 3. Update the order
-    db_update('orders', [
-        'assigned_to' => $assign_to_user_id,
-        'assigned_at' => date('Y-m-d H:i:s'),
-        'status' => 'assigned' // Ensure status is 'assigned'
-    ], 'id = ?', [$order_id]);
+		db_update('orders', [
+		'assigned_to' => $assign_to_user_id,
+		'assigned_at' => date('Y-m-d H:i:s'),
+		'system_status' => 'assigned'
+		// KHÔNG set primary_label - giữ nguyên nhãn hiện tại
+	], 'id = ?', [$order_id]);
 
     // 4. Add a system note for the assignment
     $current_user_name = get_logged_user()['full_name'];

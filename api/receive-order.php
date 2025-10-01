@@ -60,7 +60,8 @@ try {
         'currency' => $data['currency'] ?? 'VND',
         'payment_method' => $data['payment_method'] ?? null,
         'products' => json_encode($data['products'] ?? []),
-        'status' => 'new',
+        'system_status' => 'free',
+		'primary_label' => get_new_status_key(),
         'woo_created_at' => $data['woo_created_at'] ?? date('Y-m-d H:i:s'),
         'created_at' => date('Y-m-d H:i:s')
     ];
