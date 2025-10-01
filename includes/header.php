@@ -93,6 +93,8 @@ $is_system_page_active = in_array($current_page, $system_pages);
         .top-navbar { background-color: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.05); padding: 1rem 2rem; }
         .table-card, .stat-card { background-color: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
     </style>
+
+<meta name="csrf-token" content="<?php echo generate_csrf_token(); ?>">
 </head>
 <body>
     <div class="wrapper">

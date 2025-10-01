@@ -9,8 +9,26 @@
 define('TSM_ACCESS', true);
 require_once '../config.php';
 require_once '../functions.php';
+require_once '../includes/security_helper.php';
 
 header('Content-Type: application/json');
+
+require_csrf();
+
+if (!is_logged_in()) {
+    json_error('Unauthorized', 401);
+}
+
+check_rate_limit('update-customer-info', get_logged_user()['id']);
+
+$input = get_json_input(["order_id","customer_name","customer_phone"]);
+$order_id = (int)$input['order_id'];
+$customer_name = $input['customer_name'] ?? '';
+$customer_phone = $input['customer_phone'] ?? '';
+
+// Verify user has access to this order
+$order = require_order_access($order_id, false);
+
 
 if (!is_logged_in()) {
     json_error('Unauthorized', 401);

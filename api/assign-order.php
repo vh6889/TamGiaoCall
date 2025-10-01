@@ -6,15 +6,43 @@
 define('TSM_ACCESS', true);
 require_once '../config.php';
 require_once '../functions.php';
+require_once '../includes/security_helper.php';
 
 header('Content-Type: application/json');
 
+require_csrf();
+
+if (!is_logged_in()) {
+    json_error('Unauthorized', 401);
+}
+
+if (!is_admin()) {
+    json_error('Admin only', 403);
+}
+
+check_rate_limit('assign-order', get_logged_user()['id']);
+
+$input = get_json_input(["order_id","user_id"]);
+$order_id = (int)$input['order_id'];
+$user_id = (int)$input['user_id'];
+
+$pdo = get_db_connection();
+$pdo->beginTransaction();
+
+try {
+
 // Only Admins can assign orders
+require_csrf();
+
+require_csrf();
+
+require_csrf();
+
 if (!is_logged_in() || !is_admin()) {
     json_error('Unauthorized', 403);
 }
 
-$input = json_decode(file_get_contents('php://input'), true);
+$input = get_json_input(['order_id', 'user_id']);
 $order_id = (int)($input['order_id'] ?? 0);
 $assign_to_user_id = (int)($input['user_id'] ?? 0);
 
@@ -34,7 +62,7 @@ if (!$user_to_assign || $user_to_assign['role'] !== 'telesale' || $user_to_assig
     json_error('Nhân viên được chọn không hợp lệ hoặc không hoạt động.', 400);
 }
 
-try {
+try {\n    $pdo = get_db_connection();\n    $pdo->beginTransaction();\n    $pdo = get_db_connection();\n    $pdo->beginTransaction();\n    $pdo = get_db_connection();\n    $pdo->beginTransaction();
     // 3. Update the order
     db_update('orders', [
         'assigned_to' => $assign_to_user_id,
@@ -55,8 +83,13 @@ try {
 
     log_activity('assign_order', "Assigned order #{$order['order_number']} to {$user_to_assign['username']}", 'order', $order_id);
 
-    json_success('Đã phân công đơn hàng thành công!');
-
+    $pdo->commit();\n    $pdo->commit();\n    $pdo->commit();\n    json_success('Đã phân công đơn hàng thành công!');
+    $pdo->commit();
 } catch (Exception $e) {
+    $pdo->rollBack();
+    json_error('Error: ' . $e->getMessage(), 500);
+}
+
+} catch (Exception $e) {\n    if (isset($pdo)) $pdo->rollBack();\n    if (isset($pdo)) $pdo->rollBack();\n    if (isset($pdo)) $pdo->rollBack();
     json_error('Database error: ' . $e->getMessage(), 500);
 }

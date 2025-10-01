@@ -6,16 +6,37 @@ if (basename($_SERVER['PHP_SELF']) == 'end-call.php') {
     define('TSM_ACCESS', true);
     require_once '../config.php';
     require_once '../functions.php';
+require_once '../includes/security_helper.php';
 require_once '../includes/status_helper.php';
     
     header('Content-Type: application/json');
+
+require_csrf();
+
+if (!is_logged_in()) {
+    json_error('Unauthorized', 401);
+}
+
+check_rate_limit('end-call', get_logged_user()['id']);
+
+$input = get_json_input(["order_id","notes"]);
+$order_id = (int)$input['order_id'];
+$notes = $input['notes'] ?? '';
+
+// Verify user has access to this order
+$order = require_order_access($order_id, false);
+
+$pdo = get_db_connection();
+$pdo->beginTransaction();
+
+try {
     
     if (!is_logged_in()) {
         json_error('Unauthorized', 401);
     }
     
-    $order_id = (int)($_POST['order_id'] ?? 0);
-    $notes = $_POST['notes'] ?? '';
+    // Input validated above
+    // Input validated above
     $callback_time = $_POST['callback_time'] ?? null;
     $user = get_logged_user();
     
@@ -71,6 +92,11 @@ require_once '../includes/status_helper.php';
         }
         
         json_success('Đã kết thúc cuộc gọi');
+    $pdo->commit();
+} catch (Exception $e) {
+    $pdo->rollBack();
+    json_error('Error: ' . $e->getMessage(), 500);
+}
     } catch (Exception $e) {
         json_error('Lỗi: ' . $e->getMessage());
     }

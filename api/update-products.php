@@ -6,15 +6,36 @@ if (basename($_SERVER['PHP_SELF']) == 'update-products.php') {
     define('TSM_ACCESS', true);
     require_once '../config.php';
     require_once '../functions.php';
+require_once '../includes/security_helper.php';
     
     header('Content-Type: application/json');
+
+require_csrf();
+
+if (!is_logged_in()) {
+    json_error('Unauthorized', 401);
+}
+
+check_rate_limit('update-products', get_logged_user()['id']);
+
+$input = get_json_input(["order_id","products"]);
+$order_id = (int)$input['order_id'];
+$products = $input['products'] ?? '';
+
+// Verify user has access to this order
+$order = require_order_access($order_id, false);
+
+$pdo = get_db_connection();
+$pdo->beginTransaction();
+
+try {
     
     if (!is_logged_in()) {
         json_error('Unauthorized', 401);
     }
     
-    $order_id = (int)($_POST['order_id'] ?? 0);
-    $products = $_POST['products'] ?? '';
+    // Input validated above
+    // Input validated above
     
     if (!$order_id || !$products) {
         json_error('Dữ liệu không hợp lệ');
@@ -35,6 +56,11 @@ if (basename($_SERVER['PHP_SELF']) == 'update-products.php') {
         ], 'id = ?', [$order_id]);
         
         json_success('Đã cập nhật sản phẩm');
+    $pdo->commit();
+} catch (Exception $e) {
+    $pdo->rollBack();
+    json_error('Error: ' . $e->getMessage(), 500);
+}
     } catch (Exception $e) {
         json_error('Lỗi: ' . $e->getMessage());
     }

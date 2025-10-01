@@ -5,9 +5,31 @@
 define('TSM_ACCESS', true);
 require_once '../config.php';
 require_once '../functions.php';
+require_once '../includes/security_helper.php';
 require_once '../includes/status_helper.php';
 
 header('Content-Type: application/json');
+
+require_csrf();
+
+if (!is_logged_in()) {
+    json_error('Unauthorized', 401);
+}
+
+if (!is_admin()) {
+    json_error('Admin only', 403);
+}
+
+check_rate_limit('approve-order', get_logged_user()['id']);
+
+$input = get_json_input(["order_id","action"]);
+$order_id = (int)$input['order_id'];
+$action = $input['action'] ?? '';
+
+$pdo = get_db_connection();
+$pdo->beginTransaction();
+
+try {
 
 if (!is_logged_in() || !is_admin()) {
     json_error('Unauthorized', 403);
@@ -58,6 +80,11 @@ try {
     log_activity($action.'_manual_order', "{$action}d manual order #" . $order['order_number'], 'order', $order_id);
 
     json_success('Đã xử lý đơn hàng thành công!');
+    $pdo->commit();
+} catch (Exception $e) {
+    $pdo->rollBack();
+    json_error('Error: ' . $e->getMessage(), 500);
+}
 
 } catch (Exception $e) {
     json_error('Database error: ' . $e->getMessage(), 500);

@@ -5,9 +5,28 @@
 define('TSM_ACCESS', true);
 require_once '../config.php';
 require_once '../functions.php';
+require_once '../includes/security_helper.php';
 require_once '../includes/status_helper.php';
 
 header('Content-Type: application/json');
+
+require_csrf();
+
+if (!is_logged_in()) {
+    json_error('Unauthorized', 401);
+}
+
+check_rate_limit('submit-manual-order', get_logged_user()['id']);
+
+$input = get_json_input(["customer_name","customer_phone","products"]);
+$customer_name = $input['customer_name'] ?? '';
+$customer_phone = $input['customer_phone'] ?? '';
+$products = $input['products'] ?? '';
+
+$pdo = get_db_connection();
+$pdo->beginTransaction();
+
+try {
 
 if (!is_logged_in()) {
     json_error('Unauthorized', 401);
@@ -46,6 +65,11 @@ try {
     log_activity('submit_manual_order', 'Submitted manual order #' . $order_id, 'order', $order_id);
 
     json_success('Đã gửi đơn hàng đi duyệt thành công!');
+    $pdo->commit();
+} catch (Exception $e) {
+    $pdo->rollBack();
+    json_error('Error: ' . $e->getMessage(), 500);
+}
 
 } catch (Exception $e) {
     json_error('Database error: ' . $e->getMessage(), 500);

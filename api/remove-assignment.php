@@ -6,8 +6,26 @@
 define('TSM_ACCESS', true);
 require_once '../config.php';
 require_once '../functions.php';
+require_once '../includes/security_helper.php';
 
 header('Content-Type: application/json');
+
+require_csrf();
+
+if (!is_logged_in()) {
+    json_error('Unauthorized', 401);
+}
+
+if (!is_admin()) {
+    json_error('Admin only', 403);
+}
+
+check_rate_limit('remove-assignment', get_logged_user()['id']);
+
+$input = get_json_input(["manager_id","telesale_id"]);
+$manager_id = (int)$input['manager_id'];
+$telesale_id = (int)$input['telesale_id'];
+
 
 if (!is_logged_in() || !is_admin()) {
     json_error('Unauthorized - Admin only', 403);

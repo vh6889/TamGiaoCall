@@ -5,8 +5,27 @@
 define('TSM_ACCESS', true);
 require_once '../config.php';
 require_once '../functions.php';
+require_once '../includes/security_helper.php';
 
 header('Content-Type: application/json');
+
+require_csrf();
+
+if (!is_logged_in()) {
+    json_error('Unauthorized', 401);
+}
+
+if (!is_admin()) {
+    json_error('Admin only', 403);
+}
+
+check_rate_limit('create-user', get_logged_user()['id']);
+
+$input = get_json_input(["username","password","full_name"]);
+$username = $input['username'] ?? '';
+$password = $input['password'] ?? '';
+$full_name = $input['full_name'] ?? '';
+
 
 if (!is_logged_in() || !is_admin()) {
     json_error('Unauthorized', 403);

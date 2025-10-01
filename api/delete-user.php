@@ -5,9 +5,30 @@
 define('TSM_ACCESS', true);
 require_once '../config.php';
 require_once '../functions.php';
+require_once '../includes/security_helper.php';
 require_once '../includes/status_helper.php';
 
 header('Content-Type: application/json');
+
+require_csrf();
+
+if (!is_logged_in()) {
+    json_error('Unauthorized', 401);
+}
+
+if (!is_admin()) {
+    json_error('Admin only', 403);
+}
+
+check_rate_limit('delete-user', get_logged_user()['id']);
+
+$input = get_json_input(["user_id"]);
+$user_id = (int)$input['user_id'];
+
+$pdo = get_db_connection();
+$pdo->beginTransaction();
+
+try {
 
 if (!is_logged_in() || !is_admin()) {
     json_error('Unauthorized', 403);
@@ -63,6 +84,11 @@ try {
     
     $pdo->commit();
     json_success('Đã xóa tài khoản và bàn giao công việc thành công.');
+    $pdo->commit();
+} catch (Exception $e) {
+    $pdo->rollBack();
+    json_error('Error: ' . $e->getMessage(), 500);
+}
 
 } catch (Exception $e) {
     $pdo->rollBack();
