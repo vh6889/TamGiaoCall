@@ -209,14 +209,14 @@ function get_employee_warnings($user_id) {
     
     // Check today's performance
     $today_orders = db_get_row(
-        "SELECT COUNT(*) as total,
-                SUM(CASE WHEN osc.label LIKE '%xac nhan%' OR osc.label LIKE '%hoan%' OR osc.label LIKE '%thanh cong%' THEN 1 ELSE 0 END) as confirmed
-         FROM orders o
-         LEFT JOIN order_labels osc ON o.status = osc.status_key
-         WHERE o.assigned_to = ? 
-         AND DATE(o.updated_at) = CURDATE()",
-        [$user_id]
-    );
+    "SELECT COUNT(*) as total,
+            SUM(CASE WHEN ol.label_name LIKE '%xac nhan%' OR ol.label_name LIKE '%hoan%' OR ol.label_name LIKE '%thanh cong%' THEN 1 ELSE 0 END) as confirmed
+     FROM orders o
+     LEFT JOIN order_labels ol ON o.primary_label = ol.label_key
+     WHERE o.assigned_to = ? 
+     AND DATE(o.updated_at) = CURDATE()",
+    [$user_id]
+	);
     
     if ($today_orders && $today_orders['total'] > 10) {
         $success_rate = ($today_orders['confirmed'] / $today_orders['total']) * 100;
