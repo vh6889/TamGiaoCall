@@ -837,3 +837,212 @@ function json_error($message = 'Error', $code = 400) {
         'message' => $message
     ], $code);
 }
+/**
+ * Render status options HTML for select element
+ * 
+ * @param string $current_status Current order status (optional)
+ * @param bool $include_all Include "All" option
+ * @return string HTML options
+ */
+function render_status_options($current_status = null, $include_all = false) {
+    $html = '';
+    
+    if ($include_all) {
+        $html .= '<option value="">Tất cả trạng thái</option>';
+    }
+    
+    $statuses = db_get_results(
+        "SELECT status_key, label, color, icon 
+         FROM order_status_configs 
+         ORDER BY sort_order ASC"
+    );
+    
+    foreach ($statuses as $status) {
+        $selected = ($current_status && $current_status === $status['status_key']) ? 'selected' : '';
+        
+        $html .= sprintf(
+            '<option value="%s" %s>%s</option>',
+            htmlspecialchars($status['status_key']),
+            $selected,
+            htmlspecialchars($status['label'])
+        );
+    }
+    
+    return $html;
+}
+
+
+/**
+ * Check if user can receive handover
+ * Used by managers
+ */
+function can_receive_handover($order_id) {
+    $current_user = get_logged_user();
+    
+    if (!is_manager()) {
+        return false;
+    }
+    
+    $order = get_order($order_id);
+    if (!$order) {
+        return false;
+    }
+    
+    // Manager can receive if order is assigned to their telesales
+    if ($order['assigned_to']) {
+        $telesales = get_manager_telesales($current_user['id']);
+        $telesale_ids = array_column($telesales, 'id');
+        
+        return in_array($order['assigned_to'], $telesale_ids);
+    }
+    
+    return false;
+}
+
+/**
+ * Format time duration
+ * 
+ * @param int $seconds Duration in seconds
+ * @return string Formatted duration (HH:MM:SS)
+ */
+function format_duration($seconds) {
+    $hours = floor($seconds / 3600);
+    $minutes = floor(($seconds % 3600) / 60);
+    $secs = $seconds % 60;
+    
+    return sprintf('%02d:%02d:%02d', $hours, $minutes, $secs);
+}
+
+/**
+ * Get order statistics for user
+ * 
+ * @param int $user_id
+ * @param string $date_from
+ * @param string $date_to
+ * @return array
+ */
+function get_user_order_stats($user_id, $date_from = null, $date_to = null) {
+    $where = ['assigned_to = ?'];
+    $params = [$user_id];
+    
+    if ($date_from) {
+        $where[] = 'DATE(created_at) >= ?';
+        $params[] = $date_from;
+    }
+    
+    if ($date_to) {
+        $where[] = 'DATE(created_at) <= ?';
+        $params[] = $date_to;
+    }
+    
+    $stats = db_get_row(
+        "SELECT 
+            COUNT(*) as total_orders,
+            SUM(CASE WHEN status IN ('" . implode("','", get_confirmed_statuses()) . "') THEN 1 ELSE 0 END) as confirmed,
+            SUM(CASE WHEN status IN ('" . implode("','", get_cancelled_statuses()) . "') THEN 1 ELSE 0 END) as cancelled,
+            SUM(call_count) as total_calls,
+            SUM(total_amount) as total_revenue
+         FROM orders 
+         WHERE " . implode(' AND ', $where),
+        $params
+    );
+    
+    // Calculate success rate
+    if ($stats && $stats['total_orders'] > 0) {
+        $stats['success_rate'] = round(($stats['confirmed'] / $stats['total_orders']) * 100, 2);
+    } else {
+        $stats['success_rate'] = 0;
+    }
+    
+    return $stats;
+}
+
+/**
+ * Check if order can be edited
+ * 
+ * @param array $order Order data
+ * @param array $user Current user data
+ * @return bool
+ */
+function can_edit_order($order, $user) {
+    // Admin can always edit (unless locked)
+    if ($user['role'] === 'admin' && !$order['is_locked']) {
+        return true;
+    }
+    
+    // Order is locked
+    if ($order['is_locked']) {
+        return false;
+    }
+    
+    // Order not assigned to current user
+    if ($order['assigned_to'] != $user['id']) {
+        return false;
+    }
+    
+    // Check if there's an active call
+    $active_call = db_get_row(
+        "SELECT * FROM call_logs 
+         WHERE order_id = ? AND user_id = ? AND end_time IS NULL",
+        [$order['id'], $user['id']]
+    );
+    
+    return (bool)$active_call;
+}
+
+/**
+ * Get order workflow state
+ * Returns current state and available actions
+ * 
+ * @param array $order
+ * @param array $user
+ * @return array
+ */
+function get_order_workflow_state($order, $user) {
+    $state = [
+        'is_locked' => (bool)$order['is_locked'],
+        'can_claim' => false,
+        'can_start_call' => false,
+        'can_edit' => false,
+        'can_end_call' => false,
+        'can_update_status' => false,
+        'can_transfer' => false,
+        'can_reclaim' => false
+    ];
+    
+    // Locked - no actions allowed
+    if ($order['is_locked']) {
+        return $state;
+    }
+    
+    // Not assigned - can claim
+    if (!$order['assigned_to']) {
+        $state['can_claim'] = true;
+        return $state;
+    }
+    
+    // Check active call
+    $active_call = db_get_row(
+        "SELECT * FROM call_logs 
+         WHERE order_id = ? AND user_id = ? AND end_time IS NULL",
+        [$order['id'], $user['id']]
+    );
+    
+    // Assigned to current user
+    if ($order['assigned_to'] == $user['id']) {
+        if ($active_call) {
+            $state['can_edit'] = true;
+            $state['can_end_call'] = true;
+        } else {
+            $state['can_start_call'] = true;
+        }
+    }
+    
+    // Admin/Manager actions
+    if ($user['role'] === 'admin' || $user['role'] === 'manager') {
+        $state['can_transfer'] = true;
+        $state['can_reclaim'] = true;
+    }
+    
+    return $state;
+}
