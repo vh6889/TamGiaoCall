@@ -19,14 +19,19 @@ $all_notes = [];
 
 if (!empty($customer_phone)) {
     // 1. Lấy danh sách các đơn hàng của SĐT này
-    $orders = db_get_results(
-        "SELECT o.*, u.full_name as assigned_name
-         FROM orders o
-         LEFT JOIN users u ON o.assigned_to = u.id
-         WHERE o.customer_phone = ?
-         ORDER BY o.created_at DESC",
-        [$customer_phone]
-    );
+		$orders = db_get_results(
+		"SELECT o.*, 
+				u.full_name as assigned_name,
+				ol.label_name,
+				ol.color,
+				ol.icon
+		 FROM orders o
+		 LEFT JOIN users u ON o.assigned_to = u.id
+		 LEFT JOIN order_labels ol ON o.primary_label = ol.label_key
+		 WHERE o.customer_phone = ?
+		 ORDER BY o.created_at DESC",
+		[$customer_phone]
+	);
 
     if (!empty($orders)) {
         // 2. Lấy thông tin khách hàng từ đơn hàng gần nhất
@@ -145,16 +150,21 @@ include 'includes/header.php';
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php foreach ($orders as $order): ?>
-                                <tr>
-                                    <td><a href="order-detail.php?id=<?php echo $order['id']; ?>"><strong>#<?php echo htmlspecialchars($order['order_number']); ?></strong></a></td>
-                                    <td><?php echo format_date($order['created_at'], 'd/m/Y'); ?></td>
-                                    <td><?php echo format_money($order['total_amount']); ?></td>
-                                    <td><?php echo get_status_badge($order['status']); ?></td>
-                                    <td><?php echo htmlspecialchars($order['assigned_name'] ?? 'Chưa gán'); ?></td>
-                                </tr>
-                                <?php endforeach; ?>
-                            </tbody>
+								<?php foreach ($orders as $order): ?>
+								<tr>
+									<td><a href="order-detail.php?id=<?php echo $order['id']; ?>"><strong>#<?php echo htmlspecialchars($order['order_number']); ?></strong></a></td>
+									<td><?php echo format_date($order['created_at'], 'd/m/Y'); ?></td>
+									<td><?php echo format_money($order['total_amount']); ?></td>
+									<td>
+										<span class="badge" style="background-color: <?php echo htmlspecialchars($order['color']); ?>">
+											<i class="fas <?php echo htmlspecialchars($order['icon']); ?>"></i>
+											<?php echo htmlspecialchars($order['label_name']); ?>
+										</span>
+									</td>
+									<td><?php echo htmlspecialchars($order['assigned_name'] ?? 'Chưa gán'); ?></td>
+								</tr>
+								<?php endforeach; ?>
+							</tbody>
                         </table>
                     </div>
                 </div>

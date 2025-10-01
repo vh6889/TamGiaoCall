@@ -87,12 +87,12 @@ function get_order_suggestions($order) {
         
         // Check if customer has cancelled orders before
         $cancelled_orders = db_get_var(
-            "SELECT COUNT(*) FROM orders 
-             WHERE customer_phone = ? 
-             AND status IN (SELECT label_key FROM order_labels WHERE label_name LIKE '%huy%' OR label LIKE '%rejected%' OR label LIKE '%bom%') 
-             AND id != ?",
-            [$order['customer_phone'], $order['id']]
-        );
+			"SELECT COUNT(*) FROM orders 
+			 WHERE customer_phone = ? 
+			 AND primary_label IN (SELECT label_key FROM order_labels WHERE ...)  // ✅ Đổi thành 'primary_label'
+			 AND id != ?",
+			[$order['customer_phone'], $order['id']]
+		);
         
         if ($cancelled_orders > 0) {
             $suggestions[] = [

@@ -769,17 +769,18 @@ function get_user_order_stats($user_id, $date_from = null, $date_to = null) {
         $params[] = $date_to;
     }
     
-    $stats = db_get_row(
-        "SELECT 
-            COUNT(*) as total_orders,
-            SUM(CASE WHEN status IN ('" . implode("','", get_confirmed_statuses()) . "') THEN 1 ELSE 0 END) as confirmed,
-            SUM(CASE WHEN status IN ('" . implode("','", get_cancelled_statuses()) . "') THEN 1 ELSE 0 END) as cancelled,
-            SUM(call_count) as total_calls,
-            SUM(total_amount) as total_revenue
-         FROM orders 
-         WHERE " . implode(' AND ', $where),
-        $params
-    );
+		$stats = db_get_row(
+		"SELECT 
+			COUNT(*) as total_orders,
+			COUNT(CASE WHEN ol.label_value = 1 THEN 1 END) as confirmed,
+			COUNT(CASE WHEN ol.label_value = 0 THEN 1 END) as in_progress,
+			SUM(call_count) as total_calls,
+			SUM(CASE WHEN ol.label_value = 1 THEN total_amount ELSE 0 END) as total_revenue
+		 FROM orders o
+		 LEFT JOIN order_labels ol ON o.primary_label = ol.label_key
+		 WHERE " . implode(' AND ', $where),
+		$params
+	);
     
     // Calculate success rate
     if ($stats && $stats['total_orders'] > 0) {

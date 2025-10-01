@@ -58,7 +58,7 @@ if (is_admin()) {
 // Get all dynamic labels (đổi từ statuses)
 $all_statuses = get_all_statuses();
 
-// Calculate statistics with date filter (SỬA: đổi osc → ol, label → label_name)
+// Calculate statistics with date filter
 $date_params = array_merge($params, [$filter_from, $filter_to]);
 
 $stats_query = "

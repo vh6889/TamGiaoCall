@@ -113,16 +113,16 @@ class RuleEngine {
     private function loadOrderContext($orderId) {
         // Get order data
         $order = $this->db->query(
-            "SELECT o.*, 
-                    u.role as assigned_to_role,
-                    u.username as assigned_to_username,
-                    TIMESTAMPDIFF(HOUR, o.created_at, NOW()) as hours_since_created,
-                    TIMESTAMPDIFF(HOUR, o.assigned_at, NOW()) as hours_since_assigned
-             FROM orders o
-             LEFT JOIN users u ON o.assigned_to = u.id
-             WHERE o.id = ?",
-            [$orderId]
-        )->fetch();
+			"SELECT o.*, 
+					u.role as assigned_to_role,
+					u.username as assigned_to_username,
+					TIMESTAMPDIFF(HOUR, o.created_at, NOW()) as hours_since_created,
+					TIMESTAMPDIFF(HOUR, o.assigned_at, NOW()) as hours_since_assigned
+			 FROM orders o
+			 LEFT JOIN users u ON o.assigned_to = u.id
+			 WHERE o.id = ?",
+			[$orderId]
+		)->fetch();
         
         if (!$order) return null;
         
@@ -187,7 +187,10 @@ class RuleEngine {
                     COUNT(DISTINCT o.id) as current_active_orders
              FROM users u
              LEFT JOIN employee_performance ep ON u.id = ep.user_id
-             LEFT JOIN orders o ON o.assigned_to = u.id AND o.primary_label NOT IN ('completed', 'cancelled')
+             LEFT JOIN orders o ON o.assigned_to = u.id 
+				AND o.primary_label NOT IN (
+					SELECT label_key FROM order_labels WHERE label_value = 1
+				)
              WHERE u.id = ?
              GROUP BY u.id",
             [$userId]
@@ -327,10 +330,10 @@ class RuleEngine {
             
             if (!isset($this->actionHandlers[$type])) {
                 $results[] = [
-                    'action' => $type,
-                    'primary_label' => 'failed',
-                    'error' => "Unknown action type: $type"
-                ];
+					'action' => $type,
+					'status' => 'failed',  // ✅ Đúng ngữ nghĩa
+					'error' => "Unknown action type: $type"
+				];
                 continue;
             }
             
@@ -338,15 +341,15 @@ class RuleEngine {
                 $result = call_user_func($this->actionHandlers[$type], $params, $context);
                 $results[] = [
                     'action' => $type,
-                    'primary_label' => 'success',
-                    'result' => $result
+					'status' => 'success',  // ✅ Đổi từ 'primary_label'
+					'result' => $result
                 ];
             } catch (Exception $e) {
                 $results[] = [
-                    'action' => $type,
-                    'primary_label' => 'failed',
-                    'error' => $e->getMessage()
-                ];
+					'action' => $type,
+					'status' => 'failed',  // ✅ Đổi từ 'primary_label'
+					'error' => $e->getMessage()
+				];
             }
         }
         
@@ -363,9 +366,9 @@ class RuleEngine {
         $newStatus = $params['status'];
         
         $this->db->query(
-            "UPDATE orders SET primary_label = ?, updated_at = NOW() WHERE id = ?",
-            [$newStatus, $orderId]
-        );
+			"UPDATE orders SET primary_label = ? WHERE id = ?",  // ✅ Đổi thành primary_label
+			[$newStatus, $orderId]
+		);
         
         // Log to order_notes
         $this->db->query(
@@ -388,7 +391,11 @@ class RuleEngine {
         $user = $this->db->query(
             "SELECT id FROM users 
              WHERE role = ? AND status = 'active' 
-             ORDER BY (SELECT COUNT(*) FROM orders WHERE assigned_to = users.id AND primary_label NOT IN ('completed', 'cancelled')) ASC
+             ORDER BY (SELECT COUNT(*) FROM orders 
+          WHERE assigned_to = users.id 
+            AND primary_label NOT IN (
+                SELECT label_key FROM order_labels WHERE label_value = 1
+            )) ASC
              LIMIT 1",
             [$role]
         )->fetch();
@@ -455,9 +462,13 @@ class RuleEngine {
         // Reassign active orders
         $this->db->query(
             "UPDATE orders 
-             SET assigned_to = NULL, primary_label = " . get_new_status_key() . "
-             WHERE assigned_to = ? AND primary_label NOT IN ('completed', 'cancelled')",
-            [$userId]
+			 SET assigned_to = NULL, 
+				 system_status = 'free'  // ✅ Trả về pool
+			 WHERE assigned_to = ? 
+			   AND primary_label NOT IN (
+				   SELECT label_key FROM order_labels WHERE label_value = 1
+			   )",
+			[$userId]
         );
         
         return "User suspended until $suspendUntil";
@@ -539,14 +550,17 @@ class RuleEngine {
      * Get order labels
      */
     private function getOrderLabels($orderId) {
-        $order = $this->db->query(
-            "SELECT status FROM orders WHERE id = ?",
-            [$orderId]
-        )->fetch();
-        
-        // In this system, order status itself acts as label
-        return [$order['status']];
+    $order = $this->db->query(
+        "SELECT primary_label FROM orders WHERE id = ?",
+        [$orderId]
+    )->fetch();
+    
+    if (!$order || !$order['primary_label']) {
+        return [];
     }
+    
+    return [$order['primary_label']];
+}
     
     /**
      * Get customer labels
@@ -649,21 +663,21 @@ class RuleLogger {
     }
     
     private function determineStatus($results) {
-        $failed = 0;
-        $success = 0;
-        
-        foreach ($results as $result) {
-            if ($result['status'] === 'success') {
-                $success++;
-            } else {
-                $failed++;
-            }
-        }
-        
-        if ($failed === 0) return 'success';
-        if ($success === 0) return 'failed';
-        return 'partial';
-    }
+		$failed = 0;
+		$success = 0;
+		
+		foreach ($results as $result) {
+			if ($result['status'] === 'success') {  // ✅ Đúng
+				$success++;
+			} else {
+				$failed++;
+			}
+		}
+		
+		if ($failed === 0) return 'success';
+		if ($success === 0) return 'failed';
+		return 'partial';
+	}
 }
 
 /**
