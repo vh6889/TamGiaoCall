@@ -4,6 +4,8 @@
  */
 define('TSM_ACCESS', true);
 require_once '../config.php';
+require_once '../includes/transaction_helper.php';
+require_once '../includes/error_handler.php';
 require_once '../functions.php';
 require_once '../includes/security_helper.php';
 require_once '../includes/status_helper.php';
@@ -22,11 +24,6 @@ $input = get_json_input(["customer_name","customer_phone","products"]);
 $customer_name = $input['customer_name'] ?? '';
 $customer_phone = $input['customer_phone'] ?? '';
 $products = $input['products'] ?? '';
-
-$pdo = get_db_connection();
-$pdo->beginTransaction();
-
-try {
 
 if (!is_logged_in()) {
     json_error('Unauthorized', 401);

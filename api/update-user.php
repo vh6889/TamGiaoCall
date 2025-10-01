@@ -4,6 +4,8 @@
  */
 define('TSM_ACCESS', true);
 require_once '../config.php';
+require_once '../includes/transaction_helper.php';
+require_once '../includes/error_handler.php';
 require_once '../functions.php';
 require_once '../includes/security_helper.php';
 
@@ -23,7 +25,6 @@ check_rate_limit('update-user', get_logged_user()['id']);
 
 $input = get_json_input(["user_id"]);
 $user_id = (int)$input['user_id'];
-
 
 if (!is_logged_in() || !is_admin()) {
     json_error('Unauthorized', 403);

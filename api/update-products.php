@@ -5,6 +5,8 @@
 if (basename($_SERVER['PHP_SELF']) == 'update-products.php') {
     define('TSM_ACCESS', true);
     require_once '../config.php';
+require_once '../includes/transaction_helper.php';
+require_once '../includes/error_handler.php';
     require_once '../functions.php';
 require_once '../includes/security_helper.php';
     
@@ -25,10 +27,6 @@ $products = $input['products'] ?? '';
 // Verify user has access to this order
 $order = require_order_access($order_id, false);
 
-$pdo = get_db_connection();
-$pdo->beginTransaction();
-
-try {
     
     if (!is_logged_in()) {
         json_error('Unauthorized', 401);

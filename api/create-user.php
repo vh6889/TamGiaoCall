@@ -4,6 +4,8 @@
  */
 define('TSM_ACCESS', true);
 require_once '../config.php';
+require_once '../includes/transaction_helper.php';
+require_once '../includes/error_handler.php';
 require_once '../functions.php';
 require_once '../includes/security_helper.php';
 
@@ -25,7 +27,6 @@ $input = get_json_input(["username","password","full_name"]);
 $username = $input['username'] ?? '';
 $password = $input['password'] ?? '';
 $full_name = $input['full_name'] ?? '';
-
 
 if (!is_logged_in() || !is_admin()) {
     json_error('Unauthorized', 403);

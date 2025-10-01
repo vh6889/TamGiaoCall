@@ -5,6 +5,8 @@
  */
 define('TSM_ACCESS', true);
 require_once '../config.php';
+require_once '../includes/transaction_helper.php';
+require_once '../includes/error_handler.php';
 require_once '../functions.php';
 require_once '../includes/security_helper.php';
 
@@ -25,11 +27,6 @@ check_rate_limit('assign-order', get_logged_user()['id']);
 $input = get_json_input(["order_id","user_id"]);
 $order_id = (int)$input['order_id'];
 $user_id = (int)$input['user_id'];
-
-$pdo = get_db_connection();
-$pdo->beginTransaction();
-
-try {
 
 // Only Admins can assign orders
 require_csrf();
