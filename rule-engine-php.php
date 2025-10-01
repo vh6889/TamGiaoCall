@@ -126,7 +126,7 @@ class RuleEngine {
         
         if (!$order) return null;
         
-        // Get order labels (from order_status_configs)
+        // Get order labels (FROM order_labels)
         $order['labels'] = $this->getOrderLabels($orderId);
         
         // Get customer data and labels

@@ -46,7 +46,7 @@ try {
         'customer_notes' => sanitize($input['customer_notes'] ?? ''),
         'total_amount' => (float)($input['total_amount'] ?? 0),
         'products' => json_encode($input['products']),
-        'status' => db_get_var("SELECT status_key FROM order_status_configs WHERE label LIKE '%duyệt%' LIMIT 1") ?: 'pending_approval',
+        'status' => db_get_var("SELECT label_key AS status_key, FROM order_labels WHERE label LIKE '%duyệt%' LIMIT 1") ?: 'pending_approval',
         'approval_status' => 'pending',
         'source' => 'manual',
         'created_by' => $current_user_id,

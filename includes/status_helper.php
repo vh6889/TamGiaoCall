@@ -34,8 +34,8 @@ function is_system_status($status_key) {
  */
 function get_user_statuses() {
     return db_get_results(
-        "SELECT status_key as value, label as text, color, icon 
-         FROM order_status_configs 
+        "SELECT label_key AS status_key, label_key AS value, label_name AS label, label_name AS text, color, icon 
+         FROM order_labels 
          WHERE is_system = 0 
          ORDER BY sort_order ASC"
     );
@@ -45,11 +45,7 @@ function get_user_statuses() {
  * Get all statuses including system
  */
 function get_all_statuses() {
-    return db_get_results(
-        "SELECT status_key as value, label as text, color, icon, is_system
-         FROM order_status_configs 
-         ORDER BY is_system DESC, sort_order ASC"
-    );
+    return db_get_results("SELECT label_key AS status_key, label_name AS label, color, icon FROM order_labels ORDER BY sort_order");
 }
 
 /**
@@ -57,7 +53,7 @@ function get_all_statuses() {
  */
 function get_status_options_with_labels() {
     return db_get_results(
-        "SELECT status_key, label FROM order_status_configs 
+        "SELECT label_key AS status_key, label FROM order_labels 
          WHERE is_system = 0 
          ORDER BY sort_order ASC"
     );
@@ -68,7 +64,7 @@ function get_status_options_with_labels() {
  */
 function get_confirmed_statuses() {
     $statuses = db_get_col(
-        "SELECT status_key FROM order_status_configs 
+        "SELECT label_key AS status_key, FROM order_labels 
          WHERE is_system = 0 
          AND (label LIKE '%thành công%' OR label LIKE '%hoàn thành%' OR label LIKE '%completed%')"
     );
@@ -80,7 +76,7 @@ function get_confirmed_statuses() {
  */
 function get_cancelled_statuses() {
     $statuses = db_get_col(
-        "SELECT status_key FROM order_status_configs 
+        "SELECT label_key AS status_key, FROM order_labels 
          WHERE is_system = 0 
          AND (label LIKE '%hủy%' OR label LIKE '%cancelled%' OR label LIKE '%bom%')"
     );
@@ -92,7 +88,7 @@ function get_cancelled_statuses() {
  */
 function is_valid_status($status_key) {
     return (bool)db_get_var(
-        "SELECT COUNT(*) FROM order_status_configs WHERE status_key = ?",
+        "SELECT COUNT(*) FROM order_labels WHERE label_key = ?",
         [$status_key]
     );
 }
@@ -137,7 +133,7 @@ function validate_status_transition($current_status, $new_status) {
  */
 function get_status_badge($status_key) {
     $status = db_get_row(
-        "SELECT label, color, icon FROM order_status_configs WHERE status_key = ?",
+        "SELECT label, color, icon FROM order_labels WHERE label_key = ?",
         [$status_key]
     );
     
@@ -158,7 +154,7 @@ function get_status_badge($status_key) {
  */
 function get_status_color($status_key) {
     $color = db_get_var(
-        "SELECT color FROM order_status_configs WHERE status_key = ?",
+        "SELECT color FROM order_labels WHERE label_key = ?",
         [$status_key]
     );
     

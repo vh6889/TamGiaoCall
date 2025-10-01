@@ -90,7 +90,7 @@ try {
         
         // Get callback status
         $callback_status = db_get_var(
-            "SELECT status_key FROM order_status_configs 
+            "SELECT label_key AS status_key, FROM order_labels 
              WHERE label LIKE '%gọi lại%' OR label LIKE '%callback%' OR label LIKE '%hẹn%'
              ORDER BY sort_order 
              LIMIT 1"

@@ -50,7 +50,7 @@ if (!is_admin() && $order['assigned_to'] != $current_user['id']) {
 try {
     db_update('orders', [
         'callback_time' => date('Y-m-d H:i:s', strtotime($callback_time)),
-        'status' => db_get_var("SELECT status_key FROM order_status_configs WHERE label LIKE '%gọi lại%' OR label LIKE '%callback%' LIMIT 1")
+        'status' => db_get_var("SELECT label_key AS status_key, FROM order_labels WHERE label LIKE '%gọi lại%' OR label LIKE '%callback%' LIMIT 1")
     ], 'id = ?', [$order_id]);
     
     db_insert('order_notes', [

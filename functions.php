@@ -309,74 +309,32 @@ function log_activity($action, $description = '', $related_type = null, $related
     ]);
 }
 
-// =============================================
-// DYNAMIC STATUS CONFIGURATION FUNCTIONS
-// =============================================
-
-/**
- * Load order status configs from database - NO HARDCODE
- */
-function get_order_status_configs() {
-    static $configs = null;
-    if ($configs === null) {
-        $results = db_get_results("SELECT * FROM order_status_configs ORDER BY sort_order");
-        $configs = [];
-        foreach ($results as $row) {
-            $configs[$row['status_key']] = [
-                'label' => $row['label'],
-                'color' => $row['color'],
-                'icon' => $row['icon'],
-                'logic' => json_decode($row['logic_json'], true) ?? []
-            ];
-        }
-    }
-    return $configs;
-}
-
-/**
- * Get status label from database
- */
-function get_status_label($status_key) {
-    $label = db_get_var(
-        "SELECT label FROM order_status_configs WHERE status_key = ?",
-        [$status_key]
-    );
-    
-    return $label ?: $status_key; // Return key if no label found
-}
-
-
-
-// =============================================
-// ORDER FUNCTIONS - FULLY DYNAMIC
-// =============================================
-
 function get_orders($filters = []) {
     $where = ['1=1'];
     $params = [];
     
     if (!empty($filters['status'])) {
-        $where[] = "status = ?";
+        $where[] = "o.primary_label = ?";
         $params[] = $filters['status'];
     }
     
     if (!empty($filters['assigned_to'])) {
-        $where[] = "assigned_to = ?";
+        $where[] = "o.assigned_to = ?";
         $params[] = $filters['assigned_to'];
     }
     
     if (!empty($filters['date_from'])) {
-        $where[] = "DATE(created_at) >= ?";
+        $where[] = "DATE(o.created_at) >= ?";
         $params[] = $filters['date_from'];
     }
     
     if (!empty($filters['date_to'])) {
-        $where[] = "DATE(created_at) <= ?";
+        $where[] = "DATE(o.created_at) <= ?";
         $params[] = $filters['date_to'];
     }
     
     if (!empty($filters['search'])) {
-        $where[] = "(customer_phone LIKE ? OR customer_name LIKE ? OR order_number LIKE ?)";
+        $where[] = "(o.customer_phone LIKE ? OR o.customer_name LIKE ? OR o.order_number LIKE ?)";
         $search_term = '%' . $filters['search'] . '%';
         $params[] = $search_term;
         $params[] = $search_term;
@@ -384,15 +342,8 @@ function get_orders($filters = []) {
     }
     
     if (!empty($filters['available'])) {
-        // Get "new" status dynamically
-        $new_status = db_get_var(
-            "SELECT status_key FROM order_status_configs WHERE label LIKE '%mới%' LIMIT 1"
-        );
-        if ($new_status) {
-            $where[] = "assigned_to IS NULL";
-            $where[] = "status = ?";
-            $params[] = $new_status;
-        }
+        $where[] = "o.system_status = 'free'";
+        $where[] = "o.is_locked = 0";
     }
     
     $page = $filters['page'] ?? 1;
@@ -402,25 +353,16 @@ function get_orders($filters = []) {
     $order_by = $filters['order_by'] ?? 'created_at';
     $order_dir = $filters['order_dir'] ?? 'DESC';
     
-    $sql = "SELECT * FROM orders WHERE " . implode(' AND ', $where) . 
-           " ORDER BY {$order_by} {$order_dir} LIMIT {$per_page} OFFSET {$offset}";
+    $sql = "SELECT o.*, 
+                   ol.label_name, 
+                   ol.color AS label_color, 
+                   ol.icon AS label_icon
+            FROM orders o
+            LEFT JOIN order_labels ol ON o.primary_label = ol.label_key
+            WHERE " . implode(' AND ', $where) . 
+           " ORDER BY o.{$order_by} {$order_dir} LIMIT {$per_page} OFFSET {$offset}";
     
     return db_get_results($sql, $params);
-}
-
-function get_order($order_id) {
-    return db_get_row("SELECT * FROM orders WHERE id = ?", [$order_id]);
-}
-
-function get_order_notes($order_id) {
-    return db_get_results(
-        "SELECT n.*, u.full_name, u.username 
-         FROM order_notes n 
-         LEFT JOIN users u ON n.user_id = u.id 
-         WHERE n.order_id = ? 
-         ORDER BY n.created_at DESC",
-        [$order_id]
-    );
 }
 
 function count_orders($filters = []) {
@@ -428,7 +370,7 @@ function count_orders($filters = []) {
     $params = [];
     
     if (!empty($filters['status'])) {
-        $where[] = "status = ?";
+        $where[] = "primary_label = ?";
         $params[] = $filters['status'];
     }
     
@@ -438,94 +380,14 @@ function count_orders($filters = []) {
     }
     
     if (!empty($filters['available'])) {
-        // Get "new" status dynamically
-        $new_status = db_get_var(
-            "SELECT status_key FROM order_status_configs WHERE label LIKE '%mới%' LIMIT 1"
-        );
-        if ($new_status) {
-            $where[] = "assigned_to IS NULL";
-            $where[] = "status = ?";
-            $params[] = $new_status;
-        }
+        $where[] = "system_status = 'free'";
+        $where[] = "is_locked = 0";
     }
     
     $sql = "SELECT COUNT(*) FROM orders WHERE " . implode(' AND ', $where);
     return (int) db_get_var($sql, $params);
 }
 
-function count_orders_by_status($status_key, $user_id = null) {
-    if ($user_id) {
-        return db_get_var(
-            "SELECT COUNT(*) FROM orders WHERE status = ? AND assigned_to = ?",
-            [$status_key, $user_id]
-        );
-    }
-    
-    return db_get_var(
-        "SELECT COUNT(*) FROM orders WHERE status = ?",
-        [$status_key]
-    );
-}
-
-/**
- * Get orders with full status information
- */
-function get_orders_with_status($filters = []) {
-    $query = "SELECT o.*, 
-              osc.label as status_label,
-              osc.color as status_color,
-              osc.icon as status_icon,
-              u.full_name as assigned_name
-              FROM orders o
-              LEFT JOIN order_status_configs osc ON o.status = osc.status_key
-              LEFT JOIN users u ON o.assigned_to = u.id";
-    
-    $conditions = [];
-    $params = [];
-    
-    // Build WHERE conditions
-    if (!empty($filters['status']) && $filters['status'] !== 'all') {
-        $conditions[] = "o.status = ?";
-        $params[] = $filters['status'];
-    }
-    
-    if (!empty($filters['assigned_to'])) {
-        $conditions[] = "o.assigned_to = ?";
-        $params[] = $filters['assigned_to'];
-    }
-    
-    if (!empty($filters['search'])) {
-        $conditions[] = "(o.customer_name LIKE ? OR o.customer_phone LIKE ? OR o.order_number LIKE ?)";
-        $search = '%' . $filters['search'] . '%';
-        $params[] = $search;
-        $params[] = $search;
-        $params[] = $search;
-    }
-    
-    if (!empty($filters['date_from'])) {
-        $conditions[] = "DATE(o.created_at) >= ?";
-        $params[] = $filters['date_from'];
-    }
-    
-    if (!empty($filters['date_to'])) {
-        $conditions[] = "DATE(o.created_at) <= ?";
-        $params[] = $filters['date_to'];
-    }
-    
-    if (!empty($conditions)) {
-        $query .= " WHERE " . implode(" AND ", $conditions);
-    }
-    
-    $query .= " ORDER BY o.created_at DESC";
-    
-    // Pagination
-    if (isset($filters['page']) && isset($filters['per_page'])) {
-        $offset = ($filters['page'] - 1) * $filters['per_page'];
-        $query .= " LIMIT " . intval($filters['per_page']) . " OFFSET " . intval($offset);
-    }
-    
-    return db_get_results($query, $params);
-}
 
 // =============================================
 // USER FUNCTIONS
@@ -571,23 +433,23 @@ function get_user_statistics($user_id = null, $date_from = null, $date_to = null
         $params[] = $date_to;
     }
     
-    // Build dynamic query using status configs
+    // Build dynamic query using LABEL configs (updated)
     $sql = "SELECT 
                 COUNT(*) as total_orders,
-                SUM(CASE WHEN osc.label LIKE '%xác nhận%' OR osc.label LIKE '%hoàn%' 
-                         OR osc.label LIKE '%thành công%' THEN 1 ELSE 0 END) as confirmed_orders,
-                SUM(CASE WHEN osc.label LIKE '%từ chối%' OR osc.label LIKE '%rejected%' 
+                SUM(CASE WHEN ol.label_name LIKE '%xác nhận%' OR ol.label_name LIKE '%hoàn%' 
+                         OR ol.label_name LIKE '%thành công%' THEN 1 ELSE 0 END) as confirmed_orders,
+                SUM(CASE WHEN ol.label_name LIKE '%từ chối%' OR ol.label_name LIKE '%rejected%' 
                          THEN 1 ELSE 0 END) as rejected_orders,
-                SUM(CASE WHEN osc.label LIKE '%không nghe%' OR osc.label LIKE '%no answer%' 
+                SUM(CASE WHEN ol.label_name LIKE '%không nghe%' OR ol.label_name LIKE '%no answer%' 
                          THEN 1 ELSE 0 END) as no_answer_orders,
                 SUM(o.call_count) as total_calls,
                 ROUND(
-                    SUM(CASE WHEN osc.label LIKE '%xác nhận%' OR osc.label LIKE '%hoàn%' 
-                             OR osc.label LIKE '%thành công%' THEN 1 ELSE 0 END) * 100.0 / 
+                    SUM(CASE WHEN ol.label_name LIKE '%xác nhận%' OR ol.label_name LIKE '%hoàn%' 
+                             OR ol.label_name LIKE '%thành công%' THEN 1 ELSE 0 END) * 100.0 / 
                     NULLIF(COUNT(*), 0), 2
                 ) as success_rate
             FROM orders o
-            LEFT JOIN order_status_configs osc ON o.status = osc.status_key
+            LEFT JOIN order_labels ol ON o.primary_label = ol.label_key
             WHERE " . implode(' AND ', $where);
     
     return db_get_row($sql, $params);
@@ -784,8 +646,9 @@ function render_status_options($current_status = null, $include_all = false) {
     }
     
     $statuses = db_get_results(
-        "SELECT status_key, label, color, icon 
-         FROM order_status_configs 
+        "SELECT label_key AS status_key, label_name AS label, color, icon 
+         FROM order_labels 
+         WHERE is_system = 0
          ORDER BY sort_order ASC"
     );
     
@@ -977,4 +840,333 @@ function get_order_workflow_state($order, $user) {
     }
     
     return $state;
+}
+// =============================================
+// ORDER LABEL FUNCTIONS (NEW LOGIC)
+// =============================================
+
+/**
+ * Lấy tất cả nhãn đơn hàng
+ * @return array Danh sách nhãn
+ */
+function get_order_labels($include_system = false) {
+    $where = $include_system ? '' : 'WHERE is_system = 0';
+    return db_get_results("
+        SELECT * FROM order_labels 
+        {$where}
+        ORDER BY sort_order ASC, label_name ASC
+    ");
+}
+
+/**
+ * Lấy thông tin 1 nhãn
+ * @param string $label_key Mã nhãn
+ * @return array|null Thông tin nhãn
+ */
+function get_order_label($label_key) {
+    return db_get_row("
+        SELECT * FROM order_labels WHERE label_key = ?
+    ", [$label_key]);
+}
+
+/**
+ * Kiểm tra nhãn có tồn tại không
+ * @param string $label_key Mã nhãn
+ * @return bool
+ */
+function label_exists($label_key) {
+    return (bool)db_get_var("
+        SELECT COUNT(*) FROM order_labels WHERE label_key = ?
+    ", [$label_key]);
+}
+
+/**
+ * Kiểm tra nhãn có phải là nhãn kết thúc không
+ * @param string $label_key Mã nhãn
+ * @return bool
+ */
+function is_final_label($label_key) {
+    return (bool)db_get_var("
+        SELECT is_final FROM order_labels WHERE label_key = ?
+    ", [$label_key]);
+}
+
+/**
+ * Gán nhãn cho đơn hàng
+ * @param int $order_id ID đơn hàng
+ * @param string $label_key Mã nhãn
+ * @param int|null $user_id ID người gán (null = system)
+ * @return bool
+ */
+function assign_order_label($order_id, $label_key, $user_id = null) {
+    try {
+        begin_transaction();
+        
+        // Validate
+        if (!label_exists($label_key)) {
+            throw new Exception("Nhãn không tồn tại: {$label_key}");
+        }
+        
+        $order = get_order($order_id);
+        if (!$order) {
+            throw new Exception("Đơn hàng không tồn tại");
+        }
+        
+        if ($order['is_locked']) {
+            throw new Exception("Đơn hàng đã bị khóa");
+        }
+        
+        // Update primary_label
+        db_update('orders', [
+            'primary_label' => $label_key,
+            'updated_at' => date('Y-m-d H:i:s')
+        ], 'id = ?', [$order_id]);
+        
+        // Trigger sẽ tự động ghi vào order_label_history và order_notes
+        
+        commit_transaction();
+        return true;
+        
+    } catch (Exception $e) {
+        rollback_transaction();
+        error_log("Error assigning label: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Xóa nhãn khỏi đơn hàng
+ * @param int $order_id ID đơn hàng
+ * @param int|null $user_id ID người xóa
+ * @return bool
+ */
+function remove_order_label($order_id, $user_id = null) {
+    try {
+        begin_transaction();
+        
+        $order = get_order($order_id);
+        if (!$order || !$order['primary_label']) {
+            throw new Exception("Đơn hàng không có nhãn");
+        }
+        
+        if ($order['is_locked']) {
+            throw new Exception("Đơn hàng đã bị khóa");
+        }
+        
+        // Remove label
+        db_update('orders', [
+            'primary_label' => null,
+            'updated_at' => date('Y-m-d H:i:s')
+        ], 'id = ?', [$order_id]);
+        
+        // Log history
+        db_insert('order_label_history', [
+            'order_id' => $order_id,
+            'label_key' => $order['primary_label'],
+            'action' => 'removed',
+            'assigned_by' => $user_id
+        ]);
+        
+        commit_transaction();
+        return true;
+        
+    } catch (Exception $e) {
+        rollback_transaction();
+        error_log("Error removing label: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Lấy lịch sử nhãn của đơn hàng
+ * @param int $order_id ID đơn hàng
+ * @return array
+ */
+function get_order_label_history($order_id) {
+    return db_get_results("
+        SELECT 
+            olh.*,
+            ol.label_name,
+            ol.color,
+            ol.icon,
+            u.full_name as assigned_by_name
+        FROM order_label_history olh
+        LEFT JOIN order_labels ol ON olh.label_key = ol.label_key
+        LEFT JOIN users u ON olh.assigned_by = u.id
+        WHERE olh.order_id = ?
+        ORDER BY olh.created_at DESC
+    ", [$order_id]);
+}
+
+/**
+ * Claim đơn hàng (nhận đơn)
+ * Chỉ đổi system_status từ free → assigned
+ * KHÔNG gán nhãn tự động
+ */
+function claim_order($order_id, $user_id) {
+    try {
+        begin_transaction();
+        
+        // Lock row
+        $order = db_get_row("SELECT * FROM orders WHERE id = ? FOR UPDATE", [$order_id]);
+        
+        if (!$order) {
+            throw new Exception('Đơn hàng không tồn tại');
+        }
+        
+        if ($order['system_status'] !== 'free') {
+            throw new Exception('Đơn hàng đã được nhận bởi người khác');
+        }
+        
+        if ($order['is_locked']) {
+            throw new Exception('Đơn hàng đã bị khóa');
+        }
+        
+        // Update: free → assigned
+        db_update('orders', [
+            'system_status' => 'assigned',
+            'assigned_to' => $user_id,
+            'assigned_at' => date('Y-m-d H:i:s')
+        ], 'id = ?', [$order_id]);
+        
+        // Log
+        db_insert('order_notes', [
+            'order_id' => $order_id,
+            'user_id' => $user_id,
+            'note_type' => 'system',
+            'content' => 'Nhận đơn hàng'
+        ]);
+        
+        commit_transaction();
+        return true;
+        
+    } catch (Exception $e) {
+        rollback_transaction();
+        error_log("Error claiming order: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Release đơn hàng (trả đơn về pool)
+ * Chỉ đổi system_status từ assigned → free
+ * GIỮ NGUYÊN primary_label
+ */
+function release_order($order_id, $user_id) {
+    try {
+        begin_transaction();
+        
+        $order = get_order($order_id);
+        
+        if (!$order) {
+            throw new Exception('Đơn hàng không tồn tại');
+        }
+        
+        if ($order['system_status'] !== 'assigned') {
+            throw new Exception('Đơn hàng chưa được nhận');
+        }
+        
+        if ($order['is_locked']) {
+            throw new Exception('Đơn hàng đã bị khóa, không thể trả lại');
+        }
+        
+        // Update: assigned → free
+        db_update('orders', [
+            'system_status' => 'free',
+            'assigned_to' => null,
+            'assigned_at' => null
+        ], 'id = ?', [$order_id]);
+        
+        // Log
+        db_insert('order_notes', [
+            'order_id' => $order_id,
+            'user_id' => $user_id,
+            'note_type' => 'system',
+            'content' => 'Trả đơn hàng về pool'
+        ]);
+        
+        commit_transaction();
+        return true;
+        
+    } catch (Exception $e) {
+        rollback_transaction();
+        error_log("Error releasing order: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Lấy danh sách đơn FREE (chưa ai nhận)
+ */
+function get_free_orders($limit = 50, $offset = 0) {
+    return db_get_results("
+        SELECT o.*, 
+               ol.label_name, ol.color AS label_color, ol.icon AS label_icon
+        FROM orders o
+        LEFT JOIN order_labels ol ON o.primary_label = ol.label_key
+        WHERE o.system_status = 'free' 
+          AND o.is_locked = 0
+          AND o.approval_status != 'pending'
+        ORDER BY o.created_at DESC
+        LIMIT ? OFFSET ?
+    ", [$limit, $offset]);
+}
+
+/**
+ * Đếm số đơn FREE
+ */
+function count_free_orders() {
+    return (int)db_get_var("
+        SELECT COUNT(*) FROM orders 
+        WHERE system_status = 'free' 
+          AND is_locked = 0
+          AND approval_status != 'pending'
+    ");
+}
+
+/**
+ * Lấy đơn của user (đã nhận - assigned)
+ */
+function get_user_assigned_orders($user_id, $limit = 50, $offset = 0) {
+    return db_get_results("
+        SELECT o.*, 
+               ol.label_name, ol.color AS label_color, ol.icon AS label_icon
+        FROM orders o
+        LEFT JOIN order_labels ol ON o.primary_label = ol.label_key
+        WHERE o.system_status = 'assigned' 
+          AND o.assigned_to = ?
+          AND o.is_locked = 0
+        ORDER BY o.created_at DESC
+        LIMIT ? OFFSET ?
+    ", [$user_id, $limit, $offset]);
+}
+
+/**
+ * Đếm đơn của user
+ */
+function count_user_assigned_orders($user_id) {
+    return (int)db_get_var("
+        SELECT COUNT(*) FROM orders 
+        WHERE system_status = 'assigned' 
+          AND assigned_to = ?
+          AND is_locked = 0
+    ", [$user_id]);
+}
+
+// =============================================
+// BACKWARD COMPATIBILITY (Giữ tên hàm cũ)
+// =============================================
+
+/**
+ * @deprecated Dùng get_order_labels() thay thế
+ */
+function get_order_status_configs($include_system = false) {
+    return get_order_labels($include_system);
+}
+
+/**
+ * @deprecated Dùng get_order_label() thay thế
+ */
+function get_status_config($status_key) {
+    return get_order_label($status_key);
 }

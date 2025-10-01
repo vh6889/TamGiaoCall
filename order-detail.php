@@ -78,7 +78,7 @@ function get_order_suggestions($order) {
         $cancelled_orders = db_get_var(
             "SELECT COUNT(*) FROM orders 
              WHERE customer_phone = ? 
-             AND status IN (SELECT status_key FROM order_status_configs WHERE label LIKE '%huy%' OR label LIKE '%rejected%' OR label LIKE '%bom%') 
+             AND status IN (SELECT label_key AS status_key, FROM order_labels WHERE label LIKE '%huy%' OR label LIKE '%rejected%' OR label LIKE '%bom%') 
              AND id != ?",
             [$order['customer_phone'], $order['id']]
         );
@@ -185,7 +185,7 @@ $related_products = [
 
 // Get status info
 $current_status_label = db_get_var(
-    "SELECT label FROM order_status_configs WHERE status_key = ?",
+    "SELECT label_name AS label FROM order_labels WHERE label_key = ?",
     [$order['status']]
 ) ?: $order['status'];
 
@@ -467,7 +467,7 @@ include 'includes/header.php';
                                     if ($note['note_type'] === 'status' && strpos($note['content'], 'Cập nhật trạng thái:') !== false) {
                                         $status_key = trim(str_replace('Cập nhật trạng thái:', '', $note['content']));
                                         $status_label = db_get_var(
-                                            "SELECT label FROM order_status_configs WHERE status_key = ?",
+                                            "SELECT label_name AS label FROM order_labels WHERE label_key = ?",
                                             [$status_key]
                                         ) ?: $status_key;
                                         echo "Cập nhật trạng thái: <strong>" . htmlspecialchars($status_label) . "</strong>";

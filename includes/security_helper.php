@@ -102,7 +102,7 @@ function require_order_access($order_id, $allow_admin = true) {
  * Validate status transition
  */
 function validate_status_transition($current_status, $new_status) {
-    $statuses = get_order_status_configs();
+    $statuses = get_order_labels(true);
     
     if (!isset($statuses[$new_status])) {
         return false;

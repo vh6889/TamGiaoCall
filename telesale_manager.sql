@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Máy chủ: 127.0.0.1
--- Thời gian đã tạo: Th10 01, 2025 lúc 09:22 AM
+-- Thời gian đã tạo: Th10 01, 2025 lúc 10:22 AM
 -- Phiên bản máy phục vụ: 10.4.32-MariaDB
 -- Phiên bản PHP: 8.0.30
 
@@ -412,6 +412,8 @@ CREATE TABLE `orders` (
   `products` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL COMMENT 'Danh sách sản phẩm (JSON)' CHECK (json_valid(`products`)),
   `customer_notes` text DEFAULT NULL COMMENT 'Ghi chú của khách',
   `status` varchar(50) DEFAULT 'new',
+  `system_status` enum('free','assigned') NOT NULL DEFAULT 'free',
+  `primary_label` varchar(50) DEFAULT NULL,
   `assigned_to` int(10) UNSIGNED DEFAULT NULL COMMENT 'ID nhân viên được gán',
   `manager_id` int(10) UNSIGNED DEFAULT NULL COMMENT 'ID manager đang giám sát đơn',
   `assigned_at` datetime DEFAULT NULL COMMENT 'Thời gian gán',
@@ -438,83 +440,157 @@ CREATE TABLE `orders` (
 -- Đang đổ dữ liệu cho bảng `orders`
 --
 
-INSERT INTO `orders` (`id`, `woo_order_id`, `order_number`, `customer_name`, `customer_phone`, `customer_email`, `customer_address`, `total_amount`, `currency`, `payment_method`, `products`, `customer_notes`, `status`, `assigned_to`, `manager_id`, `assigned_at`, `call_count`, `last_call_at`, `callback_time`, `source`, `created_by`, `approval_status`, `approved_by`, `approved_at`, `woo_created_at`, `created_at`, `updated_at`, `completed_at`, `is_locked`, `locked_at`, `locked_by`, `deleted_at`, `version`) VALUES
-(22, NULL, 'DYN001', 'Anh Hải', '0963864597', '', '55 Ngô Kim Tài, Kênh Dương, Hải Phòng', 300000.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":3,\"price\":100000,\"sku\":\"N/A\",\"regular_price\":100000,\"sale_price\":100000,\"attributes\":[],\"line_total\":300000}]', NULL, 'n-a', 1, NULL, '2025-10-01 07:54:42', 2, '2025-10-01 07:57:59', '0000-00-00 00:00:00', 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 09:22:37', NULL, 0, NULL, NULL, NULL, 1),
-(23, NULL, 'DYN002', 'Test Đang giao', '0900000001', NULL, '123 Test Street, District 2', 1628333.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'dang-giao', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 06:09:44', NULL, 0, NULL, NULL, NULL, 1),
-(24, NULL, 'DYN003', 'Test Đang hoàn', '0900000002', NULL, '123 Test Street, District 3', 1233607.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'dang-hoan', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 06:09:44', NULL, 0, NULL, NULL, NULL, 1),
-(25, NULL, 'DYN004', 'Test Đóng gói sai', '0900000003', NULL, '123 Test Street, District 4', 1030515.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'dong-goi-sai', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 06:09:44', NULL, 0, NULL, NULL, NULL, 1),
-(26, NULL, 'DYN005', 'Test Giao thành công', '0900000004', NULL, '123 Test Street, District 5', 1169812.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'giao-thanh-cong', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 06:09:44', NULL, 0, NULL, NULL, NULL, 1),
-(27, NULL, 'DYN006', 'Test Hoàn thành công', '0900000005', NULL, '123 Test Street, District 6', 400000.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000,\"id\":1,\"sku\":\"N/A\",\"regular_price\":100000,\"sale_price\":100000,\"line_total\":100000},{\"id\":202,\"name\":\"Sản phẩm bổ sung B\",\"price\":300000,\"sku\":\"ADD-B\",\"regular_price\":300000,\"sale_price\":300000,\"qty\":1,\"line_total\":300000}]', NULL, 'dong-goi-sai', 1, NULL, '2025-10-01 09:56:18', 1, '2025-10-01 09:57:10', '0000-00-00 00:00:00', 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 09:57:37', NULL, 0, NULL, NULL, NULL, 1),
-(28, NULL, 'DYN007', 'Trang', '0962864599', 'raintl07@gmail.com', '55 Ngô Kim Tài, Kênh Dương, Hải Phòng', 500000.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":3,\"price\":100000,\"sku\":\"N/A\",\"regular_price\":100000,\"sale_price\":100000,\"attributes\":[],\"line_total\":300000},{\"name\":\"Product Test\",\"qty\":2,\"price\":100000,\"sku\":\"N/A\",\"regular_price\":100000,\"sale_price\":100000,\"attributes\":[],\"line_total\":200000}]', NULL, 'n-a', 1, NULL, '2025-10-01 07:59:00', 2, '2025-10-01 08:02:35', '0000-00-00 00:00:00', 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 09:22:37', NULL, 0, NULL, NULL, NULL, 1),
-(29, NULL, 'DYN008', 'Test Đơn mới', '0900000007', NULL, '123 Test Street, District 8', 1925618.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'n-a', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 06:09:44', NULL, 0, NULL, NULL, NULL, 1),
-(30, NULL, 'DYN009', 'Test Đang gọi', '0900000008', NULL, '123 Test Street, District 9', 1795834.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'n-a', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 09:22:37', NULL, 0, NULL, NULL, NULL, 1),
-(31, NULL, 'DYN010', 'Test Hẹn gọi lại', '0900000009', NULL, '123 Test Street, District 10', 822067.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'n-a', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 09:22:37', NULL, 0, NULL, NULL, NULL, 1);
+INSERT INTO `orders` (`id`, `woo_order_id`, `order_number`, `customer_name`, `customer_phone`, `customer_email`, `customer_address`, `total_amount`, `currency`, `payment_method`, `products`, `customer_notes`, `status`, `system_status`, `primary_label`, `assigned_to`, `manager_id`, `assigned_at`, `call_count`, `last_call_at`, `callback_time`, `source`, `created_by`, `approval_status`, `approved_by`, `approved_at`, `woo_created_at`, `created_at`, `updated_at`, `completed_at`, `is_locked`, `locked_at`, `locked_by`, `deleted_at`, `version`) VALUES
+(22, NULL, 'DYN001', 'Anh Hải', '0963864597', '', '55 Ngô Kim Tài, Kênh Dương, Hải Phòng', 300000.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":3,\"price\":100000,\"sku\":\"N/A\",\"regular_price\":100000,\"sale_price\":100000,\"attributes\":[],\"line_total\":300000}]', NULL, 'n-a', 'assigned', 'n-a', 1, NULL, '2025-10-01 07:54:42', 2, '2025-10-01 07:57:59', '0000-00-00 00:00:00', 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 14:40:47', NULL, 0, NULL, NULL, NULL, 1),
+(23, NULL, 'DYN002', 'Test Đang giao', '0900000001', NULL, '123 Test Street, District 2', 1628333.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'dang-giao', 'free', 'dang-giao', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 14:40:47', NULL, 0, NULL, NULL, NULL, 1),
+(24, NULL, 'DYN003', 'Test Đang hoàn', '0900000002', NULL, '123 Test Street, District 3', 1233607.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'dang-hoan', 'free', 'dang-hoan', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 14:40:47', NULL, 0, NULL, NULL, NULL, 1),
+(25, NULL, 'DYN004', 'Test Đóng gói sai', '0900000003', NULL, '123 Test Street, District 4', 1030515.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'dong-goi-sai', 'free', 'dong-goi-sai', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 14:40:47', NULL, 0, NULL, NULL, NULL, 1),
+(26, NULL, 'DYN005', 'Test Giao thành công', '0900000004', NULL, '123 Test Street, District 5', 1169812.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'giao-thanh-cong', 'free', 'giao-thanh-cong', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 14:40:47', NULL, 0, NULL, NULL, NULL, 1),
+(27, NULL, 'DYN006', 'Test Hoàn thành công', '0900000005', NULL, '123 Test Street, District 6', 400000.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000,\"id\":1,\"sku\":\"N/A\",\"regular_price\":100000,\"sale_price\":100000,\"line_total\":100000},{\"id\":202,\"name\":\"Sản phẩm bổ sung B\",\"price\":300000,\"sku\":\"ADD-B\",\"regular_price\":300000,\"sale_price\":300000,\"qty\":1,\"line_total\":300000}]', NULL, 'dong-goi-sai', 'assigned', 'dong-goi-sai', 1, NULL, '2025-10-01 09:56:18', 1, '2025-10-01 09:57:10', '0000-00-00 00:00:00', 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 14:40:47', NULL, 0, NULL, NULL, NULL, 1),
+(28, NULL, 'DYN007', 'Trang', '0962864599', 'raintl07@gmail.com', '55 Ngô Kim Tài, Kênh Dương, Hải Phòng', 500000.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":3,\"price\":100000,\"sku\":\"N/A\",\"regular_price\":100000,\"sale_price\":100000,\"attributes\":[],\"line_total\":300000},{\"name\":\"Product Test\",\"qty\":2,\"price\":100000,\"sku\":\"N/A\",\"regular_price\":100000,\"sale_price\":100000,\"attributes\":[],\"line_total\":200000}]', NULL, 'n-a', 'assigned', 'n-a', 1, NULL, '2025-10-01 07:59:00', 2, '2025-10-01 08:02:35', '0000-00-00 00:00:00', 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 14:40:47', NULL, 0, NULL, NULL, NULL, 1),
+(29, NULL, 'DYN008', 'Test Đơn mới', '0900000007', NULL, '123 Test Street, District 8', 1925618.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'n-a', 'free', 'n-a', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 14:40:47', NULL, 0, NULL, NULL, NULL, 1),
+(30, NULL, 'DYN009', 'Test Đang gọi', '0900000008', NULL, '123 Test Street, District 9', 1795834.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'n-a', 'free', 'n-a', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 14:40:47', NULL, 0, NULL, NULL, NULL, 1),
+(31, NULL, 'DYN010', 'Test Hẹn gọi lại', '0900000009', NULL, '123 Test Street, District 10', 822067.00, 'VND', NULL, '[{\"name\":\"Product Test\",\"qty\":1,\"price\":100000}]', NULL, 'n-a', 'free', 'n-a', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 06:09:44', '2025-10-01 14:40:47', NULL, 0, NULL, NULL, NULL, 1);
 
 --
 -- Bẫy `orders`
 --
 DELIMITER $$
-CREATE TRIGGER `tr_order_status_change` AFTER UPDATE ON `orders` FOR EACH ROW BEGIN
-    DECLARE old_label VARCHAR(100);
-    DECLARE new_label VARCHAR(100);
+CREATE TRIGGER `tr_order_label_change` AFTER UPDATE ON `orders` FOR EACH ROW BEGIN
+    DECLARE old_label_name VARCHAR(100);
+    DECLARE new_label_name VARCHAR(100);
     
-    IF OLD.status != NEW.status THEN
-        -- Lấy label từ order_status_configs
-        SELECT label INTO old_label FROM order_status_configs WHERE status_key = OLD.status LIMIT 1;
-        SELECT label INTO new_label FROM order_status_configs WHERE status_key = NEW.status LIMIT 1;
+    IF (OLD.primary_label IS NULL AND NEW.primary_label IS NOT NULL) OR
+       (OLD.primary_label IS NOT NULL AND NEW.primary_label IS NULL) OR
+       (OLD.primary_label != NEW.primary_label) THEN
         
-        -- Fallback to status_key nếu không tìm thấy
-        SET old_label = IFNULL(old_label, OLD.status);
-        SET new_label = IFNULL(new_label, NEW.status);
+        IF OLD.primary_label IS NOT NULL THEN
+            SELECT label_name INTO old_label_name 
+            FROM order_labels WHERE label_key = OLD.primary_label LIMIT 1;
+        END IF;
+        
+        IF NEW.primary_label IS NOT NULL THEN
+            SELECT label_name INTO new_label_name 
+            FROM order_labels WHERE label_key = NEW.primary_label LIMIT 1;
+        END IF;
         
         INSERT INTO order_notes (order_id, user_id, note_type, content)
-        VALUES (
-            NEW.id,
-            NEW.assigned_to,
-            'status',
-            CONCAT('Trạng thái đổi từ "', old_label, '" sang "', new_label, '"')
-        );
-    END IF;
-END
-$$
-DELIMITER ;
-DELIMITER $$
-CREATE TRIGGER `validate_status_insert` BEFORE INSERT ON `orders` FOR EACH ROW BEGIN
-    DECLARE status_exists INT;
-    DECLARE default_status VARCHAR(50);
-    
-    -- Check if status exists
-    SELECT COUNT(*) INTO status_exists 
-    FROM order_status_configs 
-    WHERE status_key = NEW.status;
-    
-    -- If not exists, use first status from configs
-    IF status_exists = 0 THEN
-        SELECT status_key INTO default_status
-        FROM order_status_configs 
-        ORDER BY sort_order ASC 
-        LIMIT 1;
+        VALUES (NEW.id, NEW.assigned_to, 'status',
+            CONCAT('Nhãn: "', IFNULL(old_label_name, 'Không có'), 
+                   '" → "', IFNULL(new_label_name, 'Không có'), '"'));
         
-        SET NEW.status = IFNULL(default_status, 'n-a');
+        IF NEW.primary_label IS NOT NULL THEN
+            INSERT INTO order_label_history (order_id, label_key, action, assigned_by)
+            VALUES (NEW.id, NEW.primary_label, 'assigned', NEW.assigned_to);
+        END IF;
     END IF;
 END
 $$
 DELIMITER ;
 DELIMITER $$
-CREATE TRIGGER `validate_status_update` BEFORE UPDATE ON `orders` FOR EACH ROW BEGIN
-    DECLARE status_exists INT;
-    
-    SELECT COUNT(*) INTO status_exists 
-    FROM order_status_configs 
-    WHERE status_key = NEW.status;
-    
-    -- Keep old status if new one is invalid
-    IF status_exists = 0 THEN
-        SET NEW.status = OLD.status;
+CREATE TRIGGER `validate_system_status_insert` BEFORE INSERT ON `orders` FOR EACH ROW BEGIN
+    IF NEW.system_status = 'free' AND NEW.assigned_to IS NOT NULL THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Logic error: free but assigned';
+    END IF;
+    IF NEW.system_status = 'assigned' AND NEW.assigned_to IS NULL THEN
+        SET NEW.system_status = 'free';
     END IF;
 END
 $$
 DELIMITER ;
+DELIMITER $$
+CREATE TRIGGER `validate_system_status_update` BEFORE UPDATE ON `orders` FOR EACH ROW BEGIN
+    DECLARE is_final_label TINYINT DEFAULT 0;
+    
+    IF NEW.system_status = 'free' AND NEW.assigned_to IS NOT NULL THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Logic error: free but assigned';
+    END IF;
+    IF NEW.system_status = 'assigned' AND NEW.assigned_to IS NULL THEN
+        SET NEW.system_status = 'free';
+    END IF;
+    
+    IF NEW.primary_label IS NOT NULL AND 
+       (OLD.primary_label IS NULL OR OLD.primary_label != NEW.primary_label) THEN
+        SELECT is_final INTO is_final_label 
+        FROM order_labels WHERE label_key = NEW.primary_label LIMIT 1;
+        
+        IF is_final_label = 1 THEN
+            SET NEW.is_locked = 1;
+            SET NEW.locked_at = NOW();
+            SET NEW.locked_by = NEW.assigned_to;
+            SET NEW.completed_at = NOW();
+        END IF;
+    END IF;
+END
+$$
+DELIMITER ;
+
+-- --------------------------------------------------------
+
+--
+-- Cấu trúc bảng cho bảng `order_labels`
+--
+
+CREATE TABLE `order_labels` (
+  `label_key` varchar(50) NOT NULL,
+  `label_name` varchar(100) NOT NULL,
+  `description` text DEFAULT NULL,
+  `color` varchar(20) NOT NULL DEFAULT '#6c757d',
+  `icon` varchar(50) NOT NULL DEFAULT 'fa-tag',
+  `sort_order` int(11) NOT NULL DEFAULT 0,
+  `is_final` tinyint(1) DEFAULT 0,
+  `is_system` tinyint(1) DEFAULT 0,
+  `auto_lock` tinyint(1) DEFAULT 0,
+  `metadata` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`metadata`)),
+  `created_by` int(10) UNSIGNED DEFAULT NULL,
+  `created_at` datetime DEFAULT current_timestamp(),
+  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Đang đổ dữ liệu cho bảng `order_labels`
+--
+
+INSERT INTO `order_labels` (`label_key`, `label_name`, `description`, `color`, `icon`, `sort_order`, `is_final`, `is_system`, `auto_lock`, `metadata`, `created_by`, `created_at`, `updated_at`) VALUES
+('bom-hang', 'Bom hàng', NULL, '#dc3545', 'fa-bomb', 12, 0, 0, 0, NULL, NULL, '2025-09-30 16:34:13', '2025-10-01 08:21:05'),
+('dang-giao', 'Đang giao', NULL, '#639419', 'fa-tag', 11, 0, 0, 0, NULL, NULL, '2025-09-30 16:28:29', '2025-09-30 16:28:29'),
+('dang-hoan', 'Đang hoàn', NULL, '#8c460d', 'fa-tag', 16, 0, 0, 0, NULL, NULL, '2025-09-30 16:34:44', '2025-09-30 16:34:44'),
+('dong-goi-sai', 'Đóng gói sai', NULL, '#7c3131', 'fa-tag', 12, 0, 0, 0, NULL, NULL, '2025-09-30 16:30:16', '2025-09-30 16:30:16'),
+('giao-thanh-cong', 'Giao thành công', NULL, '#00d604', 'fa-tag', 20, 0, 0, 0, NULL, NULL, '2025-09-30 16:37:32', '2025-09-30 16:37:32'),
+('hoan-thanh-cong', 'Hoàn thành công', NULL, '#1a1a1a', 'fa-tag', 17, 0, 0, 0, NULL, NULL, '2025-09-30 16:35:25', '2025-09-30 16:35:25'),
+('khong-nghe', 'Không nghe', NULL, '#dfc834', 'fa-tag', 3, 0, 0, 0, NULL, NULL, '2025-09-30 16:23:37', '2025-09-30 16:23:37'),
+('n-a', 'Đơn mới', NULL, '#08f7cf', 'fa-tag', 1, 0, 0, 0, NULL, NULL, '2025-09-30 16:18:10', '2025-09-30 16:18:10');
+
+-- --------------------------------------------------------
+
+--
+-- Cấu trúc bảng cho bảng `order_label_history`
+--
+
+CREATE TABLE `order_label_history` (
+  `id` int(11) NOT NULL,
+  `order_id` int(10) UNSIGNED NOT NULL,
+  `label_key` varchar(50) NOT NULL,
+  `action` enum('assigned','removed') NOT NULL DEFAULT 'assigned',
+  `assigned_by` int(10) UNSIGNED DEFAULT NULL,
+  `created_at` datetime DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Đang đổ dữ liệu cho bảng `order_label_history`
+--
+
+INSERT INTO `order_label_history` (`id`, `order_id`, `label_key`, `action`, `assigned_by`, `created_at`) VALUES
+(1, 22, 'n-a', 'assigned', 1, '2025-10-01 14:40:47'),
+(2, 23, 'dang-giao', 'assigned', NULL, '2025-10-01 14:40:47'),
+(3, 24, 'dang-hoan', 'assigned', NULL, '2025-10-01 14:40:47'),
+(4, 25, 'dong-goi-sai', 'assigned', NULL, '2025-10-01 14:40:47'),
+(5, 26, 'giao-thanh-cong', 'assigned', NULL, '2025-10-01 14:40:47'),
+(6, 27, 'dong-goi-sai', 'assigned', 1, '2025-10-01 14:40:47'),
+(7, 28, 'n-a', 'assigned', 1, '2025-10-01 14:40:47'),
+(8, 29, 'n-a', 'assigned', NULL, '2025-10-01 14:40:47'),
+(9, 30, 'n-a', 'assigned', NULL, '2025-10-01 14:40:47'),
+(10, 31, 'n-a', 'assigned', NULL, '2025-10-01 14:40:47');
 
 -- --------------------------------------------------------
 
@@ -564,10 +640,10 @@ INSERT INTO `order_notes` (`id`, `order_id`, `user_id`, `note_type`, `content`, 
 -- --------------------------------------------------------
 
 --
--- Cấu trúc bảng cho bảng `order_status_configs`
+-- Cấu trúc bảng cho bảng `order_status_configs_old_backup`
 --
 
-CREATE TABLE `order_status_configs` (
+CREATE TABLE `order_status_configs_old_backup` (
   `status_key` varchar(50) NOT NULL,
   `label` varchar(100) NOT NULL,
   `color` varchar(20) NOT NULL,
@@ -581,10 +657,10 @@ CREATE TABLE `order_status_configs` (
 ) ;
 
 --
--- Đang đổ dữ liệu cho bảng `order_status_configs`
+-- Đang đổ dữ liệu cho bảng `order_status_configs_old_backup`
 --
 
-INSERT INTO `order_status_configs` (`status_key`, `label`, `color`, `icon`, `sort_order`, `logic_json`, `created_by`, `created_at`, `updated_at`, `is_system`) VALUES
+INSERT INTO `order_status_configs_old_backup` (`status_key`, `label`, `color`, `icon`, `sort_order`, `logic_json`, `created_by`, `created_at`, `updated_at`, `is_system`) VALUES
 ('assigned', '[HỆ THỐNG] Đã gán', '#17a2b8', 'fa-user-check', -1, '', NULL, '2025-10-01 13:55:12', '2025-10-01 13:55:12', 1),
 ('bom-hang', 'Bom hàng', '#dc3545', 'fa-bomb', 12, '', NULL, '2025-09-30 16:34:13', '2025-10-01 08:21:05', 0),
 ('dang-giao', 'Đang giao', '#639419', 'fa-tag', 11, '', NULL, '2025-09-30 16:28:29', '2025-09-30 16:28:29', 0),
@@ -1061,6 +1137,8 @@ CREATE TABLE `v_orders_with_status` (
 ,`products` longtext
 ,`customer_notes` text
 ,`status` varchar(50)
+,`system_status` enum('free','assigned')
+,`primary_label` varchar(50)
 ,`assigned_to` int(10) unsigned
 ,`manager_id` int(10) unsigned
 ,`assigned_at` datetime
@@ -1076,9 +1154,15 @@ CREATE TABLE `v_orders_with_status` (
 ,`created_at` datetime
 ,`updated_at` datetime
 ,`completed_at` datetime
-,`status_label` varchar(100)
-,`status_color` varchar(20)
-,`status_icon` varchar(50)
+,`is_locked` tinyint(1)
+,`locked_at` datetime
+,`locked_by` int(10) unsigned
+,`deleted_at` timestamp
+,`version` int(11)
+,`label_name` varchar(100)
+,`label_color` varchar(20)
+,`label_icon` varchar(50)
+,`label_is_final` int(4)
 );
 
 -- --------------------------------------------------------
@@ -1135,7 +1219,7 @@ CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW 
 --
 DROP TABLE IF EXISTS `v_orders_with_status`;
 
-CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_orders_with_status`  AS SELECT `o`.`id` AS `id`, `o`.`woo_order_id` AS `woo_order_id`, `o`.`order_number` AS `order_number`, `o`.`customer_name` AS `customer_name`, `o`.`customer_phone` AS `customer_phone`, `o`.`customer_email` AS `customer_email`, `o`.`customer_address` AS `customer_address`, `o`.`total_amount` AS `total_amount`, `o`.`currency` AS `currency`, `o`.`payment_method` AS `payment_method`, `o`.`products` AS `products`, `o`.`customer_notes` AS `customer_notes`, `o`.`status` AS `status`, `o`.`assigned_to` AS `assigned_to`, `o`.`manager_id` AS `manager_id`, `o`.`assigned_at` AS `assigned_at`, `o`.`call_count` AS `call_count`, `o`.`last_call_at` AS `last_call_at`, `o`.`callback_time` AS `callback_time`, `o`.`source` AS `source`, `o`.`created_by` AS `created_by`, `o`.`approval_status` AS `approval_status`, `o`.`approved_by` AS `approved_by`, `o`.`approved_at` AS `approved_at`, `o`.`woo_created_at` AS `woo_created_at`, `o`.`created_at` AS `created_at`, `o`.`updated_at` AS `updated_at`, `o`.`completed_at` AS `completed_at`, coalesce(`osc`.`label`,`o`.`status`) AS `status_label`, coalesce(`osc`.`color`,'#6c757d') AS `status_color`, coalesce(`osc`.`icon`,'fa-tag') AS `status_icon` FROM (`orders` `o` left join `order_status_configs` `osc` on(`o`.`status` = `osc`.`status_key`)) ;
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_orders_with_status`  AS SELECT `o`.`id` AS `id`, `o`.`woo_order_id` AS `woo_order_id`, `o`.`order_number` AS `order_number`, `o`.`customer_name` AS `customer_name`, `o`.`customer_phone` AS `customer_phone`, `o`.`customer_email` AS `customer_email`, `o`.`customer_address` AS `customer_address`, `o`.`total_amount` AS `total_amount`, `o`.`currency` AS `currency`, `o`.`payment_method` AS `payment_method`, `o`.`products` AS `products`, `o`.`customer_notes` AS `customer_notes`, `o`.`status` AS `status`, `o`.`system_status` AS `system_status`, `o`.`primary_label` AS `primary_label`, `o`.`assigned_to` AS `assigned_to`, `o`.`manager_id` AS `manager_id`, `o`.`assigned_at` AS `assigned_at`, `o`.`call_count` AS `call_count`, `o`.`last_call_at` AS `last_call_at`, `o`.`callback_time` AS `callback_time`, `o`.`source` AS `source`, `o`.`created_by` AS `created_by`, `o`.`approval_status` AS `approval_status`, `o`.`approved_by` AS `approved_by`, `o`.`approved_at` AS `approved_at`, `o`.`woo_created_at` AS `woo_created_at`, `o`.`created_at` AS `created_at`, `o`.`updated_at` AS `updated_at`, `o`.`completed_at` AS `completed_at`, `o`.`is_locked` AS `is_locked`, `o`.`locked_at` AS `locked_at`, `o`.`locked_by` AS `locked_by`, `o`.`deleted_at` AS `deleted_at`, `o`.`version` AS `version`, coalesce(`ol`.`label_name`,'Chưa có nhãn') AS `label_name`, coalesce(`ol`.`color`,'#6c757d') AS `label_color`, coalesce(`ol`.`icon`,'fa-tag') AS `label_icon`, coalesce(`ol`.`is_final`,0) AS `label_is_final` FROM (`orders` `o` left join `order_labels` `ol` on(`o`.`primary_label` = `ol`.`label_key`)) ;
 
 -- --------------------------------------------------------
 
@@ -1144,7 +1228,7 @@ CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW 
 --
 DROP TABLE IF EXISTS `v_order_status_summary`;
 
-CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_order_status_summary`  AS SELECT `osc`.`status_key` AS `status_key`, `osc`.`label` AS `label`, `osc`.`color` AS `color`, `osc`.`icon` AS `icon`, `osc`.`sort_order` AS `sort_order`, count(`o`.`id`) AS `total_orders` FROM (`order_status_configs` `osc` left join `orders` `o` on(`o`.`status` = `osc`.`status_key`)) GROUP BY `osc`.`status_key`, `osc`.`label`, `osc`.`color`, `osc`.`icon`, `osc`.`sort_order` ORDER BY `osc`.`sort_order` ASC ;
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_order_status_summary`  AS SELECT `ol`.`label_key` AS `status_key`, `ol`.`label_name` AS `label`, `ol`.`color` AS `color`, `ol`.`icon` AS `icon`, `ol`.`sort_order` AS `sort_order`, count(`o`.`id`) AS `total_orders` FROM (`order_labels` `ol` left join `orders` `o` on(`o`.`primary_label` = `ol`.`label_key`)) GROUP BY `ol`.`label_key`, `ol`.`label_name`, `ol`.`color`, `ol`.`icon`, `ol`.`sort_order` ORDER BY `ol`.`sort_order` ASC ;
 
 -- --------------------------------------------------------
 
@@ -1153,7 +1237,7 @@ CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW 
 --
 DROP TABLE IF EXISTS `v_status_options`;
 
-CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_status_options`  AS SELECT `order_status_configs`.`status_key` AS `value`, `order_status_configs`.`label` AS `text`, `order_status_configs`.`color` AS `color`, `order_status_configs`.`icon` AS `icon`, `order_status_configs`.`sort_order` AS `sort_order` FROM `order_status_configs` ORDER BY `order_status_configs`.`sort_order` ASC ;
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_status_options`  AS SELECT `order_labels`.`label_key` AS `value`, `order_labels`.`label_name` AS `text`, `order_labels`.`color` AS `color`, `order_labels`.`icon` AS `icon`, `order_labels`.`sort_order` AS `sort_order` FROM `order_labels` WHERE `order_labels`.`is_system` = 0 ORDER BY `order_labels`.`sort_order` ASC ;
 
 --
 -- Chỉ mục cho các bảng đã đổ
@@ -1282,7 +1366,25 @@ ALTER TABLE `orders`
   ADD KEY `idx_orders_phone` (`customer_phone`),
   ADD KEY `idx_created_at` (`created_at`),
   ADD KEY `idx_approval_status` (`approval_status`),
-  ADD KEY `idx_source` (`source`);
+  ADD KEY `idx_source` (`source`),
+  ADD KEY `idx_system_status` (`system_status`),
+  ADD KEY `idx_primary_label` (`primary_label`);
+
+--
+-- Chỉ mục cho bảng `order_labels`
+--
+ALTER TABLE `order_labels`
+  ADD PRIMARY KEY (`label_key`),
+  ADD KEY `idx_sort_order` (`sort_order`),
+  ADD KEY `idx_is_final` (`is_final`);
+
+--
+-- Chỉ mục cho bảng `order_label_history`
+--
+ALTER TABLE `order_label_history`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_order_id` (`order_id`),
+  ADD KEY `idx_label_key` (`label_key`);
 
 --
 -- Chỉ mục cho bảng `order_notes`
@@ -1295,9 +1397,9 @@ ALTER TABLE `order_notes`
   ADD KEY `idx_created_at` (`created_at`);
 
 --
--- Chỉ mục cho bảng `order_status_configs`
+-- Chỉ mục cho bảng `order_status_configs_old_backup`
 --
-ALTER TABLE `order_status_configs`
+ALTER TABLE `order_status_configs_old_backup`
   ADD PRIMARY KEY (`status_key`);
 
 --
@@ -1492,6 +1594,12 @@ ALTER TABLE `orders`
   MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=32;
 
 --
+-- AUTO_INCREMENT cho bảng `order_label_history`
+--
+ALTER TABLE `order_label_history`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
+
+--
 -- AUTO_INCREMENT cho bảng `order_notes`
 --
 ALTER TABLE `order_notes`
@@ -1626,6 +1734,13 @@ ALTER TABLE `orders`
   ADD CONSTRAINT `orders_ibfk_2` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `orders_ibfk_3` FOREIGN KEY (`approved_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `orders_ibfk_4` FOREIGN KEY (`manager_id`) REFERENCES `users` (`id`) ON DELETE SET NULL;
+
+--
+-- Các ràng buộc cho bảng `order_label_history`
+--
+ALTER TABLE `order_label_history`
+  ADD CONSTRAINT `order_label_history_ibfk_1` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `order_label_history_ibfk_2` FOREIGN KEY (`label_key`) REFERENCES `order_labels` (`label_key`) ON DELETE CASCADE;
 
 --
 -- Các ràng buộc cho bảng `order_notes`

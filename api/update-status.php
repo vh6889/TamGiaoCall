@@ -94,7 +94,7 @@ try {
     
     // Get status label for logging
     $status_label = db_get_var(
-        "SELECT label FROM order_status_configs WHERE status_key = ?",
+        "SELECT label_name AS label FROM order_labels WHERE label_key = ?",
         [$status]
     ) ?: $status;
     

@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_action'])) {
     } else {
         if ($_POST['form_action'] === 'add') {
             $key = slugify($name);
-            $exists = db_get_var("SELECT COUNT(*) FROM order_status_configs WHERE status_key = ?", [$key]);
+            $exists = db_get_var("SELECT COUNT(*) FROM order_labels WHERE label_key = ?", [$key]);
             if ($exists > 0) {
                 $key = $key . '-' . time();
             }
@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_action'])) {
     redirect('admin-order-statuses.php');
 }
 
-$statuses = db_get_results("SELECT * FROM order_status_configs ORDER BY sort_order ASC, label ASC");
+$statuses = db_get_results("SELECT * FROM order_labels ORDER BY sort_order ASC, label ASC");
 
 include 'includes/header.php';
 ?>

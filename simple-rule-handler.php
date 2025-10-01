@@ -89,7 +89,7 @@ function get_order_suggestions($order) {
         $cancelled_orders = db_get_var(
             "SELECT COUNT(*) FROM orders 
              WHERE customer_phone = ? 
-             AND status IN (SELECT status_key FROM order_status_configs WHERE label LIKE '%huy%' OR label LIKE '%rejected%' OR label LIKE '%bom%') 
+             AND status IN (SELECT label_key AS status_key, FROM order_labels WHERE label LIKE '%huy%' OR label LIKE '%rejected%' OR label LIKE '%bom%') 
              AND id != ?",
             [$order['customer_phone'], $order['id']]
         );
@@ -143,7 +143,7 @@ function create_auto_reminders($order_id, $order_status, $user_id) {
     }
     
     // Auto reminder for no_answer after multiple attempts
-    $no_answer_statuses = db_get_col("SELECT status_key FROM order_status_configs WHERE label LIKE '%khong nghe%' OR label LIKE '%no_answer%'");
+    $no_answer_statuses = db_get_col("SELECT label_key AS status_key, FROM order_labels WHERE label LIKE '%khong nghe%' OR label LIKE '%no_answer%'");
     if (!empty($no_answer_statuses) && in_array($order_status, $no_answer_statuses)) {
         $call_count = db_get_var(
             "SELECT call_count FROM orders WHERE id = ?",
@@ -168,8 +168,8 @@ function create_auto_reminders($order_id, $order_status, $user_id) {
  */
 function complete_order_reminders($order_id, $new_status) {
     // Get confirmed and cancelled statuses
-    $confirmed_statuses = db_get_col("SELECT status_key FROM order_status_configs WHERE label LIKE '%xac nhan%' OR label LIKE '%hoan%' OR label LIKE '%thanh cong%'");
-    $cancelled_statuses = db_get_col("SELECT status_key FROM order_status_configs WHERE label LIKE '%huy%' OR label LIKE '%rejected%' OR label LIKE '%bom%'");
+    $confirmed_statuses = db_get_col("SELECT label_key AS status_key, FROM order_labels WHERE label LIKE '%xac nhan%' OR label LIKE '%hoan%' OR label LIKE '%thanh cong%'");
+    $cancelled_statuses = db_get_col("SELECT label_key AS status_key, FROM order_labels WHERE label LIKE '%huy%' OR label LIKE '%rejected%' OR label LIKE '%bom%'");
     
     $final_statuses = array_merge($confirmed_statuses ?: [], $cancelled_statuses ?: []);
     
@@ -212,7 +212,7 @@ function get_employee_warnings($user_id) {
         "SELECT COUNT(*) as total,
                 SUM(CASE WHEN osc.label LIKE '%xac nhan%' OR osc.label LIKE '%hoan%' OR osc.label LIKE '%thanh cong%' THEN 1 ELSE 0 END) as confirmed
          FROM orders o
-         LEFT JOIN order_status_configs osc ON o.status = osc.status_key
+         LEFT JOIN order_labels osc ON o.status = osc.status_key
          WHERE o.assigned_to = ? 
          AND DATE(o.updated_at) = CURDATE()",
         [$user_id]

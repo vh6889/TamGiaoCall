@@ -55,42 +55,44 @@ if (is_admin()) {
     $team_label = "Của tôi";
 }
 
-// Get all dynamic statuses
+// Get all dynamic labels (đổi từ statuses)
 $all_statuses = get_all_statuses();
 
-// Calculate statistics with date filter
+// Calculate statistics with date filter (SỬA: đổi osc → ol, label → label_name)
+$date_params = array_merge($params, [$filter_from, $filter_to]);
+
 $stats_query = "
     SELECT 
         COUNT(*) as total_orders,
         SUM(o.total_amount) as total_revenue,
-        SUM(CASE WHEN osc.label LIKE '%thành công%' OR osc.label LIKE '%hoàn thành%' 
-                 OR osc.label LIKE '%completed%' THEN o.total_amount ELSE 0 END) as confirmed_revenue,
-        COUNT(CASE WHEN osc.label LIKE '%thành công%' OR osc.label LIKE '%hoàn thành%' 
-                   OR osc.label LIKE '%completed%' THEN 1 END) as confirmed_orders,
+        SUM(CASE WHEN ol.label_name LIKE '%thành công%' OR ol.label_name LIKE '%hoàn thành%' 
+                 OR ol.label_name LIKE '%completed%' THEN o.total_amount ELSE 0 END) as confirmed_revenue,
+        COUNT(CASE WHEN ol.label_name LIKE '%thành công%' OR ol.label_name LIKE '%hoàn thành%' 
+                   OR ol.label_name LIKE '%completed%' THEN 1 END) as confirmed_orders,
         COUNT(CASE WHEN DATE(o.created_at) = CURDATE() THEN 1 END) as today_orders
     FROM orders o
-    LEFT JOIN order_status_configs osc ON o.status = osc.status_key
+    LEFT JOIN order_labels ol ON o.primary_label = ol.label_key
     WHERE ($where_base) 
     AND DATE(o.created_at) BETWEEN ? AND ?";
 
-$date_params = array_merge($params, [$filter_from, $filter_to]);
 $stats = db_get_row($stats_query, $date_params);
 
-// Get status breakdown for chart
+// Get status breakdown for chart (SỬA: đổi bảng và cột)
 $status_breakdown_query = "
     SELECT 
-        osc.status_key,
-        osc.label,
-        osc.color,
-        osc.icon,
+        ol.label_key as status_key,
+        ol.label_name as label,
+        ol.color,
+        ol.icon,
         COUNT(o.id) as count,
         SUM(o.total_amount) as revenue
-    FROM order_status_configs osc
-    LEFT JOIN orders o ON o.status = osc.status_key 
+    FROM order_labels ol
+    LEFT JOIN orders o ON o.primary_label = ol.label_key 
         AND ($where_base)
         AND DATE(o.created_at) BETWEEN ? AND ?
-    GROUP BY osc.status_key, osc.label, osc.color, osc.icon
-    ORDER BY osc.sort_order";
+    WHERE ol.is_system = 0
+    GROUP BY ol.label_key, ol.label_name, ol.color, ol.icon
+    ORDER BY ol.sort_order";
 
 $status_breakdown = db_get_results($status_breakdown_query, $date_params);
 
@@ -108,7 +110,7 @@ $daily_trend_query = "
 
 $daily_trend = db_get_results($daily_trend_query, $date_params);
 
-// Get top performers (for admin/manager)
+// Get top performers (for admin/manager) (SỬA: đổi join)
 $top_performers = [];
 if (is_admin() || is_manager()) {
     $top_query = "
@@ -117,18 +119,18 @@ if (is_admin() || is_manager()) {
             u.full_name,
             u.role,
             COUNT(o.id) as total_orders,
-            SUM(CASE WHEN osc.label LIKE '%thành công%' OR osc.label LIKE '%hoàn thành%' 
+            SUM(CASE WHEN ol.label_name LIKE '%thành công%' OR ol.label_name LIKE '%hoàn thành%' 
                      THEN 1 ELSE 0 END) as confirmed_orders,
-            SUM(CASE WHEN osc.label LIKE '%thành công%' OR osc.label LIKE '%hoàn thành%' 
+            SUM(CASE WHEN ol.label_name LIKE '%thành công%' OR ol.label_name LIKE '%hoàn thành%' 
                      THEN o.total_amount ELSE 0 END) as revenue,
             ROUND(
-                COUNT(CASE WHEN osc.label LIKE '%thành công%' OR osc.label LIKE '%hoàn thành%' 
+                COUNT(CASE WHEN ol.label_name LIKE '%thành công%' OR ol.label_name LIKE '%hoàn thành%' 
                           THEN 1 END) * 100.0 / NULLIF(COUNT(o.id), 0), 1
             ) as success_rate
         FROM users u
         LEFT JOIN orders o ON u.id = o.assigned_to 
             AND DATE(o.created_at) BETWEEN ? AND ?
-        LEFT JOIN order_status_configs osc ON o.status = osc.status_key
+        LEFT JOIN order_labels ol ON o.primary_label = ol.label_key
         WHERE u.status = 'active' 
         " . (is_manager() ? "AND u.id IN (SELECT telesale_id FROM manager_assignments WHERE manager_id = ?)" : "") . "
         GROUP BY u.id, u.full_name, u.role
@@ -143,17 +145,17 @@ if (is_admin() || is_manager()) {
     $top_performers = db_get_results($top_query, $top_params);
 }
 
-// Recent orders with dynamic status
+// Recent orders with dynamic status (SỬA: đổi join)
 $recent_orders_query = "
     SELECT 
         o.*,
         u.full_name as assigned_name,
-        osc.label as status_label,
-        osc.color as status_color,
-        osc.icon as status_icon
+        ol.label_name as status_label,
+        ol.color as status_color,
+        ol.icon as status_icon
     FROM orders o
     LEFT JOIN users u ON o.assigned_to = u.id
-    LEFT JOIN order_status_configs osc ON o.status = osc.status_key
+    LEFT JOIN order_labels ol ON o.primary_label = ol.label_key
     WHERE ($where_base)
     ORDER BY o.created_at DESC
     LIMIT 10";
@@ -186,6 +188,7 @@ if (is_telesale()) {
 include 'includes/header.php';
 ?>
 
+<!-- GIỮ NGUYÊN TOÀN BỘ HTML TỪ ĐÂY TRỞ XUỐNG -->
 <div class="container-fluid">
     <!-- Header với Filter -->
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -363,7 +366,7 @@ include 'includes/header.php';
         <div class="col-md-8">
             <div class="card border-0 shadow-sm">
                 <div class="card-body">
-                    <h5 class="card-title mb-3">Phân bố theo trạng thái</h5>
+                    <h5 class="card-title mb-3">Phân bổ theo trạng thái</h5>
                     <div style="height: 350px; position: relative;">
                         <canvas id="statusChart"></canvas>
                     </div>

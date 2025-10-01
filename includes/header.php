@@ -158,8 +158,8 @@ $is_system_page_active = in_array($current_page, $system_pages);
                         <li class="<?php echo ($current_page == 'manager-assignments.php') ? 'active' : ''; ?>">
                             <a href="manager-assignments.php"><i class="fas fa-sitemap nav-icon"></i> Phân công Manager</a>
                         </li>
-                        <li class="<?php echo ($current_page == 'manage-order-statuses.php') ? 'active' : ''; ?>">
-							<a href="manage-order-statuses.php"><i class="fas fa-tags nav-icon"></i> Nhãn Đơn Hàng</a>
+                        <li class="<?php echo ($current_page == 'manage-order-labels.php') ? 'active' : ''; ?>">
+							<a href="manage-order-labels.php"><i class="fas fa-tags nav-icon"></i> Nhãn Đơn Hàng</a>
 						</li>
 						<li class="<?php echo ($current_page == 'manage-customer-labels.php') ? 'active' : ''; ?>">
 							<a href="manage-customer-labels.php"><i class="fas fa-user-tag nav-icon"></i> Nhãn Khách Hàng</a>
