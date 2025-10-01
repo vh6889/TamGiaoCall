@@ -5,7 +5,7 @@
 define('TSM_ACCESS', true);
 require_once 'config.php';
 require_once 'functions.php';
-require_once 'includes/status_helper.php';  // Helper cho status động
+require_once 'includes/status_helper.php';
 
 require_login();
 
@@ -55,7 +55,25 @@ $total_pages = ceil($total_orders / ITEMS_PER_PAGE);
 $telesales_list = is_admin() || is_manager() ? get_telesales('active') : [];
 
 // Lấy tất cả status từ database
-$all_statuses = get_all_statuses();
+$all_statuses = db_get_results(
+    "SELECT status_key as value, label as text, color, icon 
+     FROM order_status_configs 
+     ORDER BY sort_order"
+);
+
+// Đảm bảo là array
+if (!is_array($all_statuses)) {
+    $all_statuses = [];
+}
+
+// Lấy default status (đơn mới)
+$default_status_row = db_get_row(
+    "SELECT status_key FROM order_status_configs 
+     WHERE label LIKE '%mới%' OR label LIKE '%new%' 
+     ORDER BY sort_order 
+     LIMIT 1"
+);
+$default_status = $default_status_row ? $default_status_row['status_key'] : 'new';
 
 include 'includes/header.php';
 ?>
@@ -194,7 +212,7 @@ include 'includes/header.php';
                                 </td>
                                 <td>
                                     <strong><?php echo htmlspecialchars($order['customer_name']); ?></strong>
-                                    <?php if ($order['customer_email']): ?>
+                                    <?php if (!empty($order['customer_email'])): ?>
                                     <br><small class="text-muted"><?php echo htmlspecialchars($order['customer_email']); ?></small>
                                     <?php endif; ?>
                                 </td>
@@ -211,18 +229,18 @@ include 'includes/header.php';
                                     <strong class="text-success"><?php echo format_money($order['total_amount']); ?></strong>
                                 </td>
                                 <td>
-                                    <?php echo render_status_badge($order['status']); ?>
-                                    <?php if ($order['callback_time']): ?>
+                                    <?php echo get_status_badge($order['status']); ?>
+                                    <?php if (!empty($order['callback_time'])): ?>
                                     <br><small class="text-muted">
                                         <i class="fas fa-clock"></i> <?php echo format_date($order['callback_time'], 'd/m H:i'); ?>
                                     </small>
                                     <?php endif; ?>
                                 </td>
                                 <td class="assigned-user-<?php echo $order['id']; ?>">
-                                    <?php if ($order['assigned_to']): ?>
+                                    <?php if (!empty($order['assigned_to'])): ?>
                                         <?php 
                                         $assigned_user = get_user($order['assigned_to']);
-                                        if ($assigned_user): ?>
+                                        if ($assigned_user && is_array($assigned_user)): ?>
                                             <span class="badge bg-info">
                                                 <i class="fas fa-user"></i>
                                                 <?php echo htmlspecialchars($assigned_user['full_name']); ?>
@@ -249,8 +267,7 @@ include 'includes/header.php';
                                         
                                         <?php 
                                         // Kiểm tra đơn có thể nhận không (status = đơn mới và chưa gán)
-                                        $default_status = get_default_status();
-                                        if ($order['status'] === $default_status && !$order['assigned_to'] && !is_admin() && !is_manager()): 
+                                        if ($order['status'] === $default_status && empty($order['assigned_to']) && !is_admin() && !is_manager()): 
                                         ?>
                                             <button class="btn btn-primary btn-claim-order" 
                                                     data-order-id="<?php echo $order['id']; ?>"
