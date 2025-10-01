@@ -48,7 +48,7 @@ if (!is_admin() && !is_manager()) {
 }
 
 // Get orders with dynamic status info
-$orders = get_orders_with_status($filters);
+$orders = get_orders($filters);
 $total_orders = count_orders($filters);
 $total_pages = ceil($total_orders / ITEMS_PER_PAGE);
 
@@ -56,8 +56,7 @@ $total_pages = ceil($total_orders / ITEMS_PER_PAGE);
 $telesales_list = is_admin() || is_manager() ? get_telesales('active') : [];
 
 // Lấy tất cả USER-DEFINED statuses (không bao gồm free/assigned)
-$user_statuses = get_user_statuses();
-
+$user_statuses = get_all_statuses();
 include 'includes/header.php';
 ?>
 
@@ -212,7 +211,7 @@ include 'includes/header.php';
                                     <strong class="text-success"><?php echo format_money($order['total_amount']); ?></strong>
                                 </td>
                                 <td>
-                                    <?php echo get_status_badge($order['status']); ?>
+                                    <?php echo format_status_badge($order['primary_label'] ?? $order['status']); ?>
                                     <?php if (!empty($order['callback_time']) && $order['callback_time'] != '0000-00-00 00:00:00'): ?>
                                     <br><small class="text-muted">
                                         <i class="fas fa-clock"></i> <?php echo format_date($order['callback_time'], 'd/m H:i'); ?>
@@ -250,7 +249,7 @@ include 'includes/header.php';
                                         
                                         <?php 
                                         // Kiểm tra đơn có thể nhận không: status = free VÀ chưa gán
-                                        if ($order['status'] === get_free_status_key() && empty($order['assigned_to']) && !is_admin() && !is_manager()): 
+                                        if ($order['system_status'] === 'free' && empty($order['assigned_to']) && !is_admin() && !is_manager()):
                                         ?>
                                             <button class="btn btn-primary btn-claim-order" 
                                                     data-order-id="<?php echo $order['id']; ?>"

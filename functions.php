@@ -377,10 +377,12 @@ function get_orders($filters = []) {
     $order_dir = $filters['order_dir'] ?? 'DESC';
     
     $sql = "SELECT o.*, 
-                   ol.label_name, 
-                   ol.color AS label_color, 
-                   ol.icon AS label_icon
-            FROM orders o
+               o.primary_label as status,       
+               o.system_status,                  
+               ol.label_name, 
+               ol.color AS label_color, 
+               ol.icon AS label_icon
+        FROM orders o
             LEFT JOIN order_labels ol ON o.primary_label = ol.label_key
             WHERE " . implode(' AND ', $where) . 
            " ORDER BY o.{$order_by} {$order_dir} LIMIT {$per_page} OFFSET {$offset}";
@@ -410,7 +412,25 @@ function count_orders($filters = []) {
     $sql = "SELECT COUNT(*) FROM orders WHERE " . implode(' AND ', $where);
     return (int) db_get_var($sql, $params);
 }
-
+/**
+ * Count orders by primary_label (for status tabs)
+ * 
+ * @param string $label_key Label key to count
+ * @param int|null $user_id Filter by user (null = all users)
+ * @return int Count of orders
+ */
+function count_orders_by_status($label_key, $user_id = null) {
+    $where = ['primary_label = ?'];
+    $params = [$label_key];
+    
+    if ($user_id !== null) {
+        $where[] = 'assigned_to = ?';
+        $params[] = $user_id;
+    }
+    
+    $sql = "SELECT COUNT(*) FROM orders WHERE " . implode(' AND ', $where);
+    return (int)db_get_var($sql, $params);
+}
 
 // =============================================
 // USER FUNCTIONS
