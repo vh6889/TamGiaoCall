@@ -6,6 +6,7 @@ if (basename($_SERVER['PHP_SELF']) == 'claim-order.php') {
     define('TSM_ACCESS', true);
     require_once '../config.php';
     require_once '../functions.php';
+require_once '../includes/status_helper.php';
     
     header('Content-Type: application/json');
     
@@ -30,7 +31,7 @@ if (basename($_SERVER['PHP_SELF']) == 'claim-order.php') {
         db_update('orders', [
             'assigned_to' => $user['id'],
             'assigned_at' => date('Y-m-d H:i:s'),
-            'status' => 'assigned'
+            'status' => db_get_var("SELECT status_key FROM order_status_configs WHERE label LIKE '%nhận%' OR label LIKE '%assigned%' LIMIT 1")
         ], 'id = ?', [$order_id]);
         
         db_insert('order_notes', [

@@ -81,4 +81,20 @@ function get_calling_status_key() {
     return $status ?: get_new_status_key();
 }
 
+
+function get_confirmed_statuses() {
+    return db_get_col(
+        "SELECT status_key FROM order_status_configs 
+         WHERE label LIKE '%xác nhận%' OR label LIKE '%hoàn%' 
+            OR label LIKE '%thành công%' OR label LIKE '%completed%'"
+    ) ?: [];
+}
+
+function get_cancelled_statuses() {
+    return db_get_col(
+        "SELECT status_key FROM order_status_configs 
+         WHERE label LIKE '%hủy%' OR label LIKE '%cancelled%' 
+            OR label LIKE '%rejected%'"
+    ) ?: [];
+}
 ?>

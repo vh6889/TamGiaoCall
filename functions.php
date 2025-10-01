@@ -976,12 +976,12 @@ function get_status_options_with_labels() {
     if (empty($statuses)) {
         // Return defaults if database is empty
         return [
-            ['status_key' => 'giao-thanh-cong', 'label' => 'Đơn mới'],
-            ['status_key' => 'giao-thanh-cong', 'label' => 'Đã nhận'],
-            ['status_key' => 'giao-thanh-cong', 'label' => 'Đang gọi'],
-            ['status_key' => 'giao-thanh-cong', 'label' => 'Đã xác nhận'],
+            ['status_key' => get_confirmed_status(), 'label' => 'Đơn mới'],
+            ['status_key' => get_confirmed_status(), 'label' => 'Đã nhận'],
+            ['status_key' => get_confirmed_status(), 'label' => 'Đang gọi'],
+            ['status_key' => get_confirmed_status(), 'label' => 'Đã xác nhận'],
             ['status_key' => 'rejected', 'label' => 'Từ chối'],
-            ['status_key' => 'giao-thanh-cong', 'label' => 'Hoàn thành'],
+            ['status_key' => get_confirmed_status(), 'label' => 'Hoàn thành'],
             ['status_key' => 'cancelled', 'label' => 'Đã hủy']
         ];
     }

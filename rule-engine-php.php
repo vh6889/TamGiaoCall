@@ -455,7 +455,7 @@ class RuleEngine {
         // Reassign active orders
         $this->db->query(
             "UPDATE orders 
-             SET assigned_to = NULL, status = 'new'
+             SET assigned_to = NULL, status = " . get_new_status_key() . "
              WHERE assigned_to = ? AND status NOT IN ('completed', 'cancelled')",
             [$userId]
         );

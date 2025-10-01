@@ -5,6 +5,7 @@
 define('TSM_ACCESS', true);
 require_once '../config.php';
 require_once '../functions.php';
+require_once '../includes/status_helper.php';
 
 header('Content-Type: application/json');
 
@@ -74,7 +75,7 @@ try {
                 $placeholders = implode(',', array_fill(0, count($order_ids), '?'));
                 
                 db_query(
-                    "UPDATE orders SET assigned_to = NULL, manager_id = NULL, status = 'new' WHERE id IN ({$placeholders})",
+                    "UPDATE orders SET assigned_to = NULL, manager_id = NULL, status = " . get_new_status_key() . " WHERE id IN ({$placeholders})",
                     $order_ids
                 );
             }

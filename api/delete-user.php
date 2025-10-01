@@ -5,6 +5,7 @@
 define('TSM_ACCESS', true);
 require_once '../config.php';
 require_once '../functions.php';
+require_once '../includes/status_helper.php';
 
 header('Content-Type: application/json');
 
@@ -47,7 +48,7 @@ try {
 
         if ($handover_option === 'reclaim') {
             // Trả về kho đơn mới. ON DELETE SET NULL trong CSDL cũng làm việc này, nhưng làm rõ ở đây sẽ an toàn hơn.
-            db_query("UPDATE orders SET assigned_to = NULL, status = 'new' WHERE id IN ($placeholders)", $order_ids);
+            db_query("UPDATE orders SET assigned_to = NULL, status = " . get_new_status_key() . " WHERE id IN ($placeholders)", $order_ids);
             log_activity('handover_reclaim', 'Reclaimed ' . count($order_ids) . ' orders before deleting user #' . $user_id_to_delete);
         } elseif ($handover_option === 'transfer') {
             // Bàn giao cho nhân viên khác

@@ -6,6 +6,7 @@ if (basename($_SERVER['PHP_SELF']) == 'update-status.php') {
     define('TSM_ACCESS', true);
     require_once '../config.php';
     require_once '../functions.php';
+require_once '../includes/status_helper.php';
     
     header('Content-Type: application/json');
     
@@ -28,7 +29,7 @@ if (basename($_SERVER['PHP_SELF']) == 'update-status.php') {
         ];
         
         // Lock order if status is final
-        if (in_array($status, ['completed', 'confirmed', 'rejected', 'cancelled'])) {
+        if (in_array($status, array_merge(get_confirmed_statuses(), db_get_col("SELECT status_key FROM order_status_configs WHERE label LIKE '%hủy%' OR label LIKE '%rejected%'")))) {
             $update_data['is_locked'] = 1;
             $update_data['locked_at'] = date('Y-m-d H:i:s');
             $update_data['locked_by'] = $user['id'];

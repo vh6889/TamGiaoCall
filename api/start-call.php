@@ -6,6 +6,7 @@ if (basename($_SERVER['PHP_SELF']) == 'start-call.php') {
     define('TSM_ACCESS', true);
     require_once '../config.php';
     require_once '../functions.php';
+require_once '../includes/status_helper.php';
     
     header('Content-Type: application/json');
     
@@ -32,7 +33,7 @@ if (basename($_SERVER['PHP_SELF']) == 'start-call.php') {
         
         // Update order status
         db_update('orders', [
-            'status' => 'dong-goi-sai',
+            'status' => get_calling_status_key(),
             'last_call_at' => date('Y-m-d H:i:s')
         ], 'id = ?', [$order_id]);
         

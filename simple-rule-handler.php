@@ -85,7 +85,7 @@ function get_order_suggestions($order) {
         $cancelled_orders = db_get_var(
             "SELECT COUNT(*) FROM orders 
              WHERE customer_phone = ? 
-             AND status IN ('cancelled', 'rejected') 
+             AND status IN (SELECT status_key FROM order_status_configs WHERE label LIKE '%hủy%' OR label LIKE '%rejected%') 
              AND id != ?",
             [$order['customer_phone'], $order['id']]
         );
@@ -139,7 +139,7 @@ function create_auto_reminders($order_id, $order_status, $user_id) {
     }
     
     // Auto reminder for no_answer after multiple attempts
-    if ($order_status == 'no_answer') {
+    if (in_array($order_status, db_get_col("SELECT status_key FROM order_status_configs WHERE label LIKE '%không nghe%' OR label LIKE '%no_answer%'"))) {
         $call_count = db_get_var(
             "SELECT call_count FROM orders WHERE id = ?",
             [$order_id]
@@ -163,7 +163,7 @@ function create_auto_reminders($order_id, $order_status, $user_id) {
  */
 function complete_order_reminders($order_id, $new_status) {
     // Complete reminders when order is finalized
-    if (in_array($new_status, ['completed', 'confirmed', 'rejected', 'cancelled'])) {
+    if (in_array($new_status, array_merge(get_confirmed_statuses(), db_get_col("SELECT status_key FROM order_status_configs WHERE label LIKE '%hủy%' OR label LIKE '%rejected%'")))) {
         db_update('reminders', 
             ['status' => 'completed', 'completed_at' => date('Y-m-d H:i:s')],
             'order_id = ? AND status = ?',
@@ -194,7 +194,7 @@ function get_employee_warnings($user_id) {
     // Check today's performance
     $today_orders = db_get_row(
         "SELECT COUNT(*) as total,
-                SUM(CASE WHEN status = 'confirmed' THEN 1 ELSE 0 END) as confirmed
+                SUM(CASE WHEN status IN (SELECT status_key FROM order_status_configs WHERE label LIKE '%xác nhận%' OR label LIKE '%hoàn%') THEN 1 ELSE 0 END) as confirmed
          FROM orders 
          WHERE assigned_to = ? 
          AND DATE(updated_at) = CURDATE()",
