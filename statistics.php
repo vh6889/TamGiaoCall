@@ -20,10 +20,10 @@ $date_to = $_GET['date_to'] ?? date('Y-m-d');
 // -- 1. LẤY DỮ LIỆU THỐNG KÊ TỔNG QUAN --
 $sql_overall = "SELECT
                     COUNT(id) AS total_orders,
-                    SUM(CASE WHEN status = 'confirmed' THEN total_amount ELSE 0 END) AS total_revenue,
-                    COUNT(CASE WHEN status = 'confirmed' THEN 1 END) AS confirmed_orders,
+                    SUM(CASE WHEN status = 'giao-thanh-cong' THEN total_amount ELSE 0 END) AS total_revenue,
+                    COUNT(CASE WHEN status = 'giao-thanh-cong' THEN 1 END) AS confirmed_orders,
                     COUNT(CASE WHEN status = 'rejected' THEN 1 END) AS rejected_orders,
-                    ROUND(COUNT(CASE WHEN status = 'confirmed' THEN 1 END) * 100.0 / NULLIF(COUNT(id), 0), 2) as success_rate
+                    ROUND(COUNT(CASE WHEN status = 'giao-thanh-cong' THEN 1 END) * 100.0 / NULLIF(COUNT(id), 0), 2) as success_rate
                 FROM orders
                 WHERE DATE(created_at) BETWEEN ? AND ?";
 $overall_stats = db_get_row($sql_overall, [$date_from, $date_to]);
@@ -41,7 +41,7 @@ $status_distribution = db_get_results($sql_status_dist, [$date_from, $date_to]);
 $sql_daily_orders = "SELECT
                         DATE(created_at) as order_date,
                         COUNT(id) as total_orders,
-                        COUNT(CASE WHEN status = 'confirmed' THEN 1 END) as confirmed_orders
+                        COUNT(CASE WHEN status = 'giao-thanh-cong' THEN 1 END) as confirmed_orders
                      FROM orders
                      WHERE DATE(created_at) BETWEEN ? AND ?
                      GROUP BY order_date
@@ -54,11 +54,11 @@ $sql_telesale_perf = "SELECT
                         u.id,
                         u.full_name,
                         COUNT(o.id) as assigned_orders,
-                        COUNT(CASE WHEN o.status = 'confirmed' THEN 1 END) as confirmed,
+                        COUNT(CASE WHEN o.status = 'giao-thanh-cong' THEN 1 END) as confirmed,
                         COUNT(CASE WHEN o.status = 'rejected' THEN 1 END) as rejected,
                         COUNT(CASE WHEN o.status = 'no_answer' THEN 1 END) as no_answer,
                         SUM(o.call_count) as total_calls,
-                        ROUND(COUNT(CASE WHEN o.status = 'confirmed' THEN 1 END) * 100.0 / NULLIF(COUNT(o.id), 0), 2) as success_rate
+                        ROUND(COUNT(CASE WHEN o.status = 'giao-thanh-cong' THEN 1 END) * 100.0 / NULLIF(COUNT(o.id), 0), 2) as success_rate
                       FROM users u
                       LEFT JOIN orders o ON u.id = o.assigned_to AND DATE(o.created_at) BETWEEN ? AND ?
                       WHERE u.role = 'telesale' AND u.status = 'active'

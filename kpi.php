@@ -38,9 +38,9 @@ if (!empty($telesales)) {
 
         // Lấy kết quả đã đạt được từ bảng `orders`
         $achieved = db_get_row(
-            "SELECT COUNT(id) as confirmed_orders, SUM(CASE WHEN status = 'confirmed' THEN total_amount ELSE 0 END) as total_revenue
+            "SELECT COUNT(id) as confirmed_orders, SUM(CASE WHEN status = 'giao-thanh-cong' THEN total_amount ELSE 0 END) as total_revenue
              FROM orders
-             WHERE assigned_to = ? AND status = 'confirmed' AND DATE(completed_at) BETWEEN ? AND ?",
+             WHERE assigned_to = ? AND status = 'giao-thanh-cong' AND DATE(completed_at) BETWEEN ? AND ?",
             [$user_id, $month_start, $month_end]
         );
         $kpi_data[$user_id]['achieved'] = [

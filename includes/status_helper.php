@@ -62,4 +62,23 @@ function get_pending_statuses() {
     ) ?: [];
 }
 
+
+// Get confirmed status key
+function get_confirmed_status() {
+    $status = db_get_var("SELECT status_key FROM order_status_configs WHERE label LIKE '%xác nhận%' OR label LIKE '%hoàn%' LIMIT 1");
+    return $status ?: db_get_var("SELECT status_key FROM order_status_configs ORDER BY sort_order DESC LIMIT 1");
+}
+
+// Get new status key  
+function get_new_status_key() {
+    $status = db_get_var("SELECT status_key FROM order_status_configs WHERE label LIKE '%mới%' LIMIT 1");
+    return $status ?: db_get_var("SELECT status_key FROM order_status_configs ORDER BY sort_order ASC LIMIT 1");
+}
+
+// Get calling status key
+function get_calling_status_key() {
+    $status = db_get_var("SELECT status_key FROM order_status_configs WHERE label LIKE '%gọi%' LIMIT 1");
+    return $status ?: get_new_status_key();
+}
+
 ?>

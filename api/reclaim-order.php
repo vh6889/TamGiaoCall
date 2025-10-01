@@ -23,7 +23,7 @@ if (basename($_SERVER['PHP_SELF']) == 'reclaim-order.php') {
         db_update('orders', [
             'assigned_to' => null,
             'assigned_at' => null,
-            'status' => 'new'
+            'status' => 'n-a'
         ], 'id = ?', [$order_id]);
         
         json_success('Đã thu hồi đơn hàng');

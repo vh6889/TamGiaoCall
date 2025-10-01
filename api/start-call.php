@@ -32,7 +32,7 @@ if (basename($_SERVER['PHP_SELF']) == 'start-call.php') {
         
         // Update order status
         db_update('orders', [
-            'status' => 'calling',
+            'status' => 'dong-goi-sai',
             'last_call_at' => date('Y-m-d H:i:s')
         ], 'id = ?', [$order_id]);
         
