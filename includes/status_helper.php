@@ -50,4 +50,16 @@ if (!function_exists('render_status_options')) {
         return $html;
     }
 }
+
+
+// Get pending status keys (đang xử lý)
+function get_pending_statuses() {
+    return db_get_col(
+        "SELECT status_key FROM order_status_configs 
+         WHERE label NOT LIKE '%mới%' 
+           AND label NOT LIKE '%hoàn%' 
+           AND label NOT LIKE '%hủy%'"
+    ) ?: [];
+}
+
 ?>

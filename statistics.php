@@ -173,11 +173,7 @@ include 'includes/header.php';
 document.addEventListener("DOMContentLoaded", function() {
     // 1. Status Distribution Chart (Pie Chart)
     const statusData = <?php echo json_encode($status_distribution); ?>;
-    const statusLabels = {
-        'new': 'Mới', 'assigned': 'Đã nhận', 'calling': 'Đang gọi', 'confirmed': 'Xác nhận',
-        'rejected': 'Từ chối', 'no_answer': 'Không bắt máy', 'callback': 'Gọi lại',
-        'completed': 'Hoàn thành', 'cancelled': 'Đã hủy'
-    };
+    const statusLabels = <?php echo json_encode($labels_array); ?>;
     const statusCtx = document.getElementById('statusDistributionChart').getContext('2d');
     new Chart(statusCtx, {
         type: 'doughnut',

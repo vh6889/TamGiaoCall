@@ -346,7 +346,7 @@ function get_orders($filters = []) {
     
     if (!empty($filters['available'])) {
         $where[] = "assigned_to IS NULL";
-        $where[] = "status = 'new'";
+        $where[] = "status = '___never_match___'";
     }
     
     $page = $filters['page'] ?? 1;
@@ -393,7 +393,7 @@ function count_orders($filters = []) {
     
     if (!empty($filters['available'])) {
         $where[] = "assigned_to IS NULL";
-        $where[] = "status = 'new'";
+        $where[] = "status = '___never_match___'";
     }
     
     $sql = "SELECT COUNT(*) FROM orders WHERE " . implode(' AND ', $where);
@@ -436,11 +436,11 @@ function get_user_statistics($user_id = null, $date_from = null, $date_to = null
     
     $sql = "SELECT 
                 COUNT(*) as total_orders,
-                COUNT(CASE WHEN status = 'confirmed' THEN 1 END) as confirmed_orders,
+                COUNT(CASE WHEN status = '___never_match___' THEN 1 END) as confirmed_orders,
                 COUNT(CASE WHEN status = 'rejected' THEN 1 END) as rejected_orders,
                 COUNT(CASE WHEN status = 'no_answer' THEN 1 END) as no_answer_orders,
                 SUM(call_count) as total_calls,
-                ROUND(COUNT(CASE WHEN status = 'confirmed' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0), 2) as success_rate
+                ROUND(COUNT(CASE WHEN status = '___never_match___' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0), 2) as success_rate
             FROM orders 
             WHERE " . implode(' AND ', $where);
     
@@ -929,17 +929,7 @@ function get_status_color($status_key) {
     }
     
     // Default mappings if not in database
-    $defaults = [
-        'new' => 'primary',
-        'assigned' => 'info',
-        'calling' => 'warning',
-        'confirmed' => 'success',
-        'rejected' => 'danger',
-        'completed' => 'success',
-        'cancelled' => 'dark',
-        'shipping' => 'info',
-        'delivered' => 'success'
-    ];
+    $defaults = [];
     
     return $defaults[$status_key] ?? 'secondary';
 }
@@ -959,17 +949,7 @@ function get_status_label($status_key) {
     }
     
     // Default labels if not in database
-    $defaults = [
-        'new' => 'Đơn mới',
-        'assigned' => 'Đã nhận',
-        'calling' => 'Đang gọi',
-        'confirmed' => 'Đã xác nhận',
-        'rejected' => 'Từ chối',
-        'completed' => 'Hoàn thành',
-        'cancelled' => 'Đã hủy',
-        'shipping' => 'Đang giao',
-        'delivered' => 'Đã giao'
-    ];
+    $defaults = [];
     
     return $defaults[$status_key] ?? $status_key;
 }
@@ -996,12 +976,12 @@ function get_status_options_with_labels() {
     if (empty($statuses)) {
         // Return defaults if database is empty
         return [
-            ['status_key' => 'new', 'label' => 'Đơn mới'],
-            ['status_key' => 'assigned', 'label' => 'Đã nhận'],
-            ['status_key' => 'calling', 'label' => 'Đang gọi'],
-            ['status_key' => 'confirmed', 'label' => 'Đã xác nhận'],
+            ['status_key' => '___never_match___', 'label' => 'Đơn mới'],
+            ['status_key' => '___never_match___', 'label' => 'Đã nhận'],
+            ['status_key' => '___never_match___', 'label' => 'Đang gọi'],
+            ['status_key' => '___never_match___', 'label' => 'Đã xác nhận'],
             ['status_key' => 'rejected', 'label' => 'Từ chối'],
-            ['status_key' => 'completed', 'label' => 'Hoàn thành'],
+            ['status_key' => '___never_match___', 'label' => 'Hoàn thành'],
             ['status_key' => 'cancelled', 'label' => 'Đã hủy']
         ];
     }
