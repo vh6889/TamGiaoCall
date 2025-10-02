@@ -1,0 +1,223 @@
+/* ============================================
+   STATS PAGE MAIN STYLES
+   Extracted from statistics.php
+   ============================================ */
+
+:root {
+    --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --success-gradient: linear-gradient(135deg, #56ab2f 0%, #a8e063 100%);
+    --warning-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    --info-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+
+/* Dashboard Header */
+.dashboard-header {
+    background: var(--primary-gradient);
+    color: white;
+    padding: 2rem;
+    border-radius: 15px;
+    margin-bottom: 30px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+}
+
+/* Metric Cards */
+.metric-card {
+    background: white;
+    border-radius: 15px;
+    padding: 1.5rem;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.05);
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+    min-height: 200px;
+}
+
+.metric-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+}
+
+.metric-card.clickable {
+    cursor: pointer;
+}
+
+.metric-card .icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    margin-bottom: 15px;
+}
+
+.metric-card .value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #2d3436;
+    margin-bottom: 5px;
+}
+
+.metric-card .label {
+    font-size: 0.9rem;
+    color: #636e72;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.metric-card .change {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.metric-card .change.positive {
+    background: #d4edda;
+    color: #155724;
+}
+
+.metric-card .change.negative {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+/* Chart Containers */
+.chart-container {
+    background: white;
+    border-radius: 15px;
+    padding: 1.5rem;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.05);
+    margin-bottom: 30px;
+    max-height: 500px;
+    overflow: hidden;
+    position: relative;
+}
+
+.chart-container canvas {
+    max-height: 100%;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #f1f3f5;
+}
+
+.chart-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #2d3436;
+}
+
+/* Filter Section */
+.filter-section {
+    background: white;
+    border-radius: 15px;
+    padding: 1.5rem;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.05);
+    margin-bottom: 30px;
+}
+
+/* Table Container */
+.table-container {
+    background: white;
+    border-radius: 15px;
+    padding: 1.5rem;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.05);
+    overflow-x: auto;
+}
+
+/* Export Buttons */
+.export-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.btn-export {
+    padding: 8px 20px;
+    border-radius: 25px;
+    font-size: 0.9rem;
+    transition: all 0.3s;
+}
+
+/* Loading Overlay */
+.loading {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255,255,255,0.9);
+    z-index: 9999;
+    justify-content: center;
+    align-items: center;
+}
+
+.loading.show {
+    display: flex;
+}
+
+.spinner {
+    width: 50px;
+    height: 50px;
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid #667eea;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .metric-card {
+        min-height: 150px;
+    }
+    
+    .metric-card .value {
+        font-size: 1.5rem;
+    }
+    
+    .chart-container {
+        max-height: 300px;
+    }
+    
+    .export-buttons {
+        flex-wrap: wrap;
+    }
+    
+    .dashboard-header {
+        padding: 1rem;
+    }
+}
+
+/* Print Styles */
+@media print {
+    .filter-section,
+    .export-buttons,
+    .btn-group {
+        display: none !important;
+    }
+    
+    .chart-container {
+        break-inside: avoid;
+    }
+    
+    .table-container {
+        break-inside: avoid;
+    }
+}

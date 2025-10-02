@@ -2,18 +2,39 @@
 /**
  * Professional Statistics Dashboard
  * Sử dụng đầy đủ module Statistics với phân quyền role-based
- * Version 4.0
+ * Version 4.1 - FIXED ALL BUGS
  */
 define('TSM_ACCESS', true);
 require_once 'config.php';
 require_once 'functions.php';
-// Include autoloader an toàn với require_once
 require_once __DIR__ . '/modules/statistics/statistics_autoload.php';
 
 require_login();
 
 $current_user = get_logged_user();
-$page_title = 'Thống kê & Phân tích Chuyên nghiệp';
+$page_title = 'Báo cáo hoạt động kinh doanh';
+
+// Helper function để tạo module instance an toàn
+function getStatisticsModule($type, $db) {
+    switch($type) {
+        case 'overview':
+            return new Modules\Statistics\Reports\OverviewReport($db);
+        case 'user':
+            return new Modules\Statistics\Reports\UserReport($db);
+        case 'product':
+            return new Modules\Statistics\Reports\ProductReport($db);
+        case 'customer':
+            return new Modules\Statistics\Reports\CustomerReport($db);
+        case 'order':
+            return new Modules\Statistics\Reports\OrderReport($db);
+        case 'drilldown':
+            return new Modules\Statistics\Core\DrilldownHandler($db);
+        case 'filter':
+            return new Modules\Statistics\Filters\FilterBuilder();
+        default:
+            throw new Exception("Unknown module type: $type");
+    }
+}
 
 // Initialize database connection for module
 $db = get_db_connection();
@@ -39,13 +60,13 @@ if ($export_format) {
     
     switch ($export_format) {
         case 'excel':
-            $exporter = new ExcelExporter();
+            $exporter = new Modules\Statistics\Exporters\ExcelExporter();
             break;
         case 'csv':
-            $exporter = new CSVExporter();
+            $exporter = new Modules\Statistics\Exporters\CSVExporter();
             break;
         case 'pdf':
-            $exporter = new PDFExporter();
+            $exporter = new Modules\Statistics\Exporters\PDFExporter();
             break;
     }
     
@@ -53,48 +74,58 @@ if ($export_format) {
         // Get report data based on type
         switch ($report_type) {
             case 'users':
-                $report = new UserReport($db);
-                $reportData = $report->setDateRange($datetime_from, $datetime_to)->getData()['users'];
+                $report = getStatisticsModule('user', $db);
+                $reportData = $report->setDateRange($datetime_from, $datetime_to)->getData()['users'] ?? [];
                 $headers = ['Nhân viên', 'Vai trò', 'Tổng đơn', 'Thành công', 'Doanh thu', 'Tỷ lệ'];
                 break;
             case 'products':
-                $report = new ProductReport($db);
-                $reportData = $report->setDateRange($datetime_from, $datetime_to)->getData()['products'];
+                $report = getStatisticsModule('product', $db);
+                $reportData = $report->setDateRange($datetime_from, $datetime_to)->getData()['products'] ?? [];
                 $headers = ['SKU', 'Sản phẩm', 'Số lượng', 'Doanh thu', 'Đơn hàng'];
                 break;
             case 'customers':
-                $report = new CustomerReport($db);
-                $reportData = $report->setDateRange($datetime_from, $datetime_to)->getData()['customers'];
+                $report = getStatisticsModule('customer', $db);
+                $reportData = $report->setDateRange($datetime_from, $datetime_to)->getData()['customers'] ?? [];
                 $headers = ['Khách hàng', 'SĐT', 'Tổng đơn', 'Giá trị', 'Lần cuối'];
                 break;
             default:
-                $report = new OverviewReport($db);
-                $reportData = $report->setDateRange($datetime_from, $datetime_to)->getData()['metrics'];
+                $report = getStatisticsModule('overview', $db);
+                $reportData = $report->setDateRange($datetime_from, $datetime_to)->getData()['metrics'] ?? [];
                 $headers = array_keys($reportData);
         }
         
-        $exporter->setData($reportData)
-                 ->setHeaders($headers)
-                 ->setFilename('report_' . $report_type . '_' . date('Y-m-d'))
-                 ->setTitle('Báo cáo ' . ucfirst($report_type))
-                 ->addMetadata('Người xuất', $current_user['full_name'])
-                 ->addMetadata('Thời gian', date('Y-m-d H:i:s'))
-                 ->addMetadata('Khoảng thời gian', "$date_from đến $date_to")
-                 ->download();
-        exit;
+        if (!empty($reportData)) {
+            $exporter->setData($reportData)
+                     ->setHeaders($headers)
+                     ->setFilename('report_' . $report_type . '_' . date('Y-m-d'))
+                     ->setTitle('Báo cáo ' . ucfirst($report_type))
+                     ->addMetadata('Người xuất', $current_user['full_name'])
+                     ->addMetadata('Thời gian', date('Y-m-d H:i:s'))
+                     ->addMetadata('Khoảng thời gian', "$date_from đến $date_to")
+                     ->download();
+            exit;
+        }
     }
 }
 
-// Initialize main report - Sử dụng helper function để tạo instance an toàn
-$overviewReport = getStatisticsModule('overview', $db);
-$overviewReport->setDateRange($datetime_from, $datetime_to);
+// Initialize main report
+try {
+    $overviewReport = getStatisticsModule('overview', $db);
+    $overviewReport->setDateRange($datetime_from, $datetime_to);
+    $overviewData = $overviewReport->getData();
+} catch (Exception $e) {
+    $overviewData = [];
+}
 
-// Get overview data
-$overviewData = $overviewReport->getData();
-$metrics = $overviewData['metrics'] ?? [];
+$metrics = $overviewData['metrics'] ?? [
+    'total_orders' => 0,
+    'total_revenue' => 0,
+    'success_rate' => 0,
+    'unique_customers' => 0
+];
 $comparison = $overviewData['comparison'] ?? [];
-$trends = $overviewData['trends'] ?? [];
-$topPerformers = $overviewData['topPerformers'] ?? [];
+$trends = $overviewData['trends'] ?? ['daily' => []];
+$topPerformers = $overviewData['topPerformers'] ?? ['users' => []];
 $distribution = $overviewData['distribution'] ?? [];
 
 // Handle drill-down
@@ -107,7 +138,6 @@ if ($drill_type && $drill_id) {
             'date_to' => $datetime_to
         ]);
     } catch (Exception $e) {
-        // Handle error silently
         $drilldownData = null;
     }
 }
@@ -154,7 +184,6 @@ switch ($report_type) {
         try {
             $orderReport = getStatisticsModule('order', $db);
             
-            // Apply filters if needed
             if (isset($_GET['status_filter'])) {
                 try {
                     $filter = getStatisticsModule('filter', $db);
@@ -178,231 +207,181 @@ switch ($report_type) {
 include 'includes/header.php';
 ?>
 
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= $page_title ?></title>
+<style>
+    :root {
+        --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        --success-gradient: linear-gradient(135deg, #56ab2f 0%, #a8e063 100%);
+        --warning-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        --info-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    }
     
-    <!-- Bootstrap 5 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    .dashboard-header {
+        background: var(--primary-gradient);
+        color: white;
+        padding: 2rem;
+        border-radius: 15px;
+        margin-bottom: 30px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    }
     
-    <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    .metric-card {
+        background: white;
+        border-radius: 15px;
+        padding: 1.5rem;
+        box-shadow: 0 5px 20px rgba(0,0,0,0.05);
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+        min-height: 200px;
+    }
     
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    .metric-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+    }
     
-    <!-- Custom CSS -->
-    <style>
-        :root {
-            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            --success-gradient: linear-gradient(135deg, #56ab2f 0%, #a8e063 100%);
-            --warning-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            --info-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-        }
-        
-        body {
-            background: #f8f9fa;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        }
-        
-        .dashboard-header {
-            background: var(--primary-gradient);
-            color: white;
-            padding: 2rem;
-            border-radius: 15px;
-            margin-bottom: 30px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-        }
-        
-        .metric-card {
-            background: white;
-            border-radius: 15px;
-            padding: 1.5rem;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.05);
-            transition: all 0.3s ease;
-            cursor: pointer;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .metric-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-        }
-        
-        .metric-card.clickable {
-            cursor: pointer;
-        }
-        
-        .metric-card .icon {
-            width: 60px;
-            height: 60px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 24px;
-            margin-bottom: 15px;
-        }
-        
-        .metric-card .value {
-            font-size: 2rem;
-            font-weight: 700;
-            color: #2d3436;
-            margin-bottom: 5px;
-        }
-        
-        .metric-card .label {
-            font-size: 0.9rem;
-            color: #636e72;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .metric-card .change {
-            position: absolute;
-            top: 1rem;
-            right: 1rem;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 0.75rem;
-            font-weight: 600;
-        }
-        
-        .metric-card .change.positive {
-            background: #d4edda;
-            color: #155724;
-        }
-        
-        .metric-card .change.negative {
-            background: #f8d7da;
-            color: #721c24;
-        }
-        
-        .chart-container {
-            background: white;
-            border-radius: 15px;
-            padding: 1.5rem;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.05);
-            margin-bottom: 30px;
-        }
-        
-        .chart-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid #f1f3f5;
-        }
-        
-        .chart-title {
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: #2d3436;
-        }
-        
-        .filter-section {
-            background: white;
-            border-radius: 15px;
-            padding: 1.5rem;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.05);
-            margin-bottom: 30px;
-        }
-        
-        .nav-pills .nav-link {
-            border-radius: 25px;
-            padding: 10px 25px;
-            margin: 0 5px;
-            transition: all 0.3s;
-        }
-        
-        .nav-pills .nav-link.active {
-            background: var(--primary-gradient);
-        }
-        
-        .table-container {
-            background: white;
-            border-radius: 15px;
-            padding: 1.5rem;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.05);
-            overflow-x: auto;
-        }
-        
-        .badge-status {
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-weight: 500;
-            font-size: 0.85rem;
-        }
-        
-        .breadcrumb-drill {
-            background: #f8f9fa;
-            padding: 10px 20px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-        }
-        
-        .export-buttons {
-            display: flex;
-            gap: 10px;
-        }
-        
-        .btn-export {
-            padding: 8px 20px;
-            border-radius: 25px;
-            font-size: 0.9rem;
-            transition: all 0.3s;
-        }
-        
-        /* Loading animation */
-        .loading {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(255,255,255,0.9);
-            z-index: 9999;
-            justify-content: center;
-            align-items: center;
-        }
-        
-        .loading.show {
-            display: flex;
-        }
-        
-        .spinner {
-            width: 50px;
-            height: 50px;
-            border: 5px solid #f3f3f3;
-            border-top: 5px solid #667eea;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        /* Responsive */
-        @media (max-width: 768px) {
-            .metric-card .value {
-                font-size: 1.5rem;
-            }
-            
-            .dashboard-header {
-                padding: 1.5rem;
-            }
-        }
-    </style>
-</head>
-<body>
+    .metric-card.clickable {
+        cursor: pointer;
+    }
+    
+    .metric-card .icon {
+        width: 60px;
+        height: 60px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        margin-bottom: 15px;
+    }
+    
+    .metric-card .value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #2d3436;
+        margin-bottom: 5px;
+    }
+    
+    .metric-card .label {
+        font-size: 0.9rem;
+        color: #636e72;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .metric-card .change {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    
+    .metric-card .change.positive {
+        background: #d4edda;
+        color: #155724;
+    }
+    
+    .metric-card .change.negative {
+        background: #f8d7da;
+        color: #721c24;
+    }
+    
+    .chart-container {
+        background: white;
+        border-radius: 15px;
+        padding: 1.5rem;
+        box-shadow: 0 5px 20px rgba(0,0,0,0.05);
+        margin-bottom: 30px;
+		max-height: 500px;
+    }
+	.chart-container {
+    overflow: hidden; /* Ngăn chart tràn ra ngoài */
+    position: relative; /* Làm reference cho canvas */
+}
+
+.chart-container canvas {
+    max-height: 100%;
+    width: 100% !important;
+    height: 100% !important;
+}
+    
+    .chart-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid #f1f3f5;
+    }
+    
+    .chart-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #2d3436;
+    }
+    
+    .filter-section {
+        background: white;
+        border-radius: 15px;
+        padding: 1.5rem;
+        box-shadow: 0 5px 20px rgba(0,0,0,0.05);
+        margin-bottom: 30px;
+    }
+    
+    .table-container {
+        background: white;
+        border-radius: 15px;
+        padding: 1.5rem;
+        box-shadow: 0 5px 20px rgba(0,0,0,0.05);
+        overflow-x: auto;
+    }
+    
+    .export-buttons {
+        display: flex;
+        gap: 10px;
+    }
+    
+    .btn-export {
+        padding: 8px 20px;
+        border-radius: 25px;
+        font-size: 0.9rem;
+        transition: all 0.3s;
+    }
+    
+    .loading {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(255,255,255,0.9);
+        z-index: 9999;
+        justify-content: center;
+        align-items: center;
+    }
+    
+    .loading.show {
+        display: flex;
+    }
+    
+    .spinner {
+        width: 50px;
+        height: 50px;
+        border: 5px solid #f3f3f3;
+        border-top: 5px solid #667eea;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+</style>
 
 <!-- Loading overlay -->
 <div class="loading" id="loadingOverlay">
@@ -444,7 +423,7 @@ include 'includes/header.php';
     
     <!-- Filter Section -->
     <div class="filter-section">
-        <form method="GET" class="row g-3">
+        <form method="GET" class="row g-3" id="filterForm">
             <div class="col-md-2">
                 <label class="form-label">Từ ngày</label>
                 <input type="date" name="date_from" class="form-control" value="<?= $date_from ?>">
@@ -463,7 +442,7 @@ include 'includes/header.php';
             </div>
             <div class="col-md-2">
                 <label class="form-label">Loại báo cáo</label>
-                <select name="report_type" class="form-select">
+                <select name="report_type" class="form-select" id="reportTypeSelect">
                     <option value="overview" <?= $report_type == 'overview' ? 'selected' : '' ?>>Tổng quan</option>
                     <option value="users" <?= $report_type == 'users' ? 'selected' : '' ?>>Nhân viên</option>
                     <option value="products" <?= $report_type == 'products' ? 'selected' : '' ?>>Sản phẩm</option>
@@ -500,11 +479,11 @@ include 'includes/header.php';
     <!-- Main Metrics Cards -->
     <div class="row mb-4">
         <?php
-        // Render metric cards using module
         $metricConfigs = [
             [
                 'title' => 'Tổng đơn hàng',
-                'value' => $metrics['total_orders'],
+                'value' => $metrics['total_orders'] ?? 0,
+                'format' => 'number',
                 'icon' => 'fa-shopping-cart',
                 'color' => 'primary',
                 'gradient' => 'var(--primary-gradient)',
@@ -513,7 +492,7 @@ include 'includes/header.php';
             ],
             [
                 'title' => 'Doanh thu',
-                'value' => $metrics['total_revenue'],
+                'value' => $metrics['total_revenue'] ?? 0,
                 'format' => 'money',
                 'icon' => 'fa-dollar-sign',
                 'color' => 'success',
@@ -523,7 +502,7 @@ include 'includes/header.php';
             ],
             [
                 'title' => 'Tỷ lệ thành công',
-                'value' => $metrics['success_rate'],
+                'value' => $metrics['success_rate'] ?? 0,
                 'format' => 'percent',
                 'icon' => 'fa-chart-line',
                 'color' => 'warning',
@@ -534,7 +513,8 @@ include 'includes/header.php';
             ],
             [
                 'title' => 'Khách hàng',
-                'value' => $metrics['unique_customers'],
+                'value' => $metrics['unique_customers'] ?? 0,
+                'format' => 'number',
                 'icon' => 'fa-users',
                 'color' => 'info',
                 'gradient' => 'var(--info-gradient)',
@@ -544,7 +524,8 @@ include 'includes/header.php';
         ];
         
         foreach ($metricConfigs as $config):
-            $changePercent = isset($config['compare']) ? $config['compare']['change_percent'] : 0;
+            $changePercent = isset($config['compare']['change_percent']) ? $config['compare']['change_percent'] : 0;
+            $format = $config['format'] ?? 'number';
         ?>
         <div class="col-md-3 mb-3">
             <div class="metric-card clickable" 
@@ -554,9 +535,9 @@ include 'includes/header.php';
                     <i class="fas <?= $config['icon'] ?>"></i>
                 </div>
                 <div class="value">
-                    <?php if ($config['format'] == 'money'): ?>
+                    <?php if ($format == 'money'): ?>
                         <?= number_format($config['value'], 0, ',', '.') ?>đ
-                    <?php elseif ($config['format'] == 'percent'): ?>
+                    <?php elseif ($format == 'percent'): ?>
                         <?= number_format($config['value'], 1) ?>%
                     <?php else: ?>
                         <?= number_format($config['value'], 0, ',', '.') ?>
@@ -574,7 +555,7 @@ include 'includes/header.php';
         <?php endforeach; ?>
     </div>
     
-    <!-- Charts Row -->
+    <!-- Charts Row - Only show on overview -->
     <?php if ($report_type == 'overview'): ?>
     <div class="row mb-4">
         <!-- Trend Chart -->
@@ -594,7 +575,9 @@ include 'includes/header.php';
                         </button>
                     </div>
                 </div>
-                <canvas id="trendChart" height="80"></canvas>
+                <div style="position: relative; height: 500px;">
+					<canvas id="trendChart"></canvas>
+				</div>
             </div>
         </div>
         
@@ -633,15 +616,15 @@ include 'includes/header.php';
                                 <th>Thành công</th>
                                 <th>Doanh thu</th>
                                 <th>Tỷ lệ</th>
-                                <th>Hành động</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php 
                             $rank = 1;
-                            foreach ($topPerformers['users'] as $user): 
-                                $successRate = $user['total_orders'] > 0 
-                                    ? round($user['success_orders'] * 100 / $user['total_orders'], 1) 
+                            $users = $topPerformers['users'] ?? [];
+                            foreach ($users as $user): 
+                                $successRate = ($user['total_orders'] ?? 0) > 0 
+                                    ? round(($user['success_orders'] ?? 0) * 100 / $user['total_orders'], 1) 
                                     : 0;
                             ?>
                             <tr>
@@ -654,32 +637,22 @@ include 'includes/header.php';
                                     <?= $rank ?>
                                     <?php endif; ?>
                                 </td>
-                                <td>
-                                    <strong><?= htmlspecialchars($user['full_name']) ?></strong>
-                                </td>
-                                <td>
-                                    <span class="badge bg-secondary"><?= $user['role'] ?></span>
-                                </td>
-                                <td><?= number_format($user['total_orders']) ?></td>
-                                <td><?= number_format($user['success_orders']) ?></td>
-                                <td><?= number_format($user['success_revenue'], 0, ',', '.') ?>đ</td>
+                                <td><strong><?= htmlspecialchars($user['full_name'] ?? '') ?></strong></td>
+                                <td><span class="badge bg-secondary"><?= $user['role'] ?? '' ?></span></td>
+                                <td><?= number_format($user['total_orders'] ?? 0) ?></td>
+                                <td><?= number_format($user['success_orders'] ?? 0) ?></td>
+                                <td><?= number_format($user['success_revenue'] ?? 0, 0, ',', '.') ?>đ</td>
                                 <td>
                                     <div class="progress" style="height: 20px;">
-                                        <div class="progress-bar bg-success" 
-                                             style="width: <?= $successRate ?>%">
+                                        <div class="progress-bar bg-success" style="width: <?= $successRate ?>%">
                                             <?= $successRate ?>%
                                         </div>
                                     </div>
                                 </td>
-                                <td>
-                                    <a href="?drill=user&drill_id=<?= $user['user_id'] ?>&<?= http_build_query($_GET) ?>" 
-                                       class="btn btn-sm btn-primary">
-                                        <i class="fas fa-chart-line"></i>
-                                    </a>
-                                </td>
                             </tr>
                             <?php 
                             $rank++;
+                            if ($rank > 10) break;
                             endforeach; 
                             ?>
                         </tbody>
@@ -702,55 +675,41 @@ include 'includes/header.php';
                     </h5>
                 </div>
                 <div class="table-responsive">
-                    <table class="table table-hover" id="usersTable">
+                    <table class="table table-hover">
                         <thead>
                             <tr>
                                 <th>Nhân viên</th>
                                 <th>Vai trò</th>
                                 <th>Tổng đơn</th>
-                                <th>Mới</th>
-                                <th>Đang xử lý</th>
                                 <th>Thành công</th>
                                 <th>Thất bại</th>
                                 <th>Doanh thu</th>
-                                <th>Tỷ lệ thành công</th>
-                                <th>TB xử lý (giờ)</th>
+                                <th>Tỷ lệ</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($reportData['users'] as $user): ?>
+                            <?php 
+                            $users = $reportData['users'] ?? [];
+                            foreach ($users as $user): 
+                            ?>
                             <tr>
+                                <td><strong><?= htmlspecialchars($user['full_name'] ?? '') ?></strong></td>
+                                <td><span class="badge bg-secondary"><?= $user['role'] ?? '' ?></span></td>
+                                <td><?= number_format($user['total_orders'] ?? 0) ?></td>
+                                <td class="text-success"><?= number_format($user['success_orders'] ?? 0) ?></td>
+                                <td class="text-danger"><?= number_format($user['failed_orders'] ?? 0) ?></td>
+                                <td><strong><?= number_format($user['success_revenue'] ?? 0, 0, ',', '.') ?>đ</strong></td>
                                 <td>
-                                    <strong><?= htmlspecialchars($user['full_name']) ?></strong>
-                                    <br>
-                                    <small class="text-muted"><?= $user['username'] ?></small>
-                                </td>
-                                <td>
-                                    <span class="badge bg-<?= $user['role'] == 'admin' ? 'danger' : ($user['role'] == 'manager' ? 'warning' : 'info') ?>">
-                                        <?= $user['role'] ?>
-                                    </span>
-                                </td>
-                                <td><?= number_format($user['total_orders']) ?></td>
-                                <td><?= number_format($user['new_orders']) ?></td>
-                                <td><?= number_format($user['processing_orders']) ?></td>
-                                <td class="text-success">
-                                    <?= number_format($user['success_orders']) ?>
-                                </td>
-                                <td class="text-danger">
-                                    <?= number_format($user['failed_orders']) ?>
-                                </td>
-                                <td>
-                                    <strong><?= number_format($user['success_revenue'], 0, ',', '.') ?>đ</strong>
-                                </td>
-                                <td>
+                                    <?php 
+                                    $rate = $user['success_rate'] ?? 0;
+                                    $color = $rate >= 70 ? 'success' : ($rate >= 50 ? 'warning' : 'danger');
+                                    ?>
                                     <div class="progress" style="height: 25px;">
-                                        <div class="progress-bar bg-<?= $user['success_rate'] >= 70 ? 'success' : ($user['success_rate'] >= 50 ? 'warning' : 'danger') ?>" 
-                                             style="width: <?= $user['success_rate'] ?>%">
-                                            <?= number_format($user['success_rate'], 1) ?>%
+                                        <div class="progress-bar bg-<?= $color ?>" style="width: <?= $rate ?>%">
+                                            <?= number_format($rate, 1) ?>%
                                         </div>
                                     </div>
                                 </td>
-                                <td><?= number_format($user['avg_processing_time'], 1) ?></td>
                             </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -772,7 +731,7 @@ include 'includes/header.php';
                     </h5>
                 </div>
                 <div class="table-responsive">
-                    <table class="table table-hover" id="productsTable">
+                    <table class="table table-hover">
                         <thead>
                             <tr>
                                 <th>STT</th>
@@ -781,48 +740,26 @@ include 'includes/header.php';
                                 <th>Số lượng bán</th>
                                 <th>Doanh thu</th>
                                 <th>Số đơn hàng</th>
-                                <th>TB/Đơn</th>
-                                <th>% Doanh thu</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php 
-                            $totalRevenue = array_sum(array_column($reportData['products'], 'total_revenue'));
+                            $products = $reportData['products'] ?? [];
                             $rank = 1;
-                            foreach ($reportData['products'] as $product): 
-                                $avgPerOrder = $product['order_count'] > 0 
-                                    ? $product['total_revenue'] / $product['order_count']
-                                    : 0;
-                                $revenuePercent = $totalRevenue > 0
-                                    ? ($product['total_revenue'] / $totalRevenue) * 100
-                                    : 0;
+                            foreach ($products as $product): 
                             ?>
                             <tr>
                                 <td><?= $rank++ ?></td>
-                                <td>
-                                    <code><?= htmlspecialchars($product['sku']) ?></code>
-                                </td>
-                                <td>
-                                    <strong><?= htmlspecialchars($product['name']) ?></strong>
-                                </td>
-                                <td><?= number_format($product['total_quantity']) ?></td>
-                                <td>
-                                    <strong class="text-success">
-                                        <?= number_format($product['total_revenue'], 0, ',', '.') ?>đ
-                                    </strong>
-                                </td>
-                                <td><?= number_format($product['order_count']) ?></td>
-                                <td><?= number_format($avgPerOrder, 0, ',', '.') ?>đ</td>
-                                <td>
-                                    <div class="progress" style="height: 20px;">
-                                        <div class="progress-bar bg-info" 
-                                             style="width: <?= min($revenuePercent, 100) ?>%">
-                                            <?= number_format($revenuePercent, 1) ?>%
-                                        </div>
-                                    </div>
-                                </td>
+                                <td><code><?= htmlspecialchars($product['sku'] ?? '') ?></code></td>
+                                <td><strong><?= htmlspecialchars($product['name'] ?? '') ?></strong></td>
+                                <td><?= number_format($product['total_quantity'] ?? 0) ?></td>
+                                <td><strong class="text-success"><?= number_format($product['total_revenue'] ?? 0, 0, ',', '.') ?>đ</strong></td>
+                                <td><?= number_format($product['order_count'] ?? 0) ?></td>
                             </tr>
-                            <?php endforeach; ?>
+                            <?php 
+                            if ($rank > 50) break;
+                            endforeach; 
+                            ?>
                         </tbody>
                     </table>
                 </div>
@@ -842,57 +779,36 @@ include 'includes/header.php';
                     </h5>
                 </div>
                 <div class="table-responsive">
-                    <table class="table table-hover" id="customersTable">
+                    <table class="table table-hover">
                         <thead>
                             <tr>
                                 <th>Khách hàng</th>
                                 <th>Số điện thoại</th>
                                 <th>Email</th>
                                 <th>Tổng đơn</th>
-                                <th>Thành công</th>
                                 <th>Tổng giá trị</th>
-                                <th>TB/Đơn</th>
                                 <th>Lần cuối mua</th>
-                                <th>Nhãn</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($reportData['customers'] as $customer): ?>
+                            <?php 
+                            $customers = $reportData['customers'] ?? [];
+                            foreach ($customers as $customer): 
+                            ?>
                             <tr>
+                                <td><strong><?= htmlspecialchars($customer['customer_name'] ?? '') ?></strong></td>
+                                <td><?= htmlspecialchars($customer['customer_phone'] ?? '') ?></td>
+                                <td><?= htmlspecialchars($customer['customer_email'] ?? '-') ?></td>
+                                <td><?= number_format($customer['total_orders'] ?? 0) ?></td>
+                                <td><strong><?= number_format($customer['total_value'] ?? 0, 0, ',', '.') ?>đ</strong></td>
                                 <td>
-                                    <strong><?= htmlspecialchars($customer['customer_name']) ?></strong>
-                                </td>
-                                <td>
-                                    <a href="tel:<?= $customer['customer_phone'] ?>">
-                                        <?= htmlspecialchars($customer['customer_phone']) ?>
-                                    </a>
-                                </td>
-                                <td>
-                                    <?= htmlspecialchars($customer['customer_email'] ?: '-') ?>
-                                </td>
-                                <td><?= number_format($customer['total_orders']) ?></td>
-                                <td class="text-success">
-                                    <?= number_format($customer['success_orders']) ?>
-                                </td>
-                                <td>
-                                    <strong><?= number_format($customer['total_value'], 0, ',', '.') ?>đ</strong>
-                                </td>
-                                <td>
-                                    <?= number_format($customer['avg_order_value'], 0, ',', '.') ?>đ
-                                </td>
-                                <td>
-                                    <?= date('d/m/Y H:i', strtotime($customer['last_order_date'])) ?>
-                                </td>
-                                <td>
-                                    <?php if (!empty($customer['labels'])): ?>
-                                        <?php foreach (explode(',', $customer['labels']) as $label): ?>
-                                        <span class="badge bg-secondary me-1">
-                                            <?= htmlspecialchars(trim($label)) ?>
-                                        </span>
-                                        <?php endforeach; ?>
-                                    <?php else: ?>
-                                        -
-                                    <?php endif; ?>
+                                    <?php 
+                                    if (!empty($customer['last_order_date'])) {
+                                        echo date('d/m/Y H:i', strtotime($customer['last_order_date']));
+                                    } else {
+                                        echo '-';
+                                    }
+                                    ?>
                                 </td>
                             </tr>
                             <?php endforeach; ?>
@@ -907,7 +823,13 @@ include 'includes/header.php';
 
 <!-- JavaScript -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+// Auto submit form when report type changes
+document.getElementById('reportTypeSelect').addEventListener('change', function() {
+    document.getElementById('filterForm').submit();
+});
+
 // Show loading on form submit
 document.querySelectorAll('form').forEach(form => {
     form.addEventListener('submit', function() {
@@ -915,7 +837,7 @@ document.querySelectorAll('form').forEach(form => {
     });
 });
 
-// Handle metric card clicks for drill-down
+// Handle metric card clicks
 document.querySelectorAll('.metric-card.clickable').forEach(card => {
     card.addEventListener('click', function() {
         const drillType = this.dataset.drillType;
@@ -929,117 +851,147 @@ document.querySelectorAll('.metric-card.clickable').forEach(card => {
 
 // Initialize charts if on overview page
 <?php if ($report_type == 'overview'): ?>
+
+// Prepare chart data với error handling
+<?php 
+$trendLabels = [];
+$trendRevenue = [];
+$trendOrders = [];
+
+if (isset($trends['daily']) && is_array($trends['daily'])) {
+    foreach ($trends['daily'] as $day) {
+        $trendLabels[] = isset($day['date']) ? date('d/m', strtotime($day['date'])) : '';
+        $trendRevenue[] = $day['success_revenue'] ?? 0;
+        $trendOrders[] = $day['total_orders'] ?? 0;
+    }
+}
+
+if (empty($trendLabels)) {
+    $trendLabels = ['Không có dữ liệu'];
+    $trendRevenue = [0];
+    $trendOrders = [0];
+}
+
+$distributionLabels = [];
+$distributionData = [];
+$distributionColors = [];
+
+if (isset($distribution) && is_array($distribution)) {
+    foreach ($distribution as $item) {
+        if (isset($item['label_name']) && isset($item['count'])) {
+            $distributionLabels[] = $item['label_name'];
+            $distributionData[] = $item['count'];
+            $distributionColors[] = $item['color'] ?? '#cccccc';
+        }
+    }
+}
+
+if (empty($distributionLabels)) {
+    $distributionLabels = ['Không có dữ liệu'];
+    $distributionData = [1];
+    $distributionColors = ['#cccccc'];
+}
+?>
+
 // Trend Chart
-const trendCtx = document.getElementById('trendChart').getContext('2d');
-const trendChart = new Chart(trendCtx, {
-    type: 'line',
-    data: {
-        labels: <?= json_encode(array_column($trends['daily'], 'date')) ?>,
-        datasets: [{
-            label: 'Doanh thu',
-            data: <?= json_encode(array_column($trends['daily'], 'success_revenue')) ?>,
-            borderColor: '#667eea',
-            backgroundColor: 'rgba(102, 126, 234, 0.1)',
-            tension: 0.4,
-            fill: true
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: {
-                display: false
-            },
-            tooltip: {
-                callbacks: {
-                    label: function(context) {
-                        let value = context.parsed.y;
-                        return 'Doanh thu: ' + new Intl.NumberFormat('vi-VN', {
-                            style: 'currency',
-                            currency: 'VND'
-                        }).format(value);
+const trendCtx = document.getElementById('trendChart');
+if (trendCtx) {
+    const trendChart = new Chart(trendCtx.getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: <?= json_encode($trendLabels) ?>,
+            datasets: [{
+                label: 'Doanh thu',
+                data: <?= json_encode($trendRevenue) ?>,
+                borderColor: '#667eea',
+                backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                tension: 0.4,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return 'Doanh thu: ' + new Intl.NumberFormat('vi-VN', {
+                                style: 'currency',
+                                currency: 'VND'
+                            }).format(context.parsed.y || 0);
+                        }
                     }
                 }
-            }
-        },
-        scales: {
-            y: {
-                beginAtZero: true,
-                ticks: {
-                    callback: function(value) {
-                        return new Intl.NumberFormat('vi-VN', {
-                            notation: 'compact',
-                            compactDisplay: 'short'
-                        }).format(value);
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return new Intl.NumberFormat('vi-VN', {
+                                notation: 'compact',
+                                compactDisplay: 'short'
+                            }).format(value);
+                        }
                     }
                 }
             }
         }
-    }
-});
+    });
+
+    // Handle chart type switch
+    document.querySelectorAll('[data-chart]').forEach(button => {
+        button.addEventListener('click', function() {
+            document.querySelectorAll('[data-chart]').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            
+            const chartType = this.dataset.chart;
+            if (chartType === 'revenue') {
+                trendChart.data.datasets[0].data = <?= json_encode($trendRevenue) ?>;
+                trendChart.data.datasets[0].label = 'Doanh thu';
+            } else {
+                trendChart.data.datasets[0].data = <?= json_encode($trendOrders) ?>;
+                trendChart.data.datasets[0].label = 'Đơn hàng';
+            }
+            trendChart.update();
+        });
+    });
+}
 
 // Distribution Chart
-const distributionCtx = document.getElementById('distributionChart').getContext('2d');
-const distributionChart = new Chart(distributionCtx, {
-    type: 'doughnut',
-    data: {
-        labels: <?= json_encode(array_column($distribution, 'label_name')) ?>,
-        datasets: [{
-            data: <?= json_encode(array_column($distribution, 'count')) ?>,
-            backgroundColor: <?= json_encode(array_column($distribution, 'color')) ?>
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: {
-                position: 'bottom'
-            },
-            tooltip: {
-                callbacks: {
-                    label: function(context) {
-                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                        const percentage = (context.parsed / total * 100).toFixed(1);
-                        return context.label + ': ' + context.parsed + ' (' + percentage + '%)';
+const distributionCtx = document.getElementById('distributionChart');
+if (distributionCtx) {
+    new Chart(distributionCtx.getContext('2d'), {
+        type: 'doughnut',
+        data: {
+            labels: <?= json_encode($distributionLabels) ?>,
+            datasets: [{
+                data: <?= json_encode($distributionData) ?>,
+                backgroundColor: <?= json_encode($distributionColors) ?>
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom' },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = total > 0 ? (context.parsed / total * 100).toFixed(1) : 0;
+                            return context.label + ': ' + context.parsed + ' (' + percentage + '%)';
+                        }
                     }
                 }
             }
         }
-    }
-});
-
-// Handle chart type switch
-document.querySelectorAll('[data-chart]').forEach(button => {
-    button.addEventListener('click', function() {
-        document.querySelectorAll('[data-chart]').forEach(b => b.classList.remove('active'));
-        this.classList.add('active');
-        
-        const chartType = this.dataset.chart;
-        let newData, label;
-        
-        if (chartType === 'revenue') {
-            newData = <?= json_encode(array_column($trends['daily'], 'success_revenue')) ?>;
-            label = 'Doanh thu';
-        } else {
-            newData = <?= json_encode(array_column($trends['daily'], 'total_orders')) ?>;
-            label = 'Đơn hàng';
-        }
-        
-        trendChart.data.datasets[0].data = newData;
-        trendChart.data.datasets[0].label = label;
-        trendChart.update();
     });
-});
-<?php endif; ?>
+}
 
-// Auto-refresh every 5 minutes
-setTimeout(function() {
-    location.reload();
-}, 300000);
+<?php endif; ?>
 </script>
 
 <?php include 'includes/footer.php'; ?>
-</body>
-</html>

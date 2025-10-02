@@ -125,8 +125,8 @@ $is_system_page_active = in_array($current_page, $system_pages);
                         ?>
                     </a>
                 </li>
-                <li class="<?php echo ($current_page == 'statistics.php') ? 'active' : ''; ?>">
-                    <a href="statistics.php"><i class="fas fa-chart-bar nav-icon"></i> Thống kê</a>
+                <li class="<?php echo ($current_page == 'stats.php') ? 'active' : ''; ?>">
+                    <a href="stats.php"><i class="fas fa-chart-bar nav-icon"></i> Thống kê</a>
                 </li>
                 <?php endif; ?>
 
