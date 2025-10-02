@@ -1,7 +1,7 @@
 <?php
 /**
  * Security Helper Functions
- * Version: 2.0 - Enhanced & Fixed
+ * Version: 2.1 - More flexible with Content-Type
  */
 
 if (!defined('TSM_ACCESS')) {
@@ -13,15 +13,29 @@ if (!defined('TSM_ACCESS')) {
  */
 function require_csrf() {
     $token = null;
-    $content_type = isset($_SERVER['CONTENT_TYPE']) ? $_SERVER['CONTENT_TYPE'] : '';
+    $content_type = $_SERVER['CONTENT_TYPE'] ?? $_SERVER['HTTP_CONTENT_TYPE'] ?? '';
     
+    // Check if JSON request
     if (strpos($content_type, 'application/json') !== false) {
         $input = json_decode(file_get_contents('php://input'), true);
-        $token = isset($input['csrf_token']) ? $input['csrf_token'] : null;
+        $token = $input['csrf_token'] ?? null;
     } else {
-        $token = isset($_POST['csrf_token']) ? $_POST['csrf_token'] : (isset($_GET['csrf_token']) ? $_GET['csrf_token'] : null);
+        // Check POST first, then GET
+        $token = $_POST['csrf_token'] ?? $_GET['csrf_token'] ?? null;
+        
+        // If still no token and has raw input, try to parse as JSON
+        if (!$token) {
+            $raw_input = file_get_contents('php://input');
+            if ($raw_input) {
+                $input = json_decode($raw_input, true);
+                if ($input && isset($input['csrf_token'])) {
+                    $token = $input['csrf_token'];
+                }
+            }
+        }
     }
     
+    // Origin check (optional, more relaxed)
     $origin_valid = true;
     if (isset($_SERVER['HTTP_ORIGIN'])) {
         $allowed = parse_url(SITE_URL, PHP_URL_SCHEME) . '://' . parse_url(SITE_URL, PHP_URL_HOST);
@@ -42,25 +56,45 @@ function require_csrf() {
  * Check if AJAX request
  */
 function is_ajax_request() {
-    return !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+    return !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && 
+           strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
 }
 
 /**
- * Validate JSON input
+ * Get JSON input - More flexible version
+ * Accepts both application/json and regular POST with JSON body
  */
 function get_json_input($required_fields = array()) {
-    if (!isset($_SERVER['CONTENT_TYPE']) || $_SERVER['CONTENT_TYPE'] !== 'application/json') {
-        json_error('Content-Type must be application/json', 400);
+    $content_type = $_SERVER['CONTENT_TYPE'] ?? $_SERVER['HTTP_CONTENT_TYPE'] ?? '';
+    $input = null;
+    
+    // Try to get JSON from raw input
+    $raw_input = file_get_contents('php://input');
+    if ($raw_input) {
+        $input = json_decode($raw_input, true);
+        
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            // If not valid JSON, check if it's form-encoded
+            if (strpos($content_type, 'application/x-www-form-urlencoded') !== false) {
+                parse_str($raw_input, $input);
+            } else {
+                json_error('Invalid JSON: ' . json_last_error_msg(), 400);
+            }
+        }
     }
     
-    $input = json_decode(file_get_contents('php://input'), true);
-    
-    if (json_last_error() !== JSON_ERROR_NONE) {
-        json_error('Invalid JSON: ' . json_last_error_msg(), 400);
+    // If still no input, check $_POST
+    if (!$input && !empty($_POST)) {
+        $input = $_POST;
     }
     
+    if (!$input) {
+        json_error('No input data received', 400);
+    }
+    
+    // Validate required fields
     foreach ($required_fields as $field) {
-        if (!isset($input[$field])) {
+        if (!isset($input[$field]) || $input[$field] === '') {
             json_error("Missing required field: $field", 400);
         }
     }
@@ -68,22 +102,23 @@ function get_json_input($required_fields = array()) {
     return $input;
 }
 
-
 /**
  * Validate status transition
  */
 function validate_status_transition($current_status, $new_status) {
-    $statuses = get_order_labels(true);
+    // Get all statuses
+    $valid_statuses = db_get_col("SELECT label_key FROM order_labels");
     
-    if (!isset($statuses[$new_status])) {
+    if (!in_array($new_status, $valid_statuses)) {
         return false;
     }
     
-    $locked_statuses = array_merge(
-        get_confirmed_statuses(),
-        get_cancelled_statuses()
+    // Get locked statuses (success or failed)
+    $locked_statuses = db_get_col(
+        "SELECT label_key FROM order_labels WHERE core_status IN ('success', 'failed')"
     );
     
+    // Cannot change from locked status
     if (in_array($current_status, $locked_statuses)) {
         return false;
     }
@@ -100,16 +135,19 @@ function validate_products_json($products) {
     }
     
     foreach ($products as $index => $product) {
-        if (!isset($product['id']) || !isset($product['name'])) {
-            return array('valid' => false, 'error' => "Product at index $index missing id or name");
+        // Only name is truly required
+        if (!isset($product['name']) || empty($product['name'])) {
+            return array('valid' => false, 'error' => "Product at index $index missing name");
         }
         
-        if (!isset($product['qty']) || $product['qty'] <= 0) {
+        // Quantity defaults to 1 if not set
+        if (isset($product['qty']) && $product['qty'] <= 0) {
             return array('valid' => false, 'error' => "Product at index $index has invalid quantity");
         }
         
-        if (!isset($product['price']) || $product['price'] < 0) {
-            return array('valid' => false, 'error' => "Product at index $index has invalid price");
+        // Price can be 0 (free product)
+        if (isset($product['price']) && $product['price'] < 0) {
+            return array('valid' => false, 'error' => "Product at index $index has negative price");
         }
     }
     
@@ -123,6 +161,7 @@ function check_rate_limit($action, $user_id, $limit = 60, $window = 60) {
     $key = "rate_limit_{$action}_{$user_id}";
     $cutoff = date('Y-m-d H:i:s', time() - $window);
     
+    // Cleanup old entries (1% chance)
     if (rand(1, 100) === 1) {
         db_query("DELETE FROM rate_limits WHERE created_at < ?", array($cutoff));
     }
@@ -192,38 +231,41 @@ function validate_phone($phone) {
  */
 function validate_email_input($email) {
     if (empty($email)) return null;
-    $email = filter_var($email, FILTER_VALIDATE_EMAIL);
+    
+    $email = filter_var(trim($email), FILTER_VALIDATE_EMAIL);
     if ($email === false) {
         json_error('Invalid email format', 400);
     }
     return $email;
 }
 
-
 /**
- * Execute with retry
+ * Execute with retry (for deadlock handling)
  */
 function execute_with_retry($callback, $max_retries = 3) {
     $attempt = 0;
     
     while ($attempt < $max_retries) {
         try {
+            // Call execute_in_transaction from transaction_helper.php
             return execute_in_transaction($callback);
         } catch (Exception $e) {
             $attempt++;
             
             if (stripos($e->getMessage(), 'deadlock') !== false && $attempt < $max_retries) {
-                usleep(100000 * $attempt);
+                usleep(100000 * $attempt); // Wait longer each retry
                 continue;
             }
             
             throw $e;
         }
     }
+    
+    throw new Exception("Failed after $max_retries retries");
 }
 
 /**
- * Sanitize array
+ * Sanitize array recursively
  */
 function sanitize_array($array) {
     $result = array();
@@ -237,4 +279,30 @@ function sanitize_array($array) {
     }
     return $result;
 }
-?>
+
+/**
+ * Helper: Can receive handover
+ * Check if manager can receive handover order
+ */
+function can_receive_handover($order_id) {
+    $order = get_order($order_id);
+    if (!$order) return false;
+    
+    $user = get_logged_user();
+    if (!$user) return false;
+    
+    // Admin can always receive
+    if ($user['role'] === 'admin') return true;
+    
+    // Manager can receive if order was from their team
+    if ($user['role'] === 'manager' && $order['assigned_to']) {
+        $team_ids = db_get_col(
+            "SELECT telesale_id FROM manager_assignments WHERE manager_id = ?",
+            [$user['id']]
+        );
+        
+        return in_array($order['assigned_to'], $team_ids);
+    }
+    
+    return false;
+}

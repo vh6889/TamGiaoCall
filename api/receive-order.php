@@ -1,7 +1,10 @@
 <?php
 /**
  * API: Receive Order from WooCommerce
- * This endpoint receives new orders from WooCommerce webhook
+ * CASE 1: Đơn mới vào hệ thống
+ * - system_status = 'free'
+ * - core_status = 'new'  
+ * - primary_label = 'lbl_new_order'
  */
 define('TSM_ACCESS', true);
 require_once '../config.php';
@@ -46,7 +49,7 @@ if ($existing) {
 }
 
 try {
-    // Prepare order data
+    // CASE 1: ĐƠN MỚI - LOGIC RẤT ĐƠN GIẢN
     $order_data = [
         'woo_order_id' => $data['woo_order_id'],
         'order_number' => $data['order_number'],
@@ -60,8 +63,16 @@ try {
         'currency' => $data['currency'] ?? 'VND',
         'payment_method' => $data['payment_method'] ?? null,
         'products' => json_encode($data['products'] ?? []),
+        
+        // CASE 1: 3 trường cố định cho đơn mới
         'system_status' => 'free',
-		'primary_label' => get_new_status_key(),
+        'core_status' => 'new',
+        'primary_label' => 'lbl_new_order',
+        
+        // Chưa gán cho ai
+        'assigned_to' => NULL,
+        'assigned_at' => NULL,
+        
         'woo_created_at' => $data['woo_created_at'] ?? date('Y-m-d H:i:s'),
         'created_at' => date('Y-m-d H:i:s')
     ];

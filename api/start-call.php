@@ -78,34 +78,40 @@ try {
         'status' => 'active'
     ]);
     
-    // 5. Update order - tăng call_count và ghi last_call_at
+    // 5. Tính số lần gọi mới
+    $new_call_count = ($order['call_count'] ?? 0) + 1;
+    
+    // 6. Update order - tăng call_count và ghi last_call_at
     db_update('orders', [
-        'call_count' => $order['call_count'] + 1,
+        'call_count' => $new_call_count,
         'last_call_at' => date('Y-m-d H:i:s')
     ], 'id = ?', [$order_id]);
     
-    // 6. Ghi log activity
+    // 7. Ghi log activity
     db_insert('order_notes', [
         'order_id' => $order_id,
         'user_id' => $user['id'],
         'note_type' => 'system',
-        'content' => "Bắt đầu cuộc gọi lần thứ " . ($order['call_count'] + 1)
+        'content' => "Bắt đầu cuộc gọi lần thứ " . $new_call_count
     ]);
+    
+    // 8. Tạo message cho log
+    $log_message = "Started call #{$new_call_count} for order #{$order['order_number']}";
     
     log_activity(
         'start_call',
-        "Started call #{$order['call_count'] + 1} for order #{$order['order_number']}",
+        $log_message,
         'order',
         $order_id
     );
     
     commit_transaction();
     
-    // 7. Trả về thông tin để UI hiển thị
+    // 9. Trả về thông tin để UI hiển thị
     json_success('Đã bắt đầu cuộc gọi', [
         'call_id' => $call_id,
         'start_time' => date('Y-m-d H:i:s'),
-        'call_number' => $order['call_count'] + 1,
+        'call_number' => $new_call_count,
         'can_edit' => true, // Cho phép sửa trong cuộc gọi
         'customer' => [
             'name' => $order['customer_name'],
@@ -118,4 +124,3 @@ try {
     rollback_transaction();
     json_error($e->getMessage());
 }
-?>

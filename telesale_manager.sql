@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Máy chủ: 127.0.0.1
--- Thời gian đã tạo: Th10 01, 2025 lúc 09:27 PM
+-- Thời gian đã tạo: Th10 02, 2025 lúc 02:55 AM
 -- Phiên bản máy phục vụ: 10.4.32-MariaDB
 -- Phiên bản PHP: 8.0.30
 
@@ -32,6 +32,8 @@ CREATE TABLE `activity_logs` (
   `user_id` int(10) UNSIGNED DEFAULT NULL,
   `action` varchar(100) NOT NULL,
   `description` text DEFAULT NULL,
+  `entity_type` varchar(50) DEFAULT NULL,
+  `entity_id` int(11) DEFAULT NULL,
   `related_type` varchar(50) DEFAULT NULL COMMENT 'Loại đối tượng (order, user, kpi)',
   `related_id` int(10) UNSIGNED DEFAULT NULL,
   `ip_address` varchar(45) DEFAULT NULL,
@@ -43,48 +45,49 @@ CREATE TABLE `activity_logs` (
 -- Đang đổ dữ liệu cho bảng `activity_logs`
 --
 
-INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `related_type`, `related_id`, `ip_address`, `user_agent`, `created_at`) VALUES
-(1, 1, 'login', 'User logged in', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 10:46:19'),
-(2, 1, 'login', 'User logged in', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 10:47:32'),
-(3, 1, 'logout', 'User logged out', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 11:06:40'),
-(4, 1, 'login', 'User logged in', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 11:06:54'),
-(5, 1, 'update_user', 'Updated user info', 'user', 2, '::1', 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36', '2025-09-30 12:46:43'),
-(6, 1, 'disable_user', 'Disabled user #3', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 12:51:11'),
-(7, 1, 'update_user', 'Updated user info', 'user', 3, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 12:54:20'),
-(8, 1, 'update_user', 'Updated user info', 'user', 3, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 12:54:32'),
-(9, 1, 'update_settings', 'System settings have been updated.', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 12:55:19'),
-(10, 1, 'update_settings', 'System settings have been updated.', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 12:55:38'),
-(11, 1, 'create_user', 'Created new user: oigioioi', 'user', 4, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 18:50:59'),
-(12, 1, 'login', 'User logged in', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 23:23:10'),
-(13, 1, 'create_rule', 'Created rule: Xử lý khách không nghe máy lâu', 'rule', 1, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 23:28:22'),
-(14, 1, 'create_rule', 'Created rule: Nâng cấp khách VIP', 'rule', 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 23:28:23'),
-(15, 1, 'create_rule', 'Created rule: Suspend nhân viên yếu kém', 'rule', 3, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 23:28:23'),
-(16, 1, 'create_rule', 'Created rule: Xử lý khách không nghe máy lâu', 'rule', 4, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 23:39:09'),
-(17, 1, 'create_rule', 'Created rule: Suspend nhân viên yếu kém', 'rule', 5, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 23:39:09'),
-(18, 1, 'create_rule', 'Created rule: Nâng cấp khách VIP', 'rule', 6, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 23:39:09'),
-(19, 1, 'delete_rule', 'Deleted rule #3', 'rule', 3, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 23:40:24'),
-(20, 1, 'delete_rule', 'Deleted rule #4', 'rule', 4, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 23:40:28'),
-(21, 1, 'delete_rule', 'Deleted rule #2', 'rule', 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 23:40:38'),
-(22, 1, 'create_rule', 'Created rule: Tự chuyển không nghe thành rác', 'rule', 7, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 00:36:21'),
-(23, 1, 'migrate_dynamic_status', 'Migrated system to use dynamic status', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 06:09:44'),
-(24, 1, 'start_call', 'Started call for order #DYN001', 'order', 22, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 07:12:38'),
-(25, 1, 'end_call', 'Completed call for order #22 (Duration: 00:02:02)', 'order', 22, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 07:14:40'),
-(26, 1, 'complete_cleanup', 'Executed complete system cleanup - removed all hardcoded values', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 09:23:38'),
-(27, 1, 'final_cleanup', 'Executed final cleanup - removed all hardcode', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 09:36:30'),
-(28, 1, 'complete_hardcode_fix', 'Fixed all remaining hardcoded statuses in 14 files', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 09:53:43'),
-(29, 1, 'complete_hardcode_fix', 'Fixed all remaining hardcoded statuses in 0 files', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 09:55:36'),
-(30, 1, 'login', 'User logged in', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 11:11:01'),
-(31, 1, 'safe_fix_complete', 'Applied 10 fixes', 'system', NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 11:11:12'),
-(32, 1, 'logout', 'User logged out', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 11:32:29'),
-(33, 1, 'login', 'User logged in', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 11:32:32'),
-(34, 1, 'login', 'User logged in', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 13:25:32'),
-(35, 1, 'logout', 'User logged out', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 13:46:22'),
-(36, 2, 'login', 'User logged in', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 13:46:40'),
-(37, 1, 'login', 'User logged in', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 22:16:13'),
-(38, 1, 'reclaim_order', 'Reclaimed order #TEST001 to common pool', 'order', 62, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-02 00:45:25'),
-(39, 1, 'reclaim_order', 'Reclaimed order #TEST003 to common pool', 'order', 64, '::1', 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36', '2025-10-02 00:49:19'),
-(40, 1, 'transfer_order', 'Transferred order #TEST002 to telesale2', 'order', 63, '::1', 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36', '2025-10-02 00:54:14'),
-(41, 2, 'login', 'User logged in', NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-02 00:55:08');
+INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `entity_type`, `entity_id`, `related_type`, `related_id`, `ip_address`, `user_agent`, `created_at`) VALUES
+(1, 1, 'login', 'User logged in', NULL, NULL, NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 10:46:19'),
+(2, 1, 'login', 'User logged in', NULL, NULL, NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 10:47:32'),
+(3, 1, 'logout', 'User logged out', NULL, NULL, NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 11:06:40'),
+(4, 1, 'login', 'User logged in', NULL, NULL, NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 11:06:54'),
+(5, 1, 'update_user', 'Updated user info', NULL, NULL, 'user', 2, '::1', 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36', '2025-09-30 12:46:43'),
+(6, 1, 'disable_user', 'Disabled user #3', NULL, NULL, NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 12:51:11'),
+(7, 1, 'update_user', 'Updated user info', NULL, NULL, 'user', 3, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 12:54:20'),
+(8, 1, 'update_user', 'Updated user info', NULL, NULL, 'user', 3, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 12:54:32'),
+(9, 1, 'update_settings', 'System settings have been updated.', NULL, NULL, NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 12:55:19'),
+(10, 1, 'update_settings', 'System settings have been updated.', NULL, NULL, NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 12:55:38'),
+(11, 1, 'create_user', 'Created new user: oigioioi', NULL, NULL, 'user', 4, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 18:50:59'),
+(12, 1, 'login', 'User logged in', NULL, NULL, NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 23:23:10'),
+(13, 1, 'create_rule', 'Created rule: Xử lý khách không nghe máy lâu', NULL, NULL, 'rule', 1, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 23:28:22'),
+(14, 1, 'create_rule', 'Created rule: Nâng cấp khách VIP', NULL, NULL, 'rule', 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 23:28:23'),
+(15, 1, 'create_rule', 'Created rule: Suspend nhân viên yếu kém', NULL, NULL, 'rule', 3, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 23:28:23'),
+(16, 1, 'create_rule', 'Created rule: Xử lý khách không nghe máy lâu', NULL, NULL, 'rule', 4, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 23:39:09'),
+(17, 1, 'create_rule', 'Created rule: Suspend nhân viên yếu kém', NULL, NULL, 'rule', 5, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 23:39:09'),
+(18, 1, 'create_rule', 'Created rule: Nâng cấp khách VIP', NULL, NULL, 'rule', 6, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 23:39:09'),
+(19, 1, 'delete_rule', 'Deleted rule #3', NULL, NULL, 'rule', 3, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 23:40:24'),
+(20, 1, 'delete_rule', 'Deleted rule #4', NULL, NULL, 'rule', 4, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 23:40:28'),
+(21, 1, 'delete_rule', 'Deleted rule #2', NULL, NULL, 'rule', 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-30 23:40:38'),
+(22, 1, 'create_rule', 'Created rule: Tự chuyển không nghe thành rác', NULL, NULL, 'rule', 7, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 00:36:21'),
+(23, 1, 'migrate_dynamic_status', 'Migrated system to use dynamic status', NULL, NULL, NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 06:09:44'),
+(24, 1, 'start_call', 'Started call for order #DYN001', NULL, NULL, 'order', 22, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 07:12:38'),
+(25, 1, 'end_call', 'Completed call for order #22 (Duration: 00:02:02)', NULL, NULL, 'order', 22, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 07:14:40'),
+(26, 1, 'complete_cleanup', 'Executed complete system cleanup - removed all hardcoded values', NULL, NULL, NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 09:23:38'),
+(27, 1, 'final_cleanup', 'Executed final cleanup - removed all hardcode', NULL, NULL, NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 09:36:30'),
+(28, 1, 'complete_hardcode_fix', 'Fixed all remaining hardcoded statuses in 14 files', NULL, NULL, NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 09:53:43'),
+(29, 1, 'complete_hardcode_fix', 'Fixed all remaining hardcoded statuses in 0 files', NULL, NULL, NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 09:55:36'),
+(30, 1, 'login', 'User logged in', NULL, NULL, NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 11:11:01'),
+(31, 1, 'safe_fix_complete', 'Applied 10 fixes', NULL, NULL, 'system', NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 11:11:12'),
+(32, 1, 'logout', 'User logged out', NULL, NULL, NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 11:32:29'),
+(33, 1, 'login', 'User logged in', NULL, NULL, NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 11:32:32'),
+(34, 1, 'login', 'User logged in', NULL, NULL, NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 13:25:32'),
+(35, 1, 'logout', 'User logged out', NULL, NULL, NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 13:46:22'),
+(36, 2, 'login', 'User logged in', NULL, NULL, NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 13:46:40'),
+(37, 1, 'login', 'User logged in', NULL, NULL, NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-01 22:16:13'),
+(38, 1, 'reclaim_order', 'Reclaimed order #TEST001 to common pool', NULL, NULL, 'order', 62, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-02 00:45:25'),
+(39, 1, 'reclaim_order', 'Reclaimed order #TEST003 to common pool', NULL, NULL, 'order', 64, '::1', 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36', '2025-10-02 00:49:19'),
+(40, 1, 'transfer_order', 'Transferred order #TEST002 to telesale2', NULL, NULL, 'order', 63, '::1', 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36', '2025-10-02 00:54:14'),
+(41, 2, 'login', 'User logged in', NULL, NULL, NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-02 00:55:08'),
+(42, 2, 'start_call', 'Started call #1 for order #TEST003', 'order', 64, NULL, NULL, '::1', 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36', '2025-10-02 02:47:36');
 
 -- --------------------------------------------------------
 
@@ -106,6 +109,13 @@ CREATE TABLE `call_logs` (
   `customer_feedback` tinyint(1) DEFAULT NULL COMMENT 'Đánh giá của khách (1-5)',
   `created_at` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Lịch sử cuộc gọi chi tiết';
+
+--
+-- Đang đổ dữ liệu cho bảng `call_logs`
+--
+
+INSERT INTO `call_logs` (`id`, `order_id`, `user_id`, `user_name`, `start_time`, `end_time`, `duration`, `note`, `status`, `recording_url`, `customer_feedback`, `created_at`) VALUES
+(6, 64, 2, 'Nguyễn Văn Ad', '2025-10-02 02:47:36', NULL, NULL, NULL, 'active', NULL, NULL, '2025-10-02 02:47:36');
 
 --
 -- Bẫy `call_logs`
@@ -321,9 +331,9 @@ CREATE TABLE `orders` (
 --
 
 INSERT INTO `orders` (`id`, `woo_order_id`, `order_number`, `customer_name`, `customer_phone`, `customer_email`, `customer_address`, `total_amount`, `currency`, `payment_method`, `products`, `customer_notes`, `system_status`, `core_status`, `primary_label`, `assigned_to`, `manager_id`, `assigned_at`, `call_count`, `last_call_at`, `callback_time`, `source`, `created_by`, `approval_status`, `approved_by`, `approved_at`, `woo_created_at`, `created_at`, `updated_at`, `completed_at`, `is_locked`, `locked_at`, `locked_by`, `deleted_at`, `version`) VALUES
-(62, NULL, 'TEST001', 'Nguyễn Văn A', '0901234567', 'nguyenvana@gmail.com', '123 Đường Lê Lợi, Quận 1, TP.HCM', 1500000.00, 'VND', 'COD', '[{\"product_name\":\"Áo thun nam\",\"quantity\":2,\"price\":250000},{\"product_name\":\"Quần jean\",\"quantity\":1,\"price\":500000}]', 'Giao hàng ngoài giờ hành chính', 'assigned', 'processing', 'lbl_new_order', 3, NULL, '2025-10-02 00:45:33', 0, NULL, NULL, 'manual', NULL, NULL, NULL, NULL, NULL, '2025-10-01 21:47:27', '2025-10-02 00:45:33', NULL, 0, NULL, NULL, NULL, 1),
+(62, NULL, 'TEST001', 'Nguyễn Văn A', '0901234567', 'nguyenvana@gmail.com', '123 Đường Lê Lợi, Quận 1, TP.HCM', 1500000.00, 'VND', 'COD', '[{\"product_name\":\"Áo thun nam\",\"quantity\":2,\"price\":250000},{\"product_name\":\"Quần jean\",\"quantity\":1,\"price\":500000}]', 'Giao hàng ngoài giờ hành chính', 'assigned', 'processing', 'lbl_new_order', 2, NULL, '2025-10-02 02:56:54', 0, NULL, NULL, 'manual', NULL, NULL, NULL, NULL, NULL, '2025-10-01 21:47:27', '2025-10-02 02:56:54', NULL, 0, NULL, NULL, NULL, 1),
 (63, NULL, 'TEST002', 'Trần Thị B', '0912345678', 'tranthib@yahoo.com', '456 Đường Nguyễn Huệ, Quận 3, TP.HCM', 2800000.00, 'VND', 'Banking', '[{\"product_name\":\"Laptop Dell\",\"quantity\":1,\"price\":2800000}]', 'Cần kiểm tra kỹ hàng trước khi nhận', 'assigned', 'processing', 'lbl_processing', 3, NULL, '2025-10-02 00:54:14', 0, NULL, NULL, 'manual', NULL, NULL, NULL, NULL, NULL, '2025-10-01 21:47:27', '2025-10-02 00:54:14', NULL, 0, NULL, NULL, NULL, 1),
-(64, NULL, 'TEST003', 'Lê Văn C', '0923456789', 'levanc@hotmail.com', '789 Đường Trần Hưng Đạo, Quận 5, TP.HCM', 5000000.00, 'VND', 'COD', '[{\"product_name\":\"iPhone 15 Pro\",\"quantity\":1,\"price\":5000000}]', 'Khách VIP, ưu tiên gọi buổi sáng', 'assigned', 'processing', 'lbl_new_order', 2, NULL, '2025-10-02 00:49:29', 0, NULL, NULL, 'manual', NULL, NULL, NULL, NULL, NULL, '2025-10-01 21:47:27', '2025-10-02 00:49:29', NULL, 0, NULL, NULL, NULL, 1),
+(64, NULL, 'TEST003', 'Lê Văn C', '0923456789', 'levanc@hotmail.com', '789 Đường Trần Hưng Đạo, Quận 5, TP.HCM', 5000000.00, 'VND', 'COD', '[{\"product_name\":\"iPhone 15 Pro\",\"quantity\":1,\"price\":5000000}]', 'Khách VIP, ưu tiên gọi buổi sáng', 'assigned', 'processing', 'lbl_new_order', 2, NULL, '2025-10-02 00:49:29', 1, '2025-10-02 02:47:36', NULL, 'manual', NULL, NULL, NULL, NULL, NULL, '2025-10-01 21:47:27', '2025-10-02 02:47:36', NULL, 0, NULL, NULL, NULL, 1),
 (65, NULL, 'WOO12345', 'Phạm Thị D', '0934567890', 'phamthid@gmail.com', '321 Đường Võ Văn Tần, Quận 10, TP.HCM', 750000.00, 'VND', 'VNPAY', '[{\"product_name\":\"Giày thể thao Nike\",\"quantity\":1,\"price\":750000}]', 'Gọi trước 30 phút', 'free', 'new', 'lbl_new_order', NULL, NULL, NULL, 0, NULL, NULL, 'woocommerce', NULL, NULL, NULL, NULL, NULL, '2025-10-01 21:47:27', '2025-10-02 00:23:59', NULL, 0, NULL, NULL, NULL, 1),
 (66, NULL, 'TEST005', 'Hoàng Văn E', '0945678901', 'hoangvane@outlook.com', '654 Đường Hai Bà Trưng, Quận Tân Bình, TP.HCM', 350000.00, 'VND', 'COD', '[{\"product_name\":\"Túi xách nữ\",\"quantity\":1,\"price\":350000}]', NULL, 'free', 'new', 'lbl_new_order', NULL, NULL, NULL, 0, NULL, NULL, 'manual', NULL, NULL, NULL, NULL, NULL, '2025-10-01 21:47:27', '2025-10-02 00:23:59', NULL, 0, NULL, NULL, NULL, 1);
 
@@ -405,7 +415,9 @@ INSERT INTO `order_notes` (`id`, `order_id`, `user_id`, `note_type`, `content`, 
 (11, 64, 1, 'system', 'Admin Administrator đã thu hồi đơn hàng về kho chung từ Trần Thị Booo', '2025-10-02 00:49:19', NULL),
 (12, 64, 1, 'assignment', 'Phân công cho Nguyễn Văn Ad', '2025-10-02 00:49:30', NULL),
 (13, 63, 1, 'assignment', 'Phân công cho Nguyễn Văn Ad', '2025-10-02 00:54:05', NULL),
-(14, 63, 1, 'assignment', 'Chuyển giao từ Nguyễn Văn Ad cho Trần Thị Booo', '2025-10-02 00:54:14', NULL);
+(14, 63, 1, 'assignment', 'Chuyển giao từ Nguyễn Văn Ad cho Trần Thị Booo', '2025-10-02 00:54:14', NULL),
+(17, 64, 2, 'system', 'Bắt đầu cuộc gọi lần thứ 1', '2025-10-02 02:47:36', NULL),
+(18, 62, 1, 'assignment', 'Phân công cho Nguyễn Văn Ad', '2025-10-02 02:56:54', NULL);
 
 -- --------------------------------------------------------
 
@@ -441,7 +453,20 @@ CREATE TABLE `rate_limits` (
 INSERT INTO `rate_limits` (`id`, `rate_key`, `user_id`, `action`, `created_at`) VALUES
 (1, 'rate_limit_assign-order_1', 1, 'assign-order', '2025-10-02 00:44:15'),
 (2, 'rate_limit_reclaim-order_1', 1, 'reclaim-order', '2025-10-02 00:45:25'),
-(3, 'rate_limit_reclaim-order_1', 1, 'reclaim-order', '2025-10-02 00:49:19');
+(3, 'rate_limit_reclaim-order_1', 1, 'reclaim-order', '2025-10-02 00:49:19'),
+(4, 'rate_limit_start-call_2', 2, 'start-call', '2025-10-02 02:44:54'),
+(5, 'rate_limit_start-call_2', 2, 'start-call', '2025-10-02 02:44:55'),
+(6, 'rate_limit_start-call_2', 2, 'start-call', '2025-10-02 02:44:56'),
+(7, 'rate_limit_start-call_2', 2, 'start-call', '2025-10-02 02:44:56'),
+(8, 'rate_limit_start-call_2', 2, 'start-call', '2025-10-02 02:44:57'),
+(9, 'rate_limit_start-call_2', 2, 'start-call', '2025-10-02 02:44:57'),
+(10, 'rate_limit_start-call_2', 2, 'start-call', '2025-10-02 02:44:58'),
+(11, 'rate_limit_start-call_2', 2, 'start-call', '2025-10-02 02:45:00'),
+(12, 'rate_limit_start-call_2', 2, 'start-call', '2025-10-02 02:45:01'),
+(13, 'rate_limit_start-call_2', 2, 'start-call', '2025-10-02 02:45:05'),
+(14, 'rate_limit_start-call_2', 2, 'start-call', '2025-10-02 02:46:33'),
+(15, 'rate_limit_start-call_2', 2, 'start-call', '2025-10-02 02:46:37'),
+(16, 'rate_limit_start-call_2', 2, 'start-call', '2025-10-02 02:47:36');
 
 -- --------------------------------------------------------
 
@@ -782,7 +807,8 @@ ALTER TABLE `activity_logs`
   ADD KEY `idx_user_id` (`user_id`),
   ADD KEY `idx_action` (`action`),
   ADD KEY `idx_activity_user` (`user_id`),
-  ADD KEY `idx_created_at` (`created_at`);
+  ADD KEY `idx_created_at` (`created_at`),
+  ADD KEY `idx_entity` (`entity_type`,`entity_id`);
 
 --
 -- Chỉ mục cho bảng `call_logs`
@@ -1035,13 +1061,13 @@ ALTER TABLE `user_labels`
 -- AUTO_INCREMENT cho bảng `activity_logs`
 --
 ALTER TABLE `activity_logs`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=42;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=43;
 
 --
 -- AUTO_INCREMENT cho bảng `call_logs`
 --
 ALTER TABLE `call_logs`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT cho bảng `customer_labels`
@@ -1089,7 +1115,7 @@ ALTER TABLE `order_label_history`
 -- AUTO_INCREMENT cho bảng `order_notes`
 --
 ALTER TABLE `order_notes`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
 
 --
 -- AUTO_INCREMENT cho bảng `password_history`
@@ -1101,7 +1127,7 @@ ALTER TABLE `password_history`
 -- AUTO_INCREMENT cho bảng `rate_limits`
 --
 ALTER TABLE `rate_limits`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
 
 --
 -- AUTO_INCREMENT cho bảng `reminders`
