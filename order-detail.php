@@ -499,7 +499,271 @@ include 'includes/header.php';
         </div>
     </div>
 </div>
+<!-- Modal Phân công -->
+<div class="modal fade" id="assignModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Phân công đơn hàng</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label>Chọn nhân viên:</label>
+                    <select class="form-select" id="assignToUser">
+                        <option value="">-- Chọn nhân viên --</option>
+                        <?php foreach ($telesales_list as $ts): ?>
+                            <option value="<?= $ts['id'] ?>"><?= htmlspecialchars($ts['full_name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" class="btn btn-primary" onclick="assignOrder()">
+                    <i class="fas fa-check"></i> Phân công
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
+<!-- Modal Chuyển giao -->
+<div class="modal fade" id="transferModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Chuyển giao đơn hàng</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Đơn đang được xử lý bởi: <strong><?= htmlspecialchars($order['assigned_to_name'] ?? 'N/A') ?></strong></p>
+                <div class="mb-3">
+                    <label>Chuyển giao cho:</label>
+                    <select class="form-select" id="transferToUser">
+                        <option value="">-- Chọn nhân viên --</option>
+                        <?php foreach ($telesales_list as $ts): ?>
+                            <?php if ($ts['id'] != $order['assigned_to']): ?>
+                                <option value="<?= $ts['id'] ?>"><?= htmlspecialchars($ts['full_name']) ?></option>
+                            <?php endif; ?>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label>Lý do chuyển giao:</label>
+                    <textarea class="form-control" id="transferReason" rows="2" placeholder="Nhập lý do..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" class="btn btn-warning" onclick="transferOrder()">
+                    <i class="fas fa-exchange-alt"></i> Chuyển giao
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Thêm các functions còn thiếu vào phần JavaScript
+
+// Claim Order (User nhận đơn)
+function claimOrder() {
+    if (!confirm('Bạn muốn nhận đơn hàng này?')) return;
+    
+    $.post('api/claim-order.php', {
+        csrf_token: csrfToken,
+        order_id: orderId
+    }, function(response) {
+        if (response.success) {
+            showToast('Đã nhận đơn hàng thành công', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showToast(response.message || 'Có lỗi xảy ra', 'error');
+        }
+    }).fail(function(xhr) {
+        showToast('Lỗi: ' + (xhr.responseJSON?.message || 'Không thể kết nối'), 'error');
+    });
+}
+
+// Show Assign Modal
+function showAssignModal() {
+    $('#assignModal').modal('show');
+}
+
+// Assign Order
+function assignOrder() {
+    const userId = $('#assignToUser').val();
+    
+    if (!userId) {
+        showToast('Vui lòng chọn nhân viên', 'warning');
+        return;
+    }
+    
+    $.post('api/assign-order.php', {
+        csrf_token: csrfToken,
+        order_id: orderId,
+        user_id: userId
+    }, function(response) {
+        if (response.success) {
+            $('#assignModal').modal('hide');
+            showToast('Đã phân công thành công', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showToast(response.message || 'Có lỗi xảy ra', 'error');
+        }
+    }).fail(function(xhr) {
+        showToast('Lỗi: ' + (xhr.responseJSON?.message || 'Không thể kết nối'), 'error');
+    });
+}
+
+// Show Transfer Modal
+function showTransferModal() {
+    $('#transferModal').modal('show');
+}
+
+// Transfer Order
+function transferOrder() {
+    const userId = $('#transferToUser').val();
+    const reason = $('#transferReason').val().trim();
+    
+    if (!userId) {
+        showToast('Vui lòng chọn nhân viên', 'warning');
+        return;
+    }
+    
+    // Chuyển giao = thu hồi + phân công lại
+    $.post('api/transfer-order.php', {
+        csrf_token: csrfToken,
+        order_id: orderId,
+        new_user_id: userId,
+        reason: reason
+    }, function(response) {
+        if (response.success) {
+            $('#transferModal').modal('hide');
+            showToast('Đã chuyển giao thành công', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showToast(response.message || 'Có lỗi xảy ra', 'error');
+        }
+    }).fail(function(xhr) {
+        showToast('Lỗi: ' + (xhr.responseJSON?.message || 'Không thể kết nối'), 'error');
+    });
+}
+
+// Reclaim Order (Thu hồi về kho chung)
+function reclaimOrder() {
+    if (!confirm('Bạn muốn thu hồi đơn hàng này về kho chung?')) return;
+    
+    $.post('api/reclaim-order.php', {
+        csrf_token: csrfToken,
+        order_id: orderId
+    }, function(response) {
+        if (response.success) {
+            showToast('Đã thu hồi đơn hàng', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showToast(response.message || 'Có lỗi xảy ra', 'error');
+        }
+    }).fail(function(xhr) {
+        showToast('Lỗi: ' + (xhr.responseJSON?.message || 'Không thể kết nối'), 'error');
+    });
+}
+
+// Quick Save (Lưu nhanh status + note)
+function quickSave() {
+    const status = $('#quickStatus').val();
+    const note = $('#quickNote').val().trim();
+    const callback = $('#callbackTime').val();
+    
+    if (!status && !note && !callback) {
+        showToast('Không có gì để lưu', 'warning');
+        return;
+    }
+    
+    const requests = [];
+    
+    // Update status if changed
+    if (status && status !== '<?= $order['primary_label'] ?>') {
+        requests.push(
+            $.post('api/update-status.php', {
+                csrf_token: csrfToken,
+                order_id: orderId,
+                status: status
+            })
+        );
+    }
+    
+    // Add note if provided
+    if (note) {
+        requests.push(
+            $.post('api/add-note.php', {
+                csrf_token: csrfToken,
+                order_id: orderId,
+                content: note
+            })
+        );
+    }
+    
+    // Create reminder if callback time set
+    if (callback) {
+        requests.push(
+            $.post('api/create-reminder.php', {
+                csrf_token: csrfToken,
+                order_id: orderId,
+                due_time: callback,
+                type: 'callback'
+            })
+        );
+    }
+    
+    // Execute all requests
+    $.when.apply($, requests).done(function() {
+        showToast('Đã lưu thành công', 'success');
+        setTimeout(() => location.reload(), 1000);
+    }).fail(function() {
+        showToast('Có lỗi xảy ra khi lưu', 'error');
+    });
+}
+
+// Improved Toast function
+function showToast(message, type = 'info') {
+    // Create toast container if not exists
+    if (!$('#toastContainer').length) {
+        $('body').append('<div id="toastContainer" style="position:fixed;top:20px;right:20px;z-index:9999;"></div>');
+    }
+    
+    const bgClass = {
+        'success': 'bg-success',
+        'error': 'bg-danger',
+        'warning': 'bg-warning',
+        'info': 'bg-info'
+    }[type] || 'bg-info';
+    
+    const toast = $(`
+        <div class="toast align-items-center text-white ${bgClass} border-0 mb-2" role="alert">
+            <div class="d-flex">
+                <div class="toast-body">${message}</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>
+    `);
+    
+    $('#toastContainer').append(toast);
+    const bsToast = new bootstrap.Toast(toast[0], { delay: 3000 });
+    bsToast.show();
+    
+    // Remove after hidden
+    toast.on('hidden.bs.toast', function() {
+        $(this).remove();
+    });
+}
+
+// Initialize tooltips
+$(document).ready(function() {
+    $('[data-bs-toggle="tooltip"]').tooltip();
+});
+</script>
 <script>
 const orderId = <?= $order_id ?>;
 const csrfToken = '<?= generate_csrf_token() ?>';
