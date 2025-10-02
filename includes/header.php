@@ -107,6 +107,13 @@ $is_system_page_active = in_array($current_page, $system_pages);
                 <li class="<?php echo ($current_page == 'dashboard.php') ? 'active' : ''; ?>">
                     <a href="dashboard.php"><i class="fas fa-tachometer-alt nav-icon"></i> Trang chủ</a>
                 </li>
+				<?php if (is_admin()): ?>
+				<li class="<?php echo ($current_page == 'products.php') ? 'active' : ''; ?>">
+					<a href="products.php">
+						<i class="fas fa-boxes nav-icon"></i> Quản lý hàng hoá
+					</a>
+				</li>
+				<?php endif; ?>
                 <li class="<?php echo ($current_page == 'orders.php' || $current_page == 'order-detail.php') ? 'active' : ''; ?>">
                     <a href="orders.php"><i class="fas fa-shopping-cart nav-icon"></i> Quản lý đơn hàng</a>
                 </li>
