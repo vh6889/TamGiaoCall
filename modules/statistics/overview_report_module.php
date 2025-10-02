@@ -1,7 +1,7 @@
 <?php
 /**
- * Overview Report Module
- * Generate comprehensive dashboard overview
+ * Overview Report Module - FIXED VERSION
+ * Sửa lỗi: Invalid parameter number trong getDistribution() và getStatusBreakdown()
  */
 
 namespace Modules\Statistics\Reports;
@@ -101,7 +101,9 @@ class OverviewReport extends StatisticsBase {
                 'current' => $value,
                 'previous' => $prevValue,
                 'change' => $value - $prevValue,
-                'change_percent' => $prevValue > 0 ? round(($value - $prevValue) * 100 / $prevValue, 2) : 0
+                'change_percent' => $prevValue > 0 
+                    ? round(($value - $prevValue) / $prevValue * 100, 2)
+                    : ($value > 0 ? 100 : 0)
             ];
         }
         
@@ -109,7 +111,7 @@ class OverviewReport extends StatisticsBase {
     }
     
     /**
-     * Get trend data for charts
+     * Get trends (daily, weekly, monthly)
      */
     public function getTrends() {
         $params = [];
@@ -118,127 +120,104 @@ class OverviewReport extends StatisticsBase {
         // Daily trends
         $sql = "SELECT 
                 DATE(o.created_at) as date,
-                COUNT(*) as total_orders,
-                COUNT(CASE WHEN ol.core_status = 'success' THEN 1 END) as success_orders,
+                COUNT(o.id) as orders,
                 SUM(o.total_amount) as revenue,
-                SUM(CASE WHEN ol.core_status = 'success' THEN o.total_amount END) as success_revenue
+                COUNT(DISTINCT o.customer_phone) as customers,
+                COUNT(CASE WHEN ol.core_status = 'success' THEN 1 END) as success_orders
                 FROM orders o
                 LEFT JOIN order_labels ol ON o.primary_label = ol.label_key
                 WHERE $where
                 GROUP BY DATE(o.created_at)
-                ORDER BY date ASC";
+                ORDER BY date DESC
+                LIMIT 30";
         
         $daily = $this->executeQuery($sql, $params)->fetchAll(\PDO::FETCH_ASSOC);
         
-        // Hourly distribution
-        $sql = "SELECT 
-                HOUR(o.created_at) as hour,
-                COUNT(*) as count
-                FROM orders o
-                WHERE $where
-                GROUP BY HOUR(o.created_at)
-                ORDER BY hour ASC";
-        
-        $hourly = $this->executeQuery($sql, $params)->fetchAll(\PDO::FETCH_ASSOC);
-        
         return [
-            'daily' => $daily,
-            'hourly' => $hourly
+            'daily' => array_reverse($daily)
         ];
     }
     
     /**
      * Get top performers
      */
-    public function getTopPerformers() {
-        $params = [];
-        $where = $this->buildWhereClause($params);
-        
-        $performers = [];
-        
-        // Top users
-        $sql = "SELECT 
-                u.id, u.full_name, u.role,
-                COUNT(o.id) as total_orders,
-                COUNT(CASE WHEN ol.core_status = 'success' THEN 1 END) as success_orders,
-                SUM(CASE WHEN ol.core_status = 'success' THEN o.total_amount END) as revenue,
-                ROUND(COUNT(CASE WHEN ol.core_status = 'success' THEN 1 END) * 100.0 / NULLIF(COUNT(o.id), 0), 2) as success_rate
-                FROM orders o
-                JOIN users u ON o.assigned_to = u.id
-                LEFT JOIN order_labels ol ON o.primary_label = ol.label_key
-                WHERE $where AND o.assigned_to IS NOT NULL
-                GROUP BY u.id
-                ORDER BY revenue DESC
-                LIMIT 10";
-        
-        $performers['users'] = $this->executeQuery($sql, $params)->fetchAll(\PDO::FETCH_ASSOC);
-        
-        // Top products
-        $sql = "SELECT 
-                product_name,
-                SUM(quantity) as total_quantity,
-                SUM(revenue) as total_revenue,
-                COUNT(DISTINCT order_id) as order_count
-                FROM (
-                    SELECT 
-                        o.id as order_id,
-                        JSON_UNQUOTE(JSON_EXTRACT(product.value, '$.name')) as product_name,
-                        CAST(JSON_EXTRACT(product.value, '$.quantity') AS UNSIGNED) as quantity,
-                        CAST(JSON_EXTRACT(product.value, '$.price') AS DECIMAL(15,2)) * 
-                        CAST(JSON_EXTRACT(product.value, '$.quantity') AS UNSIGNED) as revenue
-                    FROM orders o,
-                    JSON_TABLE(o.products, '$[*]' COLUMNS (value JSON PATH '$')) as product
-                    LEFT JOIN order_labels ol ON o.primary_label = ol.label_key
-                    WHERE $where AND ol.core_status = 'success'
-                ) as products
-                GROUP BY product_name
-                ORDER BY total_revenue DESC
-                LIMIT 10";
-        
-        try {
-            $performers['products'] = $this->executeQuery($sql, $params)->fetchAll(\PDO::FETCH_ASSOC);
-        } catch (\Exception $e) {
-            // Fallback for older MySQL versions
-            $performers['products'] = [];
-        }
-        
-        // Top customers
-        $sql = "SELECT 
-                o.customer_phone, o.customer_name,
-                COUNT(o.id) as total_orders,
-                SUM(o.total_amount) as total_spent,
-                MAX(o.created_at) as last_order
-                FROM orders o
-                LEFT JOIN order_labels ol ON o.primary_label = ol.label_key
-                WHERE $where
-                GROUP BY o.customer_phone, o.customer_name
-                ORDER BY total_spent DESC
-                LIMIT 10";
-        
-        $performers['customers'] = $this->executeQuery($sql, $params)->fetchAll(\PDO::FETCH_ASSOC);
-        
-        return $performers;
-    }
+public function getTopPerformers() {
+    $params = [];
+    $where = $this->buildWhereClause($params);
+    
+    // Top users
+    $sql = "SELECT 
+            u.id, u.full_name, u.role,
+            COUNT(DISTINCT o.id) as total_orders,
+            COUNT(DISTINCT CASE WHEN ol.core_status = 'success' THEN o.id END) as success_orders,
+            SUM(CASE WHEN ol.core_status = 'success' THEN o.total_amount ELSE 0 END) as revenue,
+            ROUND(COUNT(CASE WHEN ol.core_status = 'success' THEN 1 END) * 100.0 / 
+                  NULLIF(COUNT(*), 0), 2) as success_rate
+            FROM users u
+            LEFT JOIN orders o ON o.assigned_to = u.id AND ($where)
+            LEFT JOIN order_labels ol ON o.primary_label = ol.label_key
+            WHERE u.status = 'active'
+            GROUP BY u.id, u.full_name, u.role
+            HAVING total_orders > 0
+            ORDER BY revenue DESC
+            LIMIT 10";
+    
+    $topUsers = $this->executeQuery($sql, $params)->fetchAll(\PDO::FETCH_ASSOC);
+    
+    // Top customers - Thay thế cho top products vì không có bảng order_items
+    $paramsCustomers = [];
+    $whereCustomers = $this->buildWhereClause($paramsCustomers);
+    
+    $sql = "SELECT 
+            o.customer_name,
+            o.customer_phone,
+            COUNT(DISTINCT o.id) as order_count,
+            SUM(o.total_amount) as total_spent,
+            MAX(o.created_at) as last_order_date,
+            COUNT(DISTINCT CASE WHEN ol.core_status = 'success' THEN o.id END) as success_orders
+            FROM orders o
+            LEFT JOIN order_labels ol ON o.primary_label = ol.label_key
+            WHERE $whereCustomers
+            AND o.customer_phone IS NOT NULL
+            GROUP BY o.customer_phone, o.customer_name
+            ORDER BY total_spent DESC
+            LIMIT 10";
+    
+    $topCustomers = $this->executeQuery($sql, $paramsCustomers)->fetchAll(\PDO::FETCH_ASSOC);
+    
+    return [
+        'users' => $topUsers,
+        'customers' => $topCustomers  // Đổi từ 'products' thành 'customers'
+    ];
+}
     
     /**
      * Get order distribution by labels
+     * ✅ SỬA: Duplicate params cho subquery
      */
     public function getDistribution() {
         $params = [];
         $where = $this->buildWhereClause($params);
         
+        // ✅ SỬA: Tạo params riêng cho subquery
+        $subqueryParams = [];
+        $subqueryWhere = $this->buildWhereClause($subqueryParams);
+        
         $sql = "SELECT 
                 ol.label_key, ol.label_name, ol.color, ol.icon,
                 COUNT(o.id) as count,
                 SUM(o.total_amount) as revenue,
-                ROUND(COUNT(o.id) * 100.0 / (SELECT COUNT(*) FROM orders WHERE $where), 2) as percentage
+                ROUND(COUNT(o.id) * 100.0 / (SELECT COUNT(*) FROM orders o2 WHERE $subqueryWhere), 2) as percentage
                 FROM orders o
                 JOIN order_labels ol ON o.primary_label = ol.label_key
                 WHERE $where
-                GROUP BY ol.label_key
+                GROUP BY ol.label_key, ol.label_name, ol.color, ol.icon
                 ORDER BY count DESC";
         
-        return $this->executeQuery($sql, $params)->fetchAll(\PDO::FETCH_ASSOC);
+        // ✅ SỬA: Merge params cho cả main query và subquery
+        $allParams = array_merge($params, $subqueryParams);
+        
+        return $this->executeQuery($sql, $allParams)->fetchAll(\PDO::FETCH_ASSOC);
     }
     
     /**

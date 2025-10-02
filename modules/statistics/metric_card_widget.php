@@ -315,20 +315,25 @@ class MetricCard {
     }
     
     /**
-     * Get data array for API response
-     */
-    public function toArray() {
-        return [
-            'title' => $this->title,
-            'value' => $this->value,
-            'formatted_value' => $this->formatValue($this->value),
-            'previous_value' => $this->previousValue,
-            'change_percent' => $this->getChangePercent(),
-            'format' => $this->format,
-            'icon' => $this->icon,
-            'color' => $this->color,
-            'trend' => $this->trend,
-            'drilldown' => $this->drilldown
-        ];
-    }
+ * Get data array for API response
+ */
+public function toArray() {
+    $changePercent = $this->getChangePercent();
+    
+    return [
+        'title' => $this->title,
+        'value' => $this->value,
+        'formatted_value' => $this->formatValue($this->value),
+        'previous_value' => $this->previousValue,
+        'change_percent' => $changePercent,
+        'format' => $this->format,  // Biến $this->format đã được khởi tạo = 'number' trong constructor
+        'icon' => $this->icon,
+        'color' => $this->color,
+        'trend' => $this->trend,
+        'drilldown' => $this->drilldown,
+        'prefix' => $this->prefix,
+        'suffix' => $this->suffix,
+        'tooltip' => $this->tooltip
+    ];
+}
 }

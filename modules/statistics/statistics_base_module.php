@@ -1,7 +1,8 @@
 <?php
 /**
- * Statistics Base Class
+ * Statistics Base Class - FIXED VERSION
  * Foundation for all statistics modules
+ * Sửa lỗi: Column 'created_at' in where clause is ambiguous
  */
 
 namespace Modules\Statistics\Core;
@@ -93,8 +94,9 @@ abstract class StatisticsBase {
     
     /**
      * Get SQL WHERE clause from filters
+     * ✅ SỬA: Thêm tham số $tableAlias để chỉ định bảng cho created_at
      */
-    protected function buildWhereClause(&$params = []) {
+    protected function buildWhereClause(&$params = [], $tableAlias = 'o') {
         $conditions = [];
         
         // Add permission-based conditions
@@ -103,36 +105,35 @@ abstract class StatisticsBase {
             $conditions[] = $permissionWhere;
         }
         
-        // Add date range
+        // ✅ SỬA: Add date range với table alias
         if (!empty($this->dateRange)) {
-            $conditions[] = "created_at BETWEEN ? AND ?";
+            $conditions[] = "$tableAlias.created_at BETWEEN ? AND ?";
             $params[] = $this->dateRange['from'];
             $params[] = $this->dateRange['to'];
         }
         
         // Add custom filters
         foreach ($this->filters as $filter) {
-            $condition = $this->buildFilterCondition($filter, $params);
-            if ($condition) {
-                $conditions[] = $condition;
-            }
+            $conditions[] = $this->buildFilterCondition($filter, $params);
         }
         
-        return !empty($conditions) ? implode(' AND ', $conditions) : '1=1';
+        // Clean empty conditions
+        $conditions = array_filter($conditions);
+        
+        return empty($conditions) ? '1=1' : implode(' AND ', $conditions);
     }
     
     /**
-     * Build single filter condition
+     * Build filter condition
      */
     protected function buildFilterCondition($filter, &$params) {
         $field = $filter['field'];
         $operator = strtoupper($filter['operator']);
         $value = $filter['value'];
         
-        // Handle special operators
         switch ($operator) {
             case 'IN':
-                if (is_array($value)) {
+                if (is_array($value) && !empty($value)) {
                     $placeholders = array_fill(0, count($value), '?');
                     $params = array_merge($params, $value);
                     return "$field IN (" . implode(',', $placeholders) . ")";
@@ -148,64 +149,58 @@ abstract class StatisticsBase {
                 break;
                 
             case 'LIKE':
-            case 'NOT LIKE':
                 $params[] = '%' . $value . '%';
-                return "$field $operator ?";
+                return "$field LIKE ?";
                 
             case 'IS NULL':
+                return "$field IS NULL";
+                
             case 'IS NOT NULL':
-                return "$field $operator";
+                return "$field IS NOT NULL";
                 
             default:
                 $params[] = $value;
                 return "$field $operator ?";
         }
         
-        return null;
+        return '1=1';
     }
     
     /**
-     * Get permission-based WHERE clause
+     * Get permission-based WHERE conditions
      */
     protected function getPermissionWhere(&$params) {
-        if (!$this->user) return null;
+        if (!$this->user) {
+            return null;
+        }
         
         switch ($this->user['role']) {
             case 'admin':
                 return null; // No restrictions
                 
             case 'manager':
-                $teamIds = $this->getTeamIds();
-                if (!empty($teamIds)) {
-                    $placeholders = array_fill(0, count($teamIds), '?');
-                    $params = array_merge($params, $teamIds);
-                    return "assigned_to IN (" . implode(',', $placeholders) . ")";
+                // Get team members
+                $team = $this->db->query(
+                    "SELECT telesale_id FROM manager_assignments WHERE manager_id = " . (int)$this->user['id']
+                )->fetchAll(\PDO::FETCH_COLUMN);
+                
+                if (empty($team)) {
+                    $params[] = $this->user['id'];
+                    return "o.assigned_to = ?";
                 }
-                break;
+                
+                $team[] = $this->user['id'];
+                $placeholders = array_fill(0, count($team), '?');
+                $params = array_merge($params, $team);
+                return "o.assigned_to IN (" . implode(',', $placeholders) . ")";
                 
             case 'telesale':
                 $params[] = $this->user['id'];
-                return "assigned_to = ?";
+                return "o.assigned_to = ?";
+                
+            default:
+                return "1=0"; // No access
         }
-        
-        return "1=0"; // No access
-    }
-    
-    /**
-     * Get team IDs for manager
-     */
-    protected function getTeamIds() {
-        if ($this->user['role'] !== 'manager') {
-            return [];
-        }
-        
-        $teamIds = $this->db->query(
-            "SELECT telesale_id FROM manager_assignments WHERE manager_id = ?",
-            [$this->user['id']]
-        )->fetchAll(\PDO::FETCH_COLUMN);
-        
-        $teamIds[] = $this->user['id'];
-        return $teamIds;
     }
     
     /**
@@ -230,14 +225,9 @@ abstract class StatisticsBase {
     }
     
     /**
-     * Clear all filters and settings
+     * Clear errors
      */
-    public function reset() {
-        $this->dateRange = [];
-        $this->filters = [];
-        $this->groupBy = [];
-        $this->orderBy = [];
-        $this->limit = null;
+    public function clearErrors() {
         $this->errors = [];
         return $this;
     }

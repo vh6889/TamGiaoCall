@@ -766,7 +766,8 @@ function hash_password($password) {
 }
 
 /**
- * Login user
+ * Login user - FIXED VERSION
+ * Sửa lỗi cột last_login -> last_login_at
  */
 function login_user($username, $password) {
     // Lấy thông tin user từ database
@@ -786,9 +787,10 @@ function login_user($username, $password) {
         // Log activity
         log_activity('login', 'User logged in', 'user', $user['id']);
         
-        // Cập nhật last login
+        // ✅ SỬA: Cập nhật last_login_at (không phải last_login)
         db_update('users', [
-            'last_login' => date('Y-m-d H:i:s')
+            'last_login_at' => date('Y-m-d H:i:s'),  // ✅ ĐÚNG: last_login_at
+            'last_login_ip' => $_SERVER['REMOTE_ADDR'] ?? null  // Cũng cập nhật IP nếu cần
         ], 'id = ?', [$user['id']]);
         
         return true;
