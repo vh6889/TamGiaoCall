@@ -753,3 +753,96 @@ function get_call_stats($order_id) {
         [$order_id]
     );
 }
+
+// =============================================
+// AUTHENTICATION HELPER FUNCTIONS
+// =============================================
+
+/**
+ * Hash password using bcrypt
+ */
+function hash_password($password) {
+    return password_hash($password, PASSWORD_BCRYPT, ['cost' => HASH_COST]);
+}
+
+/**
+ * Login user
+ */
+function login_user($username, $password) {
+    // Lấy thông tin user từ database
+    $user = db_get_row(
+        "SELECT * FROM users WHERE username = ? AND status = 'active'",
+        [$username]
+    );
+    
+    // Kiểm tra user tồn tại và password đúng
+    if ($user && password_verify($password, $user['password'])) {
+        // Lưu session
+        $_SESSION['user_id'] = $user['id'];
+        $_SESSION['username'] = $user['username'];
+        $_SESSION['role'] = $user['role'];
+        $_SESSION['login_time'] = time();
+        
+        // Log activity
+        log_activity('login', 'User logged in', 'user', $user['id']);
+        
+        // Cập nhật last login
+        db_update('users', [
+            'last_login' => date('Y-m-d H:i:s')
+        ], 'id = ?', [$user['id']]);
+        
+        return true;
+    }
+    
+    return false;
+}
+
+// =============================================
+// VALIDATION HELPER FUNCTIONS  
+// =============================================
+
+/**
+ * Validate email format
+ */
+function is_valid_email($email) {
+    return filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
+}
+
+// =============================================
+// DISPLAY HELPER FUNCTIONS
+// =============================================
+
+/**
+ * Display flash message
+ */
+function display_flash() {
+    $flash = get_flash();
+    if ($flash) {
+        $alert_class = $flash['type'] === 'success' ? 'alert-success' : 'alert-danger';
+        echo '<div class="alert ' . $alert_class . ' alert-dismissible fade show" role="alert">';
+        echo '<i class="fas fa-' . ($flash['type'] === 'success' ? 'check-circle' : 'exclamation-circle') . ' me-2"></i>';
+        echo htmlspecialchars($flash['message']);
+        echo '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+        echo '</div>';
+    }
+}
+
+/**
+ * Get client IP address
+ */
+function get_client_ip() {
+    $ip_keys = ['HTTP_CLIENT_IP', 'HTTP_X_FORWARDED_FOR', 'REMOTE_ADDR'];
+    foreach ($ip_keys as $key) {
+        if (array_key_exists($key, $_SERVER) === true) {
+            $ips = explode(',', $_SERVER[$key]);
+            foreach ($ips as $ip) {
+                $ip = trim($ip);
+                if (filter_var($ip, FILTER_VALIDATE_IP,
+                        FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false) {
+                    return $ip;
+                }
+            }
+        }
+    }
+    return $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+}

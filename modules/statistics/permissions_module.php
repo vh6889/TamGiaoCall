@@ -1,6 +1,6 @@
 <?php
 /**
- * Permissions Module
+ * Permissions Module - FIXED VERSION
  * Check and enforce access control for statistics
  */
 
@@ -29,7 +29,7 @@ class Permissions {
         
         // Load team members for managers
         if ($this->user['role'] === 'manager') {
-            $this->teamMembers = $this->getTeamMembers($this->user['id']);
+            $this->teamMembers = $this->loadTeamMembers($this->user['id']);
         }
     }
     
@@ -73,9 +73,9 @@ class Permissions {
     }
     
     /**
-     * Get team members for manager
+     * Load team members for manager (PRIVATE method)
      */
-    private function getTeamMembers($managerId) {
+    private function loadTeamMembers($managerId) {
         $stmt = $this->db->prepare(
             "SELECT telesale_id FROM manager_assignments WHERE manager_id = ?"
         );
@@ -319,7 +319,7 @@ class Permissions {
     }
     
     /**
-     * Get team members
+     * Get team members (PUBLIC method - returns the loaded team members)
      */
     public function getTeamMembers() {
         return $this->teamMembers;

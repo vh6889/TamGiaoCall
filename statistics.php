@@ -1,366 +1,177 @@
 <?php
 /**
- * Enhanced Advanced Statistics System
- * Version 2.0 - Full features with better search and filters
+ * Professional Statistics Dashboard
+ * Sử dụng đầy đủ module Statistics với phân quyền role-based
+ * Version 4.0
  */
 define('TSM_ACCESS', true);
 require_once 'config.php';
 require_once 'functions.php';
-require_once 'includes/status_helper.php';
+// Include autoloader an toàn với require_once
+require_once __DIR__ . '/modules/statistics/statistics_autoload.php';
 
 require_login();
 
 $current_user = get_logged_user();
-$page_title = 'Báo cáo & Thống kê Nâng cao';
+$page_title = 'Thống kê & Phân tích Chuyên nghiệp';
 
-// ===== PERMISSION & ACCESS CONTROL =====
-$where_base = "1=1";
-$base_params = [];
-$available_users = [];
+// Initialize database connection for module
+$db = get_db_connection();
 
-if (is_admin()) {
-    $available_users = db_get_results(
-        "SELECT id, full_name, role FROM users WHERE status = 'active' ORDER BY role, full_name"
-    );
-} elseif (is_manager()) {
-    $team_ids = db_get_col(
-        "SELECT telesale_id FROM manager_assignments WHERE manager_id = ?",
-        [$current_user['id']]
-    );
-    $team_ids[] = $current_user['id'];
-    
-    if (!empty($team_ids)) {
-        $placeholders = implode(',', array_fill(0, count($team_ids), '?'));
-        $where_base = "o.assigned_to IN ($placeholders)";
-        $base_params = $team_ids;
-        
-        $available_users = db_get_results(
-            "SELECT id, full_name, role FROM users 
-             WHERE id IN ($placeholders) AND status = 'active' 
-             ORDER BY role, full_name",
-            $team_ids
-        );
-    }
-} else {
-    $where_base = "o.assigned_to = ?";
-    $base_params = [$current_user['id']];
-    $available_users = [$current_user];
-}
-
-// ===== GET FILTERS =====
-$filter_type = $_GET['filter_type'] ?? 'overview';
+// Get filters from request
 $date_from = $_GET['date_from'] ?? date('Y-m-d', strtotime('-30 days'));
-$time_from = $_GET['time_from'] ?? '00:00';
 $date_to = $_GET['date_to'] ?? date('Y-m-d');
+$time_from = $_GET['time_from'] ?? '00:00';
 $time_to = $_GET['time_to'] ?? '23:59';
+$report_type = $_GET['report_type'] ?? 'overview';
+$export_format = $_GET['export'] ?? '';
+$drill_type = $_GET['drill'] ?? '';
+$drill_id = $_GET['drill_id'] ?? '';
 
-// Specific filters
-$selected_user = (int)($_GET['user_id'] ?? 0);
-$selected_status = $_GET['status'] ?? '';
-$selected_customer_label = $_GET['customer_label'] ?? '';
-$selected_user_label = $_GET['user_label'] ?? '';
-$product_search = $_GET['product_search'] ?? '';
-$product_sort = $_GET['product_sort'] ?? 'revenue_desc';
-
-// Custom filters
-$custom_filters = $_GET['custom'] ?? [];
-$success_rate_min = (float)($_GET['success_rate_min'] ?? 0);
-$success_rate_max = (float)($_GET['success_rate_max'] ?? 100);
-
+// Build datetime range
 $datetime_from = $date_from . ' ' . $time_from . ':00';
 $datetime_to = $date_to . ' ' . $time_to . ':59';
 
-// ===== GET OPTIONS =====
-$order_statuses = db_get_results(
-    "SELECT label_key, label_name, color, icon, core_status 
-     FROM order_labels ORDER BY sort_order, label_name"
-);
-
-$customer_labels = db_get_results(
-    "SELECT label_key, label_name, color, description FROM customer_labels ORDER BY label_name"
-);
-
-$user_labels = db_get_results(
-    "SELECT label_key, label_name, color, description FROM user_labels ORDER BY label_name"
-);
-
-// ===== BUILD REPORT DATA =====
-$report_data = [];
-$daily_trend = [];
-
-switch ($filter_type) {
-    case 'by_product':
-        // Enhanced product search
-        $product_stats = [];
-        $query_params = array_merge([$datetime_from, $datetime_to], $base_params);
-        $extra_where = "";
-        
-        if ($product_search) {
-            // Improved search - remove accents and search flexibly
-            $search_terms = preg_split('/\s+/', mb_strtolower($product_search));
-            $search_conditions = [];
-            
-            foreach ($search_terms as $term) {
-                $search_conditions[] = "LOWER(o.products) LIKE ?";
-                $query_params[] = '%' . $term . '%';
-            }
-            
-            if (!empty($search_conditions)) {
-                $extra_where = " AND (" . implode(' AND ', $search_conditions) . ")";
-            }
+// Handle export request
+if ($export_format) {
+    $exporter = null;
+    $reportData = [];
+    
+    switch ($export_format) {
+        case 'excel':
+            $exporter = new ExcelExporter();
+            break;
+        case 'csv':
+            $exporter = new CSVExporter();
+            break;
+        case 'pdf':
+            $exporter = new PDFExporter();
+            break;
+    }
+    
+    if ($exporter) {
+        // Get report data based on type
+        switch ($report_type) {
+            case 'users':
+                $report = new UserReport($db);
+                $reportData = $report->setDateRange($datetime_from, $datetime_to)->getData()['users'];
+                $headers = ['Nhân viên', 'Vai trò', 'Tổng đơn', 'Thành công', 'Doanh thu', 'Tỷ lệ'];
+                break;
+            case 'products':
+                $report = new ProductReport($db);
+                $reportData = $report->setDateRange($datetime_from, $datetime_to)->getData()['products'];
+                $headers = ['SKU', 'Sản phẩm', 'Số lượng', 'Doanh thu', 'Đơn hàng'];
+                break;
+            case 'customers':
+                $report = new CustomerReport($db);
+                $reportData = $report->setDateRange($datetime_from, $datetime_to)->getData()['customers'];
+                $headers = ['Khách hàng', 'SĐT', 'Tổng đơn', 'Giá trị', 'Lần cuối'];
+                break;
+            default:
+                $report = new OverviewReport($db);
+                $reportData = $report->setDateRange($datetime_from, $datetime_to)->getData()['metrics'];
+                $headers = array_keys($reportData);
         }
         
-        $orders_with_products = db_get_results(
-            "SELECT o.id, o.order_number, o.customer_name, o.customer_phone,
-                    o.products, o.created_at, o.total_amount,
-                    ol.label_name, ol.color as label_color, ol.core_status,
-                    u.full_name as assigned_name
-             FROM orders o
-             LEFT JOIN order_labels ol ON o.primary_label = ol.label_key
-             LEFT JOIN users u ON o.assigned_to = u.id
-             WHERE o.created_at BETWEEN ? AND ? AND ($where_base) $extra_where
-             ORDER BY o.created_at DESC",
-            $query_params
-        );
-        
-        // Parse and aggregate products
-        foreach ($orders_with_products as $order) {
-            $products = json_decode($order['products'], true) ?? [];
+        $exporter->setData($reportData)
+                 ->setHeaders($headers)
+                 ->setFilename('report_' . $report_type . '_' . date('Y-m-d'))
+                 ->setTitle('Báo cáo ' . ucfirst($report_type))
+                 ->addMetadata('Người xuất', $current_user['full_name'])
+                 ->addMetadata('Thời gian', date('Y-m-d H:i:s'))
+                 ->addMetadata('Khoảng thời gian', "$date_from đến $date_to")
+                 ->download();
+        exit;
+    }
+}
+
+// Initialize main report - Sử dụng helper function để tạo instance an toàn
+$overviewReport = getStatisticsModule('overview', $db);
+$overviewReport->setDateRange($datetime_from, $datetime_to);
+
+// Get overview data
+$overviewData = $overviewReport->getData();
+$metrics = $overviewData['metrics'] ?? [];
+$comparison = $overviewData['comparison'] ?? [];
+$trends = $overviewData['trends'] ?? [];
+$topPerformers = $overviewData['topPerformers'] ?? [];
+$distribution = $overviewData['distribution'] ?? [];
+
+// Handle drill-down
+$drilldownData = null;
+if ($drill_type && $drill_id) {
+    try {
+        $drilldownHandler = getStatisticsModule('drilldown', $db);
+        $drilldownData = $drilldownHandler->process($drill_type, $drill_id, [
+            'date_from' => $datetime_from,
+            'date_to' => $datetime_to
+        ]);
+    } catch (Exception $e) {
+        // Handle error silently
+        $drilldownData = null;
+    }
+}
+
+// Get specific report data based on type
+$reportData = null;
+switch ($report_type) {
+    case 'users':
+        try {
+            $userReport = getStatisticsModule('user', $db);
+            $reportData = $userReport->setDateRange($datetime_from, $datetime_to)
+                                     ->orderBy('success_rate', 'DESC')
+                                     ->getData();
+        } catch (Exception $e) {
+            $reportData = ['users' => []];
+        }
+        break;
+    
+    case 'products':
+        try {
+            $productReport = getStatisticsModule('product', $db);
+            $reportData = $productReport->setDateRange($datetime_from, $datetime_to)
+                                        ->orderBy('total_revenue', 'DESC')
+                                        ->limit(50)
+                                        ->getData();
+        } catch (Exception $e) {
+            $reportData = ['products' => []];
+        }
+        break;
+    
+    case 'customers':
+        try {
+            $customerReport = getStatisticsModule('customer', $db);
+            $reportData = $customerReport->setDateRange($datetime_from, $datetime_to)
+                                         ->orderBy('total_value', 'DESC')
+                                         ->limit(100)
+                                         ->getData();
+        } catch (Exception $e) {
+            $reportData = ['customers' => []];
+        }
+        break;
+    
+    case 'orders':
+        try {
+            $orderReport = getStatisticsModule('order', $db);
             
-            foreach ($products as $product) {
-                // Extract product details
-                $product_name = $product['name'] ?? $product['product_name'] ?? 'N/A';
-                $product_sku = $product['sku'] ?? $product['product_id'] ?? '';
-                $product_key = $product_sku ?: md5($product_name);
-                
-                if (!isset($product_stats[$product_key])) {
-                    $product_stats[$product_key] = [
-                        'sku' => $product_sku,
-                        'name' => $product_name,
-                        'total_qty' => 0,
-                        'total_revenue' => 0,
-                        'success_revenue' => 0,
-                        'order_count' => 0,
-                        'success_count' => 0,
-                        'orders' => []
-                    ];
+            // Apply filters if needed
+            if (isset($_GET['status_filter'])) {
+                try {
+                    $filter = getStatisticsModule('filter', $db);
+                    $filter->addCondition('primary_label', '=', $_GET['status_filter']);
+                    $orderReport->applyFilter($filter);
+                } catch (Exception $e) {
+                    // Skip filter if error
                 }
-                
-                $qty = $product['qty'] ?? $product['quantity'] ?? 1;
-                $price = $product['price'] ?? 0;
-                $subtotal = $qty * $price;
-                
-                $product_stats[$product_key]['total_qty'] += $qty;
-                $product_stats[$product_key]['total_revenue'] += $subtotal;
-                $product_stats[$product_key]['order_count']++;
-                
-                if ($order['core_status'] === 'success') {
-                    $product_stats[$product_key]['success_revenue'] += $subtotal;
-                    $product_stats[$product_key]['success_count']++;
-                }
-                
-                // Store order reference
-                if (count($product_stats[$product_key]['orders']) < 100) {
-                    $product_stats[$product_key]['orders'][] = $order;
-                }
             }
+            
+            $reportData = $orderReport->setDateRange($datetime_from, $datetime_to)
+                                      ->orderBy('created_at', 'DESC')
+                                      ->limit(500)
+                                      ->getData();
+        } catch (Exception $e) {
+            $reportData = ['orders' => []];
         }
-        
-        // Sort products
-        uasort($product_stats, function($a, $b) use ($product_sort) {
-            switch ($product_sort) {
-                case 'name_asc':
-                    return strcasecmp($a['name'], $b['name']);
-                case 'name_desc':
-                    return strcasecmp($b['name'], $a['name']);
-                case 'qty_asc':
-                    return $a['total_qty'] - $b['total_qty'];
-                case 'qty_desc':
-                    return $b['total_qty'] - $a['total_qty'];
-                case 'revenue_asc':
-                    return $a['total_revenue'] - $b['total_revenue'];
-                case 'revenue_desc':
-                default:
-                    return $b['total_revenue'] - $a['total_revenue'];
-            }
-        });
-        
-        $report_data = [
-            'type' => 'by_product',
-            'product_stats' => $product_stats,
-            'total_orders' => count($orders_with_products)
-        ];
-        break;
-        
-    case 'by_customer_label':
-        if ($selected_customer_label) {
-            // Get customers with this label
-            $customers = db_get_results(
-                "SELECT DISTINCT o.customer_phone, o.customer_name,
-                        COUNT(DISTINCT o.id) as order_count,
-                        SUM(o.total_amount) as total_spent,
-                        COUNT(CASE WHEN ol.core_status = 'success' THEN 1 END) as success_orders,
-                        MAX(o.created_at) as last_order_date
-                 FROM orders o
-                 LEFT JOIN order_labels ol ON o.primary_label = ol.label_key
-                 WHERE o.created_at BETWEEN ? AND ?
-                   AND ($where_base)
-                   AND EXISTS (
-                       SELECT 1 FROM customer_metrics cm
-                       WHERE cm.customer_phone = o.customer_phone
-                         AND JSON_CONTAINS(cm.labels, JSON_QUOTE(?))
-                   )
-                 GROUP BY o.customer_phone, o.customer_name
-                 ORDER BY total_spent DESC",
-                array_merge([$datetime_from, $datetime_to], $base_params, [$selected_customer_label])
-            );
-            
-            $label_info = db_get_row(
-                "SELECT * FROM customer_labels WHERE label_key = ?",
-                [$selected_customer_label]
-            );
-            
-            $report_data = [
-                'type' => 'by_customer_label',
-                'customers' => $customers,
-                'label_info' => $label_info
-            ];
-        }
-        break;
-        
-    case 'by_user_label':
-        if ($selected_user_label) {
-            // Get users with this label
-            $users_with_label = db_get_results(
-                "SELECT u.*, 
-                        COUNT(o.id) as period_orders,
-                        COUNT(CASE WHEN ol.core_status = 'success' THEN 1 END) as period_success,
-                        SUM(o.total_amount) as period_revenue,
-                        SUM(CASE WHEN ol.core_status = 'success' THEN o.total_amount END) as success_revenue,
-                        ROUND(COUNT(CASE WHEN ol.core_status = 'success' THEN 1 END) * 100.0 / NULLIF(COUNT(o.id), 0), 2) as success_rate
-                 FROM users u
-                 LEFT JOIN orders o ON o.assigned_to = u.id 
-                    AND o.created_at BETWEEN ? AND ?
-                 LEFT JOIN order_labels ol ON o.primary_label = ol.label_key
-                 WHERE u.status = 'active'
-                   AND EXISTS (
-                       SELECT 1 FROM employee_performance ep
-                       WHERE ep.user_id = u.id
-                         AND JSON_CONTAINS(ep.labels, JSON_QUOTE(?))
-                   )
-                 GROUP BY u.id
-                 ORDER BY success_rate DESC",
-                [$datetime_from, $datetime_to, $selected_user_label]
-            );
-            
-            $label_info = db_get_row(
-                "SELECT * FROM user_labels WHERE label_key = ?",
-                [$selected_user_label]
-            );
-            
-            $report_data = [
-                'type' => 'by_user_label',
-                'users' => $users_with_label,
-                'label_info' => $label_info
-            ];
-        }
-        break;
-        
-    case 'custom':
-        // Advanced custom filters with multiple conditions
-        $custom_where = [];
-        $custom_params = [];
-        
-        // Base permission
-        if ($where_base != "1=1") {
-            $custom_where[] = "($where_base)";
-            $custom_params = array_merge($custom_params, $base_params);
-        }
-        
-        // Date range
-        $custom_where[] = "o.created_at BETWEEN ? AND ?";
-        $custom_params[] = $datetime_from;
-        $custom_params[] = $datetime_to;
-        
-        // Process custom filters
-        foreach ($custom_filters as $filter) {
-            $field = $filter['field'] ?? '';
-            $operator = $filter['operator'] ?? '=';
-            $value = $filter['value'] ?? '';
-            
-            if (empty($field) || empty($value)) continue;
-            
-            switch ($field) {
-                case 'user_label':
-                    $users_with_label = db_get_col(
-                        "SELECT user_id FROM employee_performance 
-                         WHERE JSON_CONTAINS(labels, JSON_QUOTE(?))",
-                        [$value]
-                    );
-                    if (!empty($users_with_label)) {
-                        $placeholders = implode(',', array_fill(0, count($users_with_label), '?'));
-                        $custom_where[] = "o.assigned_to IN ($placeholders)";
-                        $custom_params = array_merge($custom_params, $users_with_label);
-                    }
-                    break;
-                    
-                case 'customer_label':
-                    $custom_where[] = "EXISTS (
-                        SELECT 1 FROM customer_metrics cm
-                        WHERE cm.customer_phone = o.customer_phone
-                          AND JSON_CONTAINS(cm.labels, JSON_QUOTE(?))
-                    )";
-                    $custom_params[] = $value;
-                    break;
-                    
-                case 'order_status':
-                    if ($operator === 'in') {
-                        $statuses = explode(',', $value);
-                        $placeholders = implode(',', array_fill(0, count($statuses), '?'));
-                        $custom_where[] = "o.primary_label IN ($placeholders)";
-                        $custom_params = array_merge($custom_params, $statuses);
-                    } else {
-                        $custom_where[] = "o.primary_label = ?";
-                        $custom_params[] = $value;
-                    }
-                    break;
-                    
-                case 'total_amount':
-                    $custom_where[] = "o.total_amount $operator ?";
-                    $custom_params[] = $value;
-                    break;
-                    
-                case 'product_contains':
-                    $custom_where[] = "LOWER(o.products) LIKE ?";
-                    $custom_params[] = '%' . mb_strtolower($value) . '%';
-                    break;
-            }
-        }
-        
-        // Build query
-        $where_clause = implode(' AND ', $custom_where);
-        
-        $custom_results = db_get_results(
-            "SELECT o.*, ol.label_name, ol.color as label_color,
-                    u.full_name as assigned_name
-             FROM orders o
-             LEFT JOIN order_labels ol ON o.primary_label = ol.label_key
-             LEFT JOIN users u ON o.assigned_to = u.id
-             WHERE $where_clause
-             ORDER BY o.created_at DESC
-             LIMIT 1000",
-            $custom_params
-        );
-        
-        $report_data = [
-            'type' => 'custom',
-            'results' => $custom_results,
-            'total_count' => count($custom_results)
-        ];
-        break;
-        
-    default: // overview and by_status remain the same
-        // ... existing code for overview and by_status ...
         break;
 }
 
@@ -371,415 +182,862 @@ include 'includes/header.php';
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= $page_title ?></title>
     
-    <!-- Libraries -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
+    <!-- Custom CSS -->
     <style>
-        .filter-section { background: #f8f9fa; border-radius: 8px; padding: 20px; margin-bottom: 25px; }
-        .filter-tabs { display: flex; border-bottom: 2px solid #dee2e6; margin-bottom: 20px; flex-wrap: wrap; }
-        .filter-tab {
-            padding: 10px 20px; background: none; border: none; color: #6c757d;
-            font-weight: 500; cursor: pointer; transition: all 0.3s;
-            border-bottom: 3px solid transparent; margin-bottom: -2px;
+        :root {
+            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --success-gradient: linear-gradient(135deg, #56ab2f 0%, #a8e063 100%);
+            --warning-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            --info-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
         }
-        .filter-tab.active { color: #667eea; border-bottom-color: #667eea; }
-        .stat-box {
-            background: white; border-radius: 8px; padding: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px;
+        
+        body {
+            background: #f8f9fa;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         }
-        .custom-filter-row {
-            background: #fff; border: 1px solid #dee2e6; border-radius: 4px;
-            padding: 10px; margin-bottom: 10px;
+        
+        .dashboard-header {
+            background: var(--primary-gradient);
+            color: white;
+            padding: 2rem;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
         }
-        .sortable { cursor: pointer; position: relative; padding-right: 20px; }
-        .sortable:after {
-            content: "⇅"; position: absolute; right: 5px; color: #ccc;
+        
+        .metric-card {
+            background: white;
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
         }
-        .sortable.asc:after { content: "↑"; color: #333; }
-        .sortable.desc:after { content: "↓"; color: #333; }
+        
+        .metric-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+        
+        .metric-card.clickable {
+            cursor: pointer;
+        }
+        
+        .metric-card .icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            margin-bottom: 15px;
+        }
+        
+        .metric-card .value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #2d3436;
+            margin-bottom: 5px;
+        }
+        
+        .metric-card .label {
+            font-size: 0.9rem;
+            color: #636e72;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .metric-card .change {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .metric-card .change.positive {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .metric-card .change.negative {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .chart-container {
+            background: white;
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.05);
+            margin-bottom: 30px;
+        }
+        
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f1f3f5;
+        }
+        
+        .chart-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #2d3436;
+        }
+        
+        .filter-section {
+            background: white;
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.05);
+            margin-bottom: 30px;
+        }
+        
+        .nav-pills .nav-link {
+            border-radius: 25px;
+            padding: 10px 25px;
+            margin: 0 5px;
+            transition: all 0.3s;
+        }
+        
+        .nav-pills .nav-link.active {
+            background: var(--primary-gradient);
+        }
+        
+        .table-container {
+            background: white;
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.05);
+            overflow-x: auto;
+        }
+        
+        .badge-status {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-weight: 500;
+            font-size: 0.85rem;
+        }
+        
+        .breadcrumb-drill {
+            background: #f8f9fa;
+            padding: 10px 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .export-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn-export {
+            padding: 8px 20px;
+            border-radius: 25px;
+            font-size: 0.9rem;
+            transition: all 0.3s;
+        }
+        
+        /* Loading animation */
+        .loading {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255,255,255,0.9);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .loading.show {
+            display: flex;
+        }
+        
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .metric-card .value {
+                font-size: 1.5rem;
+            }
+            
+            .dashboard-header {
+                padding: 1.5rem;
+            }
+        }
     </style>
 </head>
 <body>
 
-<div class="container-fluid">
+<!-- Loading overlay -->
+<div class="loading" id="loadingOverlay">
+    <div class="spinner"></div>
+</div>
+
+<div class="container-fluid py-4">
+    <!-- Dashboard Header -->
+    <div class="dashboard-header">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <h1 class="mb-2">
+                    <i class="fas fa-chart-line me-2"></i>
+                    <?= $page_title ?>
+                </h1>
+                <p class="mb-0 opacity-75">
+                    Dữ liệu từ <?= date('d/m/Y', strtotime($date_from)) ?> 
+                    đến <?= date('d/m/Y', strtotime($date_to)) ?>
+                </p>
+            </div>
+            <div class="col-md-6 text-md-end mt-3 mt-md-0">
+                <div class="export-buttons justify-content-md-end">
+                    <a href="?<?= http_build_query(array_merge($_GET, ['export' => 'excel'])) ?>" 
+                       class="btn btn-light btn-export">
+                        <i class="fas fa-file-excel text-success me-2"></i>Excel
+                    </a>
+                    <a href="?<?= http_build_query(array_merge($_GET, ['export' => 'csv'])) ?>" 
+                       class="btn btn-light btn-export">
+                        <i class="fas fa-file-csv text-info me-2"></i>CSV
+                    </a>
+                    <a href="?<?= http_build_query(array_merge($_GET, ['export' => 'pdf'])) ?>" 
+                       class="btn btn-light btn-export">
+                        <i class="fas fa-file-pdf text-danger me-2"></i>PDF
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <!-- Filter Section -->
     <div class="filter-section">
-        <h4 class="mb-3"><i class="fas fa-filter"></i> Bộ lọc Báo cáo</h4>
-        
-        <!-- Filter Tabs -->
-        <div class="filter-tabs">
-            <button type="button" class="filter-tab <?= $filter_type == 'overview' ? 'active' : '' ?>" 
-                    onclick="setFilterType('overview')">Tổng quan</button>
-            <button type="button" class="filter-tab <?= $filter_type == 'by_status' ? 'active' : '' ?>" 
-                    onclick="setFilterType('by_status')">Theo trạng thái</button>
-            <button type="button" class="filter-tab <?= $filter_type == 'by_product' ? 'active' : '' ?>" 
-                    onclick="setFilterType('by_product')">Theo sản phẩm</button>
-            <button type="button" class="filter-tab <?= $filter_type == 'by_customer_label' ? 'active' : '' ?>" 
-                    onclick="setFilterType('by_customer_label')">Theo nhãn KH</button>
-            <button type="button" class="filter-tab <?= $filter_type == 'by_user_label' ? 'active' : '' ?>" 
-                    onclick="setFilterType('by_user_label')">Theo nhãn NV</button>
-            <button type="button" class="filter-tab <?= $filter_type == 'custom' ? 'active' : '' ?>" 
-                    onclick="setFilterType('custom')">Tùy chỉnh</button>
-        </div>
-        
-        <!-- Filter Form -->
-        <form method="GET" id="filterForm">
-            <input type="hidden" name="filter_type" value="<?= htmlspecialchars($filter_type) ?>">
-            
-            <div class="row g-3">
-                <!-- Date/Time Range -->
-                <div class="col-md-3">
-                    <label class="form-label">Từ ngày:</label>
-                    <div class="input-group">
-                        <input type="date" class="form-control" name="date_from" value="<?= $date_from ?>">
-                        <input type="time" class="form-control" name="time_from" value="<?= $time_from ?>">
-                    </div>
-                </div>
-                
-                <div class="col-md-3">
-                    <label class="form-label">Đến ngày:</label>
-                    <div class="input-group">
-                        <input type="date" class="form-control" name="date_to" value="<?= $date_to ?>">
-                        <input type="time" class="form-control" name="time_to" value="<?= $time_to ?>">
-                    </div>
-                </div>
-                
-                <!-- Dynamic filters based on type -->
-                <?php if ($filter_type == 'by_product'): ?>
-                <div class="col-md-3">
-                    <label class="form-label">Tìm sản phẩm:</label>
-                    <input type="text" class="form-control" name="product_search" 
-                           value="<?= htmlspecialchars($product_search) ?>" 
-                           placeholder="Nhập tên hoặc SKU...">
-                    <small class="text-muted">Tìm theo từ khóa, không phân biệt dấu</small>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">Sắp xếp:</label>
-                    <select class="form-select" name="product_sort">
-                        <option value="revenue_desc" <?= $product_sort == 'revenue_desc' ? 'selected' : '' ?>>Doanh thu ↓</option>
-                        <option value="revenue_asc" <?= $product_sort == 'revenue_asc' ? 'selected' : '' ?>>Doanh thu ↑</option>
-                        <option value="qty_desc" <?= $product_sort == 'qty_desc' ? 'selected' : '' ?>>Số lượng ↓</option>
-                        <option value="qty_asc" <?= $product_sort == 'qty_asc' ? 'selected' : '' ?>>Số lượng ↑</option>
-                        <option value="name_asc" <?= $product_sort == 'name_asc' ? 'selected' : '' ?>>Tên A-Z</option>
-                        <option value="name_desc" <?= $product_sort == 'name_desc' ? 'selected' : '' ?>>Tên Z-A</option>
-                    </select>
-                </div>
-                
-                <?php elseif ($filter_type == 'by_customer_label'): ?>
-                <div class="col-md-4">
-                    <label class="form-label">Nhãn khách hàng:</label>
-                    <select class="form-select" name="customer_label" required>
-                        <option value="">-- Chọn nhãn khách hàng --</option>
-                        <?php foreach ($customer_labels as $label): ?>
-                            <option value="<?= $label['label_key'] ?>" 
-                                    <?= $selected_customer_label == $label['label_key'] ? 'selected' : '' ?>
-                                    data-color="<?= $label['color'] ?>">
-                                <?= htmlspecialchars($label['label_name']) ?>
-                                <?php if ($label['description']): ?>
-                                    - <?= htmlspecialchars($label['description']) ?>
-                                <?php endif; ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                
-                <?php elseif ($filter_type == 'by_user_label'): ?>
-                <div class="col-md-4">
-                    <label class="form-label">Nhãn nhân viên:</label>
-                    <select class="form-select" name="user_label" required>
-                        <option value="">-- Chọn nhãn nhân viên --</option>
-                        <?php foreach ($user_labels as $label): ?>
-                            <option value="<?= $label['label_key'] ?>" 
-                                    <?= $selected_user_label == $label['label_key'] ? 'selected' : '' ?>
-                                    data-color="<?= $label['color'] ?>">
-                                <?= htmlspecialchars($label['label_name']) ?>
-                                <?php if ($label['description']): ?>
-                                    - <?= htmlspecialchars($label['description']) ?>
-                                <?php endif; ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                
-                <?php elseif ($filter_type == 'custom'): ?>
-                <!-- Custom Filter Builder -->
-                <div class="col-12">
-                    <label class="form-label">Điều kiện lọc tùy chỉnh:</label>
-                    <div id="customFilters">
-                        <div class="custom-filter-row">
-                            <div class="row g-2">
-                                <div class="col-md-3">
-                                    <select class="form-select" name="custom[0][field]">
-                                        <option value="">-- Chọn trường --</option>
-                                        <option value="user_label">Nhãn nhân viên</option>
-                                        <option value="customer_label">Nhãn khách hàng</option>
-                                        <option value="order_status">Trạng thái đơn</option>
-                                        <option value="total_amount">Tổng tiền</option>
-                                        <option value="product_contains">Chứa sản phẩm</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-2">
-                                    <select class="form-select" name="custom[0][operator]">
-                                        <option value="=">=</option>
-                                        <option value="!=">≠</option>
-                                        <option value=">">></option>
-                                        <option value="<"><</option>
-                                        <option value="in">Trong</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-4">
-                                    <input type="text" class="form-control" name="custom[0][value]" 
-                                           placeholder="Giá trị...">
-                                </div>
-                                <div class="col-md-3">
-                                    <button type="button" class="btn btn-sm btn-success" onclick="addCustomFilter()">
-                                        <i class="fas fa-plus"></i> Thêm điều kiện
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <?php endif; ?>
-                
-                <!-- Submit Button -->
-                <div class="col-md-12 text-end">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-search"></i> Xem báo cáo
-                    </button>
-                    <button type="button" class="btn btn-secondary" onclick="resetFilters()">
-                        <i class="fas fa-redo"></i> Đặt lại
-                    </button>
-                </div>
+        <form method="GET" class="row g-3">
+            <div class="col-md-2">
+                <label class="form-label">Từ ngày</label>
+                <input type="date" name="date_from" class="form-control" value="<?= $date_from ?>">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Giờ</label>
+                <input type="time" name="time_from" class="form-control" value="<?= $time_from ?>">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Đến ngày</label>
+                <input type="date" name="date_to" class="form-control" value="<?= $date_to ?>">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Giờ</label>
+                <input type="time" name="time_to" class="form-control" value="<?= $time_to ?>">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Loại báo cáo</label>
+                <select name="report_type" class="form-select">
+                    <option value="overview" <?= $report_type == 'overview' ? 'selected' : '' ?>>Tổng quan</option>
+                    <option value="users" <?= $report_type == 'users' ? 'selected' : '' ?>>Nhân viên</option>
+                    <option value="products" <?= $report_type == 'products' ? 'selected' : '' ?>>Sản phẩm</option>
+                    <option value="customers" <?= $report_type == 'customers' ? 'selected' : '' ?>>Khách hàng</option>
+                    <option value="orders" <?= $report_type == 'orders' ? 'selected' : '' ?>>Đơn hàng</option>
+                </select>
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="fas fa-filter me-2"></i>Lọc dữ liệu
+                </button>
             </div>
         </form>
     </div>
     
-    <!-- Report Results -->
-    <?php if (!empty($report_data)): ?>
-    <div class="report-section" id="reportContent">
+    <!-- Drill-down Breadcrumb -->
+    <?php if ($drilldownData && isset($drilldownData['breadcrumbs'])): ?>
+    <div class="breadcrumb-drill">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item">
+                    <a href="?<?= http_build_query(array_diff_key($_GET, array_flip(['drill', 'drill_id']))) ?>">
+                        <i class="fas fa-home"></i> Tổng quan
+                    </a>
+                </li>
+                <?php foreach ($drilldownData['breadcrumbs'] as $crumb): ?>
+                <li class="breadcrumb-item active"><?= htmlspecialchars($crumb['label']) ?></li>
+                <?php endforeach; ?>
+            </ol>
+        </nav>
+    </div>
+    <?php endif; ?>
+    
+    <!-- Main Metrics Cards -->
+    <div class="row mb-4">
+        <?php
+        // Render metric cards using module
+        $metricConfigs = [
+            [
+                'title' => 'Tổng đơn hàng',
+                'value' => $metrics['total_orders'],
+                'icon' => 'fa-shopping-cart',
+                'color' => 'primary',
+                'gradient' => 'var(--primary-gradient)',
+                'compare' => $comparison['total_orders'] ?? null,
+                'drill' => ['type' => 'metric', 'id' => 'total_orders']
+            ],
+            [
+                'title' => 'Doanh thu',
+                'value' => $metrics['total_revenue'],
+                'format' => 'money',
+                'icon' => 'fa-dollar-sign',
+                'color' => 'success',
+                'gradient' => 'var(--success-gradient)',
+                'compare' => $comparison['total_revenue'] ?? null,
+                'drill' => ['type' => 'metric', 'id' => 'total_revenue']
+            ],
+            [
+                'title' => 'Tỷ lệ thành công',
+                'value' => $metrics['success_rate'],
+                'format' => 'percent',
+                'icon' => 'fa-chart-line',
+                'color' => 'warning',
+                'gradient' => 'var(--warning-gradient)',
+                'suffix' => '%',
+                'compare' => $comparison['success_rate'] ?? null,
+                'drill' => ['type' => 'metric', 'id' => 'success_rate']
+            ],
+            [
+                'title' => 'Khách hàng',
+                'value' => $metrics['unique_customers'],
+                'icon' => 'fa-users',
+                'color' => 'info',
+                'gradient' => 'var(--info-gradient)',
+                'compare' => $comparison['unique_customers'] ?? null,
+                'drill' => ['type' => 'metric', 'id' => 'unique_customers']
+            ]
+        ];
         
-        <?php if ($report_data['type'] == 'by_product'): ?>
-            <!-- Enhanced Product Report -->
-            <h4 class="mb-3">
-                Thống kê sản phẩm
-                <small class="text-muted">(<?= count($report_data['product_stats']) ?> sản phẩm từ <?= $report_data['total_orders'] ?> đơn)</small>
-            </h4>
-            
-            <div class="table-card">
+        foreach ($metricConfigs as $config):
+            $changePercent = isset($config['compare']) ? $config['compare']['change_percent'] : 0;
+        ?>
+        <div class="col-md-3 mb-3">
+            <div class="metric-card clickable" 
+                 data-drill-type="<?= $config['drill']['type'] ?>"
+                 data-drill-id="<?= $config['drill']['id'] ?>">
+                <div class="icon" style="background: <?= $config['gradient'] ?>; color: white;">
+                    <i class="fas <?= $config['icon'] ?>"></i>
+                </div>
+                <div class="value">
+                    <?php if ($config['format'] == 'money'): ?>
+                        <?= number_format($config['value'], 0, ',', '.') ?>đ
+                    <?php elseif ($config['format'] == 'percent'): ?>
+                        <?= number_format($config['value'], 1) ?>%
+                    <?php else: ?>
+                        <?= number_format($config['value'], 0, ',', '.') ?>
+                    <?php endif; ?>
+                </div>
+                <div class="label"><?= $config['title'] ?></div>
+                <?php if ($changePercent != 0): ?>
+                <div class="change <?= $changePercent > 0 ? 'positive' : 'negative' ?>">
+                    <i class="fas fa-arrow-<?= $changePercent > 0 ? 'up' : 'down' ?>"></i>
+                    <?= abs($changePercent) ?>%
+                </div>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    </div>
+    
+    <!-- Charts Row -->
+    <?php if ($report_type == 'overview'): ?>
+    <div class="row mb-4">
+        <!-- Trend Chart -->
+        <div class="col-md-8">
+            <div class="chart-container">
+                <div class="chart-header">
+                    <h5 class="chart-title">
+                        <i class="fas fa-chart-area text-primary me-2"></i>
+                        Xu hướng theo ngày
+                    </h5>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button type="button" class="btn btn-outline-secondary active" data-chart="revenue">
+                            Doanh thu
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" data-chart="orders">
+                            Đơn hàng
+                        </button>
+                    </div>
+                </div>
+                <canvas id="trendChart" height="80"></canvas>
+            </div>
+        </div>
+        
+        <!-- Distribution Pie Chart -->
+        <div class="col-md-4">
+            <div class="chart-container">
+                <div class="chart-header">
+                    <h5 class="chart-title">
+                        <i class="fas fa-chart-pie text-warning me-2"></i>
+                        Phân bố trạng thái
+                    </h5>
+                </div>
+                <canvas id="distributionChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Top Performers -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="table-container">
+                <div class="chart-header">
+                    <h5 class="chart-title">
+                        <i class="fas fa-trophy text-warning me-2"></i>
+                        Top nhân viên xuất sắc
+                    </h5>
+                </div>
                 <div class="table-responsive">
-                    <table class="table table-hover" id="productTable">
+                    <table class="table table-hover">
                         <thead>
                             <tr>
-                                <th width="50">STT</th>
-                                <th width="120">SKU</th>
-                                <th>Tên sản phẩm</th>
-                                <th width="100" class="text-end">Số lượng</th>
-                                <th width="100" class="text-end">Số đơn</th>
-                                <th width="100" class="text-end">Thành công</th>
-                                <th width="150" class="text-end">Doanh thu</th>
-                                <th width="150" class="text-end">DT thành công</th>
+                                <th>Xếp hạng</th>
+                                <th>Nhân viên</th>
+                                <th>Vai trò</th>
+                                <th>Tổng đơn</th>
+                                <th>Thành công</th>
+                                <th>Doanh thu</th>
+                                <th>Tỷ lệ</th>
+                                <th>Hành động</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php 
-                            $stt = 1;
-                            $total_qty = 0;
-                            $total_revenue = 0;
-                            $total_success_revenue = 0;
-                            
-                            foreach ($report_data['product_stats'] as $product): 
-                                $total_qty += $product['total_qty'];
-                                $total_revenue += $product['total_revenue'];
-                                $total_success_revenue += $product['success_revenue'];
+                            $rank = 1;
+                            foreach ($topPerformers['users'] as $user): 
+                                $successRate = $user['total_orders'] > 0 
+                                    ? round($user['success_orders'] * 100 / $user['total_orders'], 1) 
+                                    : 0;
                             ?>
                             <tr>
-                                <td><?= $stt++ ?></td>
                                 <td>
-                                    <?php if ($product['sku']): ?>
-                                        <code><?= htmlspecialchars($product['sku']) ?></code>
+                                    <?php if ($rank <= 3): ?>
+                                    <span class="badge bg-warning text-dark">
+                                        <i class="fas fa-medal"></i> <?= $rank ?>
+                                    </span>
                                     <?php else: ?>
-                                        <span class="text-muted">N/A</span>
+                                    <?= $rank ?>
                                     <?php endif; ?>
+                                </td>
+                                <td>
+                                    <strong><?= htmlspecialchars($user['full_name']) ?></strong>
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary"><?= $user['role'] ?></span>
+                                </td>
+                                <td><?= number_format($user['total_orders']) ?></td>
+                                <td><?= number_format($user['success_orders']) ?></td>
+                                <td><?= number_format($user['success_revenue'], 0, ',', '.') ?>đ</td>
+                                <td>
+                                    <div class="progress" style="height: 20px;">
+                                        <div class="progress-bar bg-success" 
+                                             style="width: <?= $successRate ?>%">
+                                            <?= $successRate ?>%
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <a href="?drill=user&drill_id=<?= $user['user_id'] ?>&<?= http_build_query($_GET) ?>" 
+                                       class="btn btn-sm btn-primary">
+                                        <i class="fas fa-chart-line"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            <?php 
+                            $rank++;
+                            endforeach; 
+                            ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+    
+    <!-- Specific Report Tables -->
+    <?php if ($report_type == 'users' && $reportData): ?>
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="table-container">
+                <div class="chart-header">
+                    <h5 class="chart-title">
+                        <i class="fas fa-users text-info me-2"></i>
+                        Báo cáo hiệu suất nhân viên
+                    </h5>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover" id="usersTable">
+                        <thead>
+                            <tr>
+                                <th>Nhân viên</th>
+                                <th>Vai trò</th>
+                                <th>Tổng đơn</th>
+                                <th>Mới</th>
+                                <th>Đang xử lý</th>
+                                <th>Thành công</th>
+                                <th>Thất bại</th>
+                                <th>Doanh thu</th>
+                                <th>Tỷ lệ thành công</th>
+                                <th>TB xử lý (giờ)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($reportData['users'] as $user): ?>
+                            <tr>
+                                <td>
+                                    <strong><?= htmlspecialchars($user['full_name']) ?></strong>
+                                    <br>
+                                    <small class="text-muted"><?= $user['username'] ?></small>
+                                </td>
+                                <td>
+                                    <span class="badge bg-<?= $user['role'] == 'admin' ? 'danger' : ($user['role'] == 'manager' ? 'warning' : 'info') ?>">
+                                        <?= $user['role'] ?>
+                                    </span>
+                                </td>
+                                <td><?= number_format($user['total_orders']) ?></td>
+                                <td><?= number_format($user['new_orders']) ?></td>
+                                <td><?= number_format($user['processing_orders']) ?></td>
+                                <td class="text-success">
+                                    <?= number_format($user['success_orders']) ?>
+                                </td>
+                                <td class="text-danger">
+                                    <?= number_format($user['failed_orders']) ?>
+                                </td>
+                                <td>
+                                    <strong><?= number_format($user['success_revenue'], 0, ',', '.') ?>đ</strong>
+                                </td>
+                                <td>
+                                    <div class="progress" style="height: 25px;">
+                                        <div class="progress-bar bg-<?= $user['success_rate'] >= 70 ? 'success' : ($user['success_rate'] >= 50 ? 'warning' : 'danger') ?>" 
+                                             style="width: <?= $user['success_rate'] ?>%">
+                                            <?= number_format($user['success_rate'], 1) ?>%
+                                        </div>
+                                    </div>
+                                </td>
+                                <td><?= number_format($user['avg_processing_time'], 1) ?></td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+    
+    <?php if ($report_type == 'products' && $reportData): ?>
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="table-container">
+                <div class="chart-header">
+                    <h5 class="chart-title">
+                        <i class="fas fa-box text-warning me-2"></i>
+                        Báo cáo sản phẩm bán chạy
+                    </h5>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover" id="productsTable">
+                        <thead>
+                            <tr>
+                                <th>STT</th>
+                                <th>SKU</th>
+                                <th>Tên sản phẩm</th>
+                                <th>Số lượng bán</th>
+                                <th>Doanh thu</th>
+                                <th>Số đơn hàng</th>
+                                <th>TB/Đơn</th>
+                                <th>% Doanh thu</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php 
+                            $totalRevenue = array_sum(array_column($reportData['products'], 'total_revenue'));
+                            $rank = 1;
+                            foreach ($reportData['products'] as $product): 
+                                $avgPerOrder = $product['order_count'] > 0 
+                                    ? $product['total_revenue'] / $product['order_count']
+                                    : 0;
+                                $revenuePercent = $totalRevenue > 0
+                                    ? ($product['total_revenue'] / $totalRevenue) * 100
+                                    : 0;
+                            ?>
+                            <tr>
+                                <td><?= $rank++ ?></td>
+                                <td>
+                                    <code><?= htmlspecialchars($product['sku']) ?></code>
                                 </td>
                                 <td>
                                     <strong><?= htmlspecialchars($product['name']) ?></strong>
-                                    <?php if ($product['order_count'] > 0): ?>
-                                        <br>
-                                        <small class="text-muted">
-                                            Tỷ lệ thành công: <?= round($product['success_count'] * 100 / $product['order_count'], 1) ?>%
-                                        </small>
-                                    <?php endif; ?>
                                 </td>
-                                <td class="text-end"><?= number_format($product['total_qty']) ?></td>
-                                <td class="text-end"><?= number_format($product['order_count']) ?></td>
-                                <td class="text-end">
-                                    <span class="text-success"><?= number_format($product['success_count']) ?></span>
+                                <td><?= number_format($product['total_quantity']) ?></td>
+                                <td>
+                                    <strong class="text-success">
+                                        <?= number_format($product['total_revenue'], 0, ',', '.') ?>đ
+                                    </strong>
                                 </td>
-                                <td class="text-end"><?= format_money($product['total_revenue']) ?></td>
-                                <td class="text-end">
-                                    <strong class="text-success"><?= format_money($product['success_revenue']) ?></strong>
+                                <td><?= number_format($product['order_count']) ?></td>
+                                <td><?= number_format($avgPerOrder, 0, ',', '.') ?>đ</td>
+                                <td>
+                                    <div class="progress" style="height: 20px;">
+                                        <div class="progress-bar bg-info" 
+                                             style="width: <?= min($revenuePercent, 100) ?>%">
+                                            <?= number_format($revenuePercent, 1) ?>%
+                                        </div>
+                                    </div>
                                 </td>
                             </tr>
                             <?php endforeach; ?>
                         </tbody>
-                        <tfoot>
-                            <tr class="table-active fw-bold">
-                                <td colspan="3">Tổng cộng</td>
-                                <td class="text-end"><?= number_format($total_qty) ?></td>
-                                <td colspan="2"></td>
-                                <td class="text-end"><?= format_money($total_revenue) ?></td>
-                                <td class="text-end text-success"><?= format_money($total_success_revenue) ?></td>
-                            </tr>
-                        </tfoot>
                     </table>
                 </div>
             </div>
-            
-        <?php elseif ($report_data['type'] == 'by_customer_label'): ?>
-            <!-- Customer Label Report -->
-            <h4 class="mb-3">
-                Khách hàng nhãn: 
-                <span class="badge" style="background: <?= $report_data['label_info']['color'] ?>">
-                    <?= htmlspecialchars($report_data['label_info']['label_name']) ?>
-                </span>
-                <small class="text-muted">(<?= count($report_data['customers']) ?> khách hàng)</small>
-            </h4>
-            
-            <div class="table-card">
-                <table class="table table-hover">
-                    <thead>
-                        <tr>
-                            <th>STT</th>
-                            <th>Khách hàng</th>
-                            <th>Số điện thoại</th>
-                            <th>Số đơn</th>
-                            <th>Thành công</th>
-                            <th>Tổng chi tiêu</th>
-                            <th>Lần cuối</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php $stt = 1; foreach ($report_data['customers'] as $customer): ?>
-                        <tr>
-                            <td><?= $stt++ ?></td>
-                            <td><strong><?= htmlspecialchars($customer['customer_name']) ?></strong></td>
-                            <td><?= htmlspecialchars($customer['customer_phone']) ?></td>
-                            <td><?= number_format($customer['order_count']) ?></td>
-                            <td class="text-success"><?= number_format($customer['success_orders']) ?></td>
-                            <td><?= format_money($customer['total_spent']) ?></td>
-                            <td><?= format_date($customer['last_order_date'], 'd/m/Y') ?></td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+        </div>
+    </div>
+    <?php endif; ?>
+    
+    <?php if ($report_type == 'customers' && $reportData): ?>
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="table-container">
+                <div class="chart-header">
+                    <h5 class="chart-title">
+                        <i class="fas fa-user-friends text-success me-2"></i>
+                        Báo cáo khách hàng
+                    </h5>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover" id="customersTable">
+                        <thead>
+                            <tr>
+                                <th>Khách hàng</th>
+                                <th>Số điện thoại</th>
+                                <th>Email</th>
+                                <th>Tổng đơn</th>
+                                <th>Thành công</th>
+                                <th>Tổng giá trị</th>
+                                <th>TB/Đơn</th>
+                                <th>Lần cuối mua</th>
+                                <th>Nhãn</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($reportData['customers'] as $customer): ?>
+                            <tr>
+                                <td>
+                                    <strong><?= htmlspecialchars($customer['customer_name']) ?></strong>
+                                </td>
+                                <td>
+                                    <a href="tel:<?= $customer['customer_phone'] ?>">
+                                        <?= htmlspecialchars($customer['customer_phone']) ?>
+                                    </a>
+                                </td>
+                                <td>
+                                    <?= htmlspecialchars($customer['customer_email'] ?: '-') ?>
+                                </td>
+                                <td><?= number_format($customer['total_orders']) ?></td>
+                                <td class="text-success">
+                                    <?= number_format($customer['success_orders']) ?>
+                                </td>
+                                <td>
+                                    <strong><?= number_format($customer['total_value'], 0, ',', '.') ?>đ</strong>
+                                </td>
+                                <td>
+                                    <?= number_format($customer['avg_order_value'], 0, ',', '.') ?>đ
+                                </td>
+                                <td>
+                                    <?= date('d/m/Y H:i', strtotime($customer['last_order_date'])) ?>
+                                </td>
+                                <td>
+                                    <?php if (!empty($customer['labels'])): ?>
+                                        <?php foreach (explode(',', $customer['labels']) as $label): ?>
+                                        <span class="badge bg-secondary me-1">
+                                            <?= htmlspecialchars(trim($label)) ?>
+                                        </span>
+                                        <?php endforeach; ?>
+                                    <?php else: ?>
+                                        -
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
             </div>
-            
-        <?php elseif ($report_data['type'] == 'by_user_label'): ?>
-            <!-- User Label Report -->
-            <h4 class="mb-3">
-                Nhân viên nhãn: 
-                <span class="badge" style="background: <?= $report_data['label_info']['color'] ?>">
-                    <?= htmlspecialchars($report_data['label_info']['label_name']) ?>
-                </span>
-                <small class="text-muted">(<?= count($report_data['users']) ?> nhân viên)</small>
-            </h4>
-            
-            <div class="table-card">
-                <table class="table table-hover">
-                    <thead>
-                        <tr>
-                            <th>STT</th>
-                            <th>Nhân viên</th>
-                            <th>Vai trò</th>
-                            <th>Số đơn</th>
-                            <th>Thành công</th>
-                            <th>Doanh thu</th>
-                            <th>DT thành công</th>
-                            <th>Tỷ lệ</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php $stt = 1; foreach ($report_data['users'] as $user): ?>
-                        <tr>
-                            <td><?= $stt++ ?></td>
-                            <td><strong><?= htmlspecialchars($user['full_name']) ?></strong></td>
-                            <td><?= $user['role'] ?></td>
-                            <td><?= number_format($user['period_orders']) ?></td>
-                            <td class="text-success"><?= number_format($user['period_success']) ?></td>
-                            <td><?= format_money($user['period_revenue']) ?></td>
-                            <td class="text-success"><?= format_money($user['success_revenue']) ?></td>
-                            <td>
-                                <span class="badge bg-<?= $user['success_rate'] >= 50 ? 'success' : 'warning' ?>">
-                                    <?= $user['success_rate'] ?>%
-                                </span>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-        <?php endif; ?>
+        </div>
     </div>
     <?php endif; ?>
 </div>
 
+<!-- JavaScript -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-let filterCount = 1;
+// Show loading on form submit
+document.querySelectorAll('form').forEach(form => {
+    form.addEventListener('submit', function() {
+        document.getElementById('loadingOverlay').classList.add('show');
+    });
+});
 
-function setFilterType(type) {
-    document.querySelector('input[name="filter_type"]').value = type;
-    document.getElementById('filterForm').submit();
-}
+// Handle metric card clicks for drill-down
+document.querySelectorAll('.metric-card.clickable').forEach(card => {
+    card.addEventListener('click', function() {
+        const drillType = this.dataset.drillType;
+        const drillId = this.dataset.drillId;
+        const currentParams = new URLSearchParams(window.location.search);
+        currentParams.set('drill', drillType);
+        currentParams.set('drill_id', drillId);
+        window.location.href = '?' + currentParams.toString();
+    });
+});
 
-function addCustomFilter() {
-    const container = document.getElementById('customFilters');
-    const newRow = document.createElement('div');
-    newRow.className = 'custom-filter-row';
-    newRow.innerHTML = `
-        <div class="row g-2">
-            <div class="col-md-3">
-                <select class="form-select" name="custom[${filterCount}][field]">
-                    <option value="">-- Chọn trường --</option>
-                    <option value="user_label">Nhãn nhân viên</option>
-                    <option value="customer_label">Nhãn khách hàng</option>
-                    <option value="order_status">Trạng thái đơn</option>
-                    <option value="total_amount">Tổng tiền</option>
-                    <option value="product_contains">Chứa sản phẩm</option>
-                </select>
-            </div>
-            <div class="col-md-2">
-                <select class="form-select" name="custom[${filterCount}][operator]">
-                    <option value="=">=</option>
-                    <option value="!=">≠</option>
-                    <option value=">">></option>
-                    <option value="<"><</option>
-                    <option value="in">Trong</option>
-                </select>
-            </div>
-            <div class="col-md-4">
-                <input type="text" class="form-control" name="custom[${filterCount}][value]" placeholder="Giá trị...">
-            </div>
-            <div class="col-md-3">
-                <button type="button" class="btn btn-sm btn-danger" onclick="this.closest('.custom-filter-row').remove()">
-                    <i class="fas fa-times"></i> Xóa
-                </button>
-            </div>
-        </div>
-    `;
-    container.appendChild(newRow);
-    filterCount++;
-}
+// Initialize charts if on overview page
+<?php if ($report_type == 'overview'): ?>
+// Trend Chart
+const trendCtx = document.getElementById('trendChart').getContext('2d');
+const trendChart = new Chart(trendCtx, {
+    type: 'line',
+    data: {
+        labels: <?= json_encode(array_column($trends['daily'], 'date')) ?>,
+        datasets: [{
+            label: 'Doanh thu',
+            data: <?= json_encode(array_column($trends['daily'], 'success_revenue')) ?>,
+            borderColor: '#667eea',
+            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+            tension: 0.4,
+            fill: true
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                display: false
+            },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        let value = context.parsed.y;
+                        return 'Doanh thu: ' + new Intl.NumberFormat('vi-VN', {
+                            style: 'currency',
+                            currency: 'VND'
+                        }).format(value);
+                    }
+                }
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    callback: function(value) {
+                        return new Intl.NumberFormat('vi-VN', {
+                            notation: 'compact',
+                            compactDisplay: 'short'
+                        }).format(value);
+                    }
+                }
+            }
+        }
+    }
+});
 
-function resetFilters() {
-    document.getElementById('filterForm').reset();
-    window.location.href = 'advanced-statistics.php';
-}
+// Distribution Chart
+const distributionCtx = document.getElementById('distributionChart').getContext('2d');
+const distributionChart = new Chart(distributionCtx, {
+    type: 'doughnut',
+    data: {
+        labels: <?= json_encode(array_column($distribution, 'label_name')) ?>,
+        datasets: [{
+            data: <?= json_encode(array_column($distribution, 'count')) ?>,
+            backgroundColor: <?= json_encode(array_column($distribution, 'color')) ?>
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'bottom'
+            },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                        const percentage = (context.parsed / total * 100).toFixed(1);
+                        return context.label + ': ' + context.parsed + ' (' + percentage + '%)';
+                    }
+                }
+            }
+        }
+    }
+});
+
+// Handle chart type switch
+document.querySelectorAll('[data-chart]').forEach(button => {
+    button.addEventListener('click', function() {
+        document.querySelectorAll('[data-chart]').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        
+        const chartType = this.dataset.chart;
+        let newData, label;
+        
+        if (chartType === 'revenue') {
+            newData = <?= json_encode(array_column($trends['daily'], 'success_revenue')) ?>;
+            label = 'Doanh thu';
+        } else {
+            newData = <?= json_encode(array_column($trends['daily'], 'total_orders')) ?>;
+            label = 'Đơn hàng';
+        }
+        
+        trendChart.data.datasets[0].data = newData;
+        trendChart.data.datasets[0].label = label;
+        trendChart.update();
+    });
+});
+<?php endif; ?>
+
+// Auto-refresh every 5 minutes
+setTimeout(function() {
+    location.reload();
+}, 300000);
 </script>
 
 <?php include 'includes/footer.php'; ?>

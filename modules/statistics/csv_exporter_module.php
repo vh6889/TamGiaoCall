@@ -1,6 +1,6 @@
 <?php
 /**
- * CSV Exporter Module
+ * CSV Exporter Module - FIXED VERSION
  * Export data to CSV format
  */
 
@@ -14,6 +14,8 @@ class CSVExporter {
     private $enclosure = '"';
     private $escape = '\\';
     private $encoding = 'UTF-8';
+    private $metadata = [];
+    private $title = '';
     
     /**
      * Set data to export
@@ -46,6 +48,22 @@ class CSVExporter {
     }
     
     /**
+     * Set title
+     */
+    public function setTitle($title) {
+        $this->title = $title;
+        return $this;
+    }
+    
+    /**
+     * Add metadata
+     */
+    public function addMetadata($key, $value) {
+        $this->metadata[$key] = $value;
+        return $this;
+    }
+    
+    /**
      * Set delimiter
      */
     public function setDelimiter($delimiter) {
@@ -62,12 +80,39 @@ class CSVExporter {
     }
     
     /**
-     * Export to CSV
+     * Format value for CSV
+     */
+    private function formatValue($value) {
+        // Handle arrays
+        if (is_array($value)) {
+            return json_encode($value);
+        }
+        
+        // Handle booleans
+        if (is_bool($value)) {
+            return $value ? 'Yes' : 'No';
+        }
+        
+        // Handle large numbers to prevent Excel scientific notation
+        if (is_numeric($value) && strlen((string)$value) > 15) {
+            return '="' . $value . '"';
+        }
+        
+        // Handle null
+        if ($value === null) {
+            return '';
+        }
+        
+        return $value;
+    }
+    
+    /**
+     * Export to CSV and download
      */
     public function export() {
         $filename = $this->filename . '.csv';
         
-        // Set headers
+        // Set headers for download
         header('Content-Type: text/csv; charset=' . $this->encoding);
         header('Content-Disposition: attachment; filename="' . $filename . '"');
         header('Pragma: no-cache');
@@ -81,6 +126,20 @@ class CSVExporter {
             fprintf($output, "\xEF\xBB\xBF");
         }
         
+        // Write title if set
+        if (!empty($this->title)) {
+            fputcsv($output, [$this->title], $this->delimiter, $this->enclosure, $this->escape);
+            fputcsv($output, [], $this->delimiter, $this->enclosure, $this->escape); // Empty row
+        }
+        
+        // Write metadata if exists
+        if (!empty($this->metadata)) {
+            foreach ($this->metadata as $key => $value) {
+                fputcsv($output, [$key, $value], $this->delimiter, $this->enclosure, $this->escape);
+            }
+            fputcsv($output, [], $this->delimiter, $this->enclosure, $this->escape); // Empty row
+        }
+        
         // Write headers
         fputcsv($output, $this->headers, $this->delimiter, $this->enclosure, $this->escape);
         
@@ -88,42 +147,9 @@ class CSVExporter {
         foreach ($this->data as $row) {
             $rowData = [];
             foreach ($this->headers as $key) {
-                $rowData[] = $row[$key] ?? '';
-            }
-            fputcsv($output, $rowData, $this->delimiter, $this->enclosure, $this->escape);
-        }
-        
-        // Get content
-        rewind($output);
-        $content = stream_get_contents($output);
-        fclose($output);
-        
-        return $content;
-    }
-    
-    /**
-     * Download CSV
-     */
-    public function download() {
-        return $this->export();
-    }
-}
-            foreach ($this->headers as $key) {
                 $value = $row[$key] ?? '';
-                
-                // Format value
-                if (is_array($value)) {
-                    $value = json_encode($value);
-                } elseif (is_bool($value)) {
-                    $value = $value ? 'Yes' : 'No';
-                } elseif (is_numeric($value) && strlen($value) > 15) {
-                    // Prevent Excel from converting large numbers to scientific notation
-                    $value = '="' . $value . '"';
-                }
-                
-                $rowData[] = $value;
+                $rowData[] = $this->formatValue($value);
             }
-            
             fputcsv($output, $rowData, $this->delimiter, $this->enclosure, $this->escape);
         }
         
@@ -132,14 +158,39 @@ class CSVExporter {
     }
     
     /**
+     * Download CSV (alias for export)
+     */
+    public function download() {
+        return $this->export();
+    }
+    
+    /**
      * Save to file
      */
     public function save($filepath) {
         $file = fopen($filepath, 'w');
         
+        if (!$file) {
+            throw new \Exception("Cannot open file for writing: $filepath");
+        }
+        
         // Add BOM for UTF-8
         if ($this->encoding === 'UTF-8') {
             fprintf($file, "\xEF\xBB\xBF");
+        }
+        
+        // Write title if set
+        if (!empty($this->title)) {
+            fputcsv($file, [$this->title], $this->delimiter, $this->enclosure, $this->escape);
+            fputcsv($file, [], $this->delimiter, $this->enclosure, $this->escape);
+        }
+        
+        // Write metadata if exists
+        if (!empty($this->metadata)) {
+            foreach ($this->metadata as $key => $value) {
+                fputcsv($file, [$key, $value], $this->delimiter, $this->enclosure, $this->escape);
+            }
+            fputcsv($file, [], $this->delimiter, $this->enclosure, $this->escape);
         }
         
         // Write headers
@@ -149,7 +200,8 @@ class CSVExporter {
         foreach ($this->data as $row) {
             $rowData = [];
             foreach ($this->headers as $key) {
-                $rowData[] = $row[$key] ?? '';
+                $value = $row[$key] ?? '';
+                $rowData[] = $this->formatValue($value);
             }
             fputcsv($file, $rowData, $this->delimiter, $this->enclosure, $this->escape);
         }
@@ -165,9 +217,27 @@ class CSVExporter {
     public function getContent() {
         $output = fopen('php://memory', 'w+');
         
+        if (!$output) {
+            throw new \Exception("Cannot create memory stream");
+        }
+        
         // Add BOM for UTF-8
         if ($this->encoding === 'UTF-8') {
             fprintf($output, "\xEF\xBB\xBF");
+        }
+        
+        // Write title if set
+        if (!empty($this->title)) {
+            fputcsv($output, [$this->title], $this->delimiter, $this->enclosure, $this->escape);
+            fputcsv($output, [], $this->delimiter, $this->enclosure, $this->escape);
+        }
+        
+        // Write metadata if exists
+        if (!empty($this->metadata)) {
+            foreach ($this->metadata as $key => $value) {
+                fputcsv($output, [$key, $value], $this->delimiter, $this->enclosure, $this->escape);
+            }
+            fputcsv($output, [], $this->delimiter, $this->enclosure, $this->escape);
         }
         
         // Write headers
@@ -176,4 +246,26 @@ class CSVExporter {
         // Write data
         foreach ($this->data as $row) {
             $rowData = [];
-            
+            foreach ($this->headers as $key) {
+                $value = $row[$key] ?? '';
+                $rowData[] = $this->formatValue($value);
+            }
+            fputcsv($output, $rowData, $this->delimiter, $this->enclosure, $this->escape);
+        }
+        
+        // Get content
+        rewind($output);
+        $content = stream_get_contents($output);
+        fclose($output);
+        
+        return $content;
+    }
+    
+    /**
+     * Set format (for compatibility with other exporters)
+     */
+    public function setFormat($format) {
+        // CSV only has one format, so this is just for interface compatibility
+        return $this;
+    }
+}

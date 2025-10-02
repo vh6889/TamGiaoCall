@@ -1,6 +1,6 @@
 <?php
 /**
- * User Report Module
+ * User Report Module - FIXED VERSION
  * Employee performance statistics and analysis
  */
 
@@ -49,6 +49,7 @@ class UserReport extends StatisticsBase {
         $sql = "SELECT 
                 u.id, u.username, u.full_name, u.email, u.phone, u.role, u.status,
                 COUNT(DISTINCT o.id) as total_orders,
+                COUNT(DISTINCT CASE WHEN ol.core_status = 'new' THEN o.id END) as new_orders,
                 COUNT(DISTINCT CASE WHEN ol.core_status = 'success' THEN o.id END) as success_orders,
                 COUNT(DISTINCT CASE WHEN ol.core_status = 'failed' THEN o.id END) as failed_orders,
                 COUNT(DISTINCT CASE WHEN ol.core_status = 'processing' THEN o.id END) as processing_orders,
@@ -131,20 +132,61 @@ class UserReport extends StatisticsBase {
         // Calculate summary
         $summary = $this->calculateSummary($users);
         
+        // Return complete data structure
         return [
-            'current' => $current,
-            'previous' => $previous,
-            'change' => [
-                'orders' => $current['orders'] - $previous['orders'],
-                'success' => $current['success'] - $previous['success'],
-                'revenue' => $current['revenue'] - $previous['revenue']
-            ],
-            'change_percent' => [
-                'orders' => $previous['orders'] > 0 ? round(($current['orders'] - $previous['orders']) * 100 / $previous['orders'], 2) : 0,
-                'success' => $previous['success'] > 0 ? round(($current['success'] - $previous['success']) * 100 / $previous['success'], 2) : 0,
-                'revenue' => $previous['revenue'] > 0 ? round(($current['revenue'] - $previous['revenue']) * 100 / $previous['revenue'], 2) : 0
-            ]
+            'users' => $users,
+            'summary' => $summary
         ];
+    }
+    
+    /**
+     * Get specific user performance
+     */
+    public function getUserPerformance($userId) {
+        $params = [$userId];
+        $where = "u.id = ?";
+        
+        // Add date range if set
+        $dateWhere = "";
+        if (!empty($this->dateRange)) {
+            $dateWhere = " AND o.created_at BETWEEN ? AND ?";
+            $params[] = $this->dateRange['from'];
+            $params[] = $this->dateRange['to'];
+        }
+        
+        $sql = "SELECT 
+                u.*,
+                COUNT(DISTINCT o.id) as period_orders,
+                COUNT(DISTINCT CASE WHEN ol.core_status = 'success' THEN o.id END) as period_success,
+                SUM(o.total_amount) as period_revenue,
+                SUM(CASE WHEN ol.core_status = 'success' THEN o.total_amount END) as period_success_revenue,
+                AVG(TIMESTAMPDIFF(HOUR, o.created_at, o.updated_at)) as avg_processing_time,
+                COUNT(DISTINCT o.customer_phone) as unique_customers,
+                ep.*
+                FROM users u
+                LEFT JOIN orders o ON o.assigned_to = u.id $dateWhere
+                LEFT JOIN order_labels ol ON o.primary_label = ol.label_key
+                LEFT JOIN employee_performance ep ON u.id = ep.user_id
+                WHERE $where
+                GROUP BY u.id";
+        
+        $user = $this->executeQuery($sql, $params)->fetch(\PDO::FETCH_ASSOC);
+        
+        if ($user) {
+            // Add daily breakdown
+            $user['daily_breakdown'] = $this->getUserDailyBreakdown($userId);
+            
+            // Add hourly patterns
+            $user['hourly_patterns'] = $this->getUserHourlyPatterns($userId);
+            
+            // Add customer insights
+            $user['customer_insights'] = $this->getUserCustomerInsights($userId);
+            
+            // Add labels
+            $user['labels'] = $this->getUserLabels($userId);
+        }
+        
+        return $user;
     }
     
     /**
@@ -226,88 +268,6 @@ class UserReport extends StatisticsBase {
     }
     
     /**
-     * Calculate summary statistics
-     */
-    private function calculateSummary($users) {
-        $summary = [
-            'total_users' => count($users),
-            'total_orders' => 0,
-            'total_revenue' => 0,
-            'avg_success_rate' => 0,
-            'top_performer' => null,
-            'bottom_performer' => null
-        ];
-        
-        foreach ($users as $user) {
-            $summary['total_orders'] += $user['total_orders'] ?? 0;
-            $summary['total_revenue'] += $user['total_revenue'] ?? 0;
-        }
-        
-        if (count($users) > 0) {
-            $successRates = array_column($users, 'success_rate');
-            $summary['avg_success_rate'] = round(array_sum($successRates) / count($successRates), 2);
-            $summary['top_performer'] = $users[0];
-            $summary['bottom_performer'] = end($users);
-        }
-        
-        return $summary;
-    }
-}
-            'users' => $users,
-            'summary' => $summary
-        ];
-    }
-    
-    /**
-     * Get specific user performance
-     */
-    public function getUserPerformance($userId) {
-        $params = [$userId];
-        $where = "u.id = ?";
-        
-        // Add date range if set
-        if (!empty($this->dateRange)) {
-            $where .= " AND o.created_at BETWEEN ? AND ?";
-            $params[] = $this->dateRange['from'];
-            $params[] = $this->dateRange['to'];
-        }
-        
-        $sql = "SELECT 
-                u.*,
-                COUNT(DISTINCT o.id) as period_orders,
-                COUNT(DISTINCT CASE WHEN ol.core_status = 'success' THEN o.id END) as period_success,
-                SUM(o.total_amount) as period_revenue,
-                SUM(CASE WHEN ol.core_status = 'success' THEN o.total_amount END) as period_success_revenue,
-                AVG(TIMESTAMPDIFF(HOUR, o.created_at, o.updated_at)) as avg_processing_time,
-                COUNT(DISTINCT o.customer_phone) as unique_customers,
-                ep.*
-                FROM users u
-                LEFT JOIN orders o ON o.assigned_to = u.id
-                LEFT JOIN order_labels ol ON o.primary_label = ol.label_key
-                LEFT JOIN employee_performance ep ON u.id = ep.user_id
-                WHERE $where
-                GROUP BY u.id";
-        
-        $user = $this->executeQuery($sql, $params)->fetch(\PDO::FETCH_ASSOC);
-        
-        if ($user) {
-            // Add daily breakdown
-            $user['daily_breakdown'] = $this->getUserDailyBreakdown($userId);
-            
-            // Add hourly patterns
-            $user['hourly_patterns'] = $this->getUserHourlyPatterns($userId);
-            
-            // Add customer insights
-            $user['customer_insights'] = $this->getUserCustomerInsights($userId);
-            
-            // Add labels
-            $user['labels'] = $this->getUserLabels($userId);
-        }
-        
-        return $user;
-    }
-    
-    /**
      * Get user labels
      */
     private function getUserLabels($userId) {
@@ -355,3 +315,49 @@ class UserReport extends StatisticsBase {
         $previous = $this->executeQuery($sql, [$userId, $previousFrom, $previousTo])->fetch(\PDO::FETCH_ASSOC);
         
         return [
+            'current' => $current,
+            'previous' => $previous,
+            'change' => [
+                'orders' => ($current['orders'] ?? 0) - ($previous['orders'] ?? 0),
+                'success' => ($current['success'] ?? 0) - ($previous['success'] ?? 0),
+                'revenue' => ($current['revenue'] ?? 0) - ($previous['revenue'] ?? 0)
+            ],
+            'change_percent' => [
+                'orders' => $previous['orders'] > 0 ? round((($current['orders'] ?? 0) - $previous['orders']) * 100 / $previous['orders'], 2) : 0,
+                'success' => $previous['success'] > 0 ? round((($current['success'] ?? 0) - $previous['success']) * 100 / $previous['success'], 2) : 0,
+                'revenue' => $previous['revenue'] > 0 ? round((($current['revenue'] ?? 0) - $previous['revenue']) * 100 / $previous['revenue'], 2) : 0
+            ]
+        ];
+    }
+    
+    /**
+     * Calculate summary statistics
+     */
+    private function calculateSummary($users) {
+        $summary = [
+            'total_users' => count($users),
+            'total_orders' => 0,
+            'total_revenue' => 0,
+            'avg_success_rate' => 0,
+            'top_performer' => null,
+            'bottom_performer' => null
+        ];
+        
+        foreach ($users as $user) {
+            $summary['total_orders'] += $user['total_orders'] ?? 0;
+            $summary['total_revenue'] += $user['total_revenue'] ?? 0;
+        }
+        
+        if (count($users) > 0) {
+            $successRates = array_column($users, 'success_rate');
+            $successRates = array_filter($successRates); // Remove null values
+            if (count($successRates) > 0) {
+                $summary['avg_success_rate'] = round(array_sum($successRates) / count($successRates), 2);
+            }
+            $summary['top_performer'] = $users[0] ?? null;
+            $summary['bottom_performer'] = end($users) ?: null;
+        }
+        
+        return $summary;
+    }
+}
