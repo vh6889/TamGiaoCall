@@ -4,9 +4,9 @@
  * Tích hợp đầy đủ tính năng CRM với timer cuộc gọi
  */
 define('TSM_ACCESS', true);
-require_once 'config.php';
-require_once 'functions.php';
-require_once 'includes/status_helper.php';
+require_once '../system/config.php';
+require_once '../system/functions.php';
+require_once '../includes/status_helper.php';
 
 require_login();
 
@@ -90,7 +90,7 @@ if (is_admin() || is_manager()) {
 }
 
 $page_title = 'Chi tiết đơn hàng #' . $order['order_number'];
-include 'includes/header.php';
+include '../includes/header.php';
 ?>
 
 <style>
@@ -949,4 +949,4 @@ function showToast(message, type = 'info') {
 }
 </script>
 
-<?php include 'includes/footer.php'; ?>
+<?php include '../includes/footer.php'; ?>

@@ -1,5 +1,5 @@
 <?php
-require_once '../../RuleEngine.php';
+require_once '../../automations/RuleEngine.php';
 
 class OrderHooks {
     private $engine;

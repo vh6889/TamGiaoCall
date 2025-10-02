@@ -1,7 +1,7 @@
 <?php
 define('TSM_ACCESS', true);
-require_once 'config.php';
-require_once 'functions.php';
+require_once '../system/config.php';
+require_once '../system/functions.php';
 
 // Allow both admin and manager, but with different permissions
 if (!is_logged_in() || (!is_admin() && !is_manager())) {
@@ -50,7 +50,7 @@ if (is_manager()) {
 // Lấy danh sách telesale đang hoạt động để bàn giao (giữ nguyên cho admin)
 $active_telesales = get_telesales('active');
 
-include 'includes/header.php';
+include '../includes/header.php';
 ?>
 
 <div class="table-card">

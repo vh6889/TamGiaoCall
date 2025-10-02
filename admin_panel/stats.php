@@ -5,9 +5,9 @@
  * Version 4.1 - FIXED ALL BUGS
  */
 define('TSM_ACCESS', true);
-require_once 'config.php';
-require_once 'functions.php';
-require_once __DIR__ . '/modules/statistics/statistics_autoload.php';
+require_once '../system/config.php';
+require_once '../system/functions.php';
+require_once __DIR__ . '../../modules/statistics/statistics_autoload.php';
 
 require_login();
 
@@ -249,9 +249,9 @@ if ($report_type == 'overview') {
 
 
 // --- START VIEW ---
-include 'includes/header.php';
+include '../includes/header.php';
 ?>
-<link rel="stylesheet" href="assets/css/stats_css.css">
+<link rel="stylesheet" href="../assets/css/stats_css.css">
 
 <div class="loading" id="loadingOverlay">
     <div class="spinner"></div>
@@ -260,30 +260,30 @@ include 'includes/header.php';
 <div class="container-fluid py-4">
     <?php 
     // Include all view blocks
-    require 'blocks/stats/stats_header.php';
-    require 'blocks/stats/stats_filters.php';
+    require '../blocks/stats/stats_header.php';
+    require '../blocks/stats/stats_filters.php';
     
     if ($drilldownData && isset($drilldownData['breadcrumbs'])) {
-        require 'blocks/stats/stats_breadcrumb.php';
+        require '../blocks/stats/stats_breadcrumb.php';
     }
 
-    require 'blocks/stats/stats_metrics.php';
+    require '../blocks/stats/stats_metrics.php';
 
     // Overview-specific blocks
     if ($report_type == 'overview') {
-        require 'blocks/stats/stats_charts_overview.php';
-        require 'blocks/stats/stats_table_top_performers.php';
+        require '../blocks/stats/stats_charts_overview.php';
+        require '../blocks/stats/stats_table_top_performers.php';
     }
 
     // Report-specific tables
     if ($report_type == 'users' && $reportData) {
-        require 'blocks/stats/stats_table_users.php';
+        require '../blocks/stats/stats_table_users.php';
     }
     if ($report_type == 'products' && $reportData) {
-        require 'blocks/stats/stats_table_products.php';
+        require '../blocks/stats/stats_table_products.php';
     }
     if ($report_type == 'customers' && $reportData) {
-        require 'blocks/stats/stats_table_customers.php';
+        require '../blocks/stats/stats_table_customers.php';
     }
     ?>
 </div>
@@ -304,8 +304,8 @@ include 'includes/header.php';
 </script>
 <?php endif; ?>
 
-<script src="assets/js/stats_js.js"></script>
+<script src="../assets/js/stats_js.js"></script>
 
 <?php 
-include 'includes/footer.php'; 
+include '../includes/footer.php'; 
 ?>

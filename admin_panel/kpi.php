@@ -4,8 +4,8 @@
  * ✅ FIXED: Dùng label_value thay vì hardcode status
  */
 define('TSM_ACCESS', true);
-require_once 'config.php';
-require_once 'functions.php';
+require_once '../system/config.php';
+require_once '../system/functions.php';
 
 require_admin();
 
@@ -57,7 +57,7 @@ if (!empty($telesales)) {
     }
 }
 
-include 'includes/header.php';
+include '../includes/header.php';
 ?>
 
 <div class="table-card">
@@ -204,4 +204,4 @@ function showToast(message, type) {
 }
 </script>
 
-<?php include 'includes/footer.php'; ?>
+include '../includes/footer.php';

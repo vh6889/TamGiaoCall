@@ -4,8 +4,8 @@
  * Professional inventory management with categories, attributes, pricing, and suppliers
  */
 define('TSM_ACCESS', true);
-require_once 'config.php';
-require_once 'functions.php';
+require_once '../system/config.php';
+require_once '../system/functions.php';
 
 // Only admin can access this module
 require_admin();
@@ -89,7 +89,7 @@ $attributes = db_get_results("
     ORDER BY sort_order, attribute_name
 ");
 
-include 'includes/header.php';
+include '../includes/header.php';
 ?>
 
 <style>
@@ -973,4 +973,4 @@ function showToast(message, type = 'info') {
 }
 </script>
 
-<?php include 'includes/footer.php'; ?>
+include '../includes/footer.php';

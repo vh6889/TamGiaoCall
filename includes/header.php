@@ -12,13 +12,14 @@ $current_page = basename($_SERVER['PHP_SELF']);
 // === CẬP NHẬT LOGIC ACTIVE SUBMENU ===
 // Nhóm các trang con của Admin/Manager để xác định active state cho submenu
 $system_pages = [
-    'users.php',
-    'manager-assignments.php',
-    'manage-order-statuses.php',
-    'manage-customer-labels.php',
-    'manage-user-labels.php',
-    'admin-rules.php',
-    'settings.php',
+    '../admin_panel/users.php',
+    '../admin_panel/manager-assignments.php',
+    '../admin_panel/manage-order-statuses.php',
+    '../admin_panel/manage-customer-labels.php',
+    '../admin_panel/manage-user-labels.php',
+    '../admin_panel/admin-rules.php',
+    '../admin_panel/settings.php',
+	'../admin_panel/kpi.php',
 ];
 $is_system_page_active = in_array($current_page, $system_pages);
 ?>
@@ -104,26 +105,26 @@ $is_system_page_active = in_array($current_page, $system_pages);
             </div>
             
             <ul class="sidebar-nav">
-                <li class="<?php echo ($current_page == 'dashboard.php') ? 'active' : ''; ?>">
-                    <a href="dashboard.php"><i class="fas fa-tachometer-alt nav-icon"></i> Trang chủ</a>
+                <li class="<?php echo ($current_page == '../admin_panel/dashboard.php') ? 'active' : ''; ?>">
+                    <a href="../admin_panel/dashboard.php"><i class="fas fa-tachometer-alt nav-icon"></i> Trang chủ</a>
                 </li>
 				<?php if (is_admin()): ?>
-				<li class="<?php echo ($current_page == 'products.php') ? 'active' : ''; ?>">
-					<a href="products.php">
+				<li class="<?php echo ($current_page == '../product_panel/products.php') ? 'active' : ''; ?>">
+					<a href="../product_panel/products.php">
 						<i class="fas fa-boxes nav-icon"></i> Quản lý hàng hoá
 					</a>
 				</li>
 				<?php endif; ?>
-                <li class="<?php echo ($current_page == 'orders.php' || $current_page == 'order-detail.php') ? 'active' : ''; ?>">
-                    <a href="orders.php"><i class="fas fa-shopping-cart nav-icon"></i> Quản lý đơn hàng</a>
+                <li class="<?php echo ($current_page == '../order_panel/orders.php' || $current_page == 'order-detail.php') ? 'active' : ''; ?>">
+                    <a href="../order_panel/orders.php"><i class="fas fa-shopping-cart nav-icon"></i> Quản lý đơn hàng</a>
                 </li>
                 
                 <?php if (is_admin() || is_manager()): ?>
-                <li class="<?php echo ($current_page == 'customer-history.php') ? 'active' : ''; ?>">
-                    <a href="customer-history.php"><i class="fas fa-address-book nav-icon"></i> Lịch sử Khách hàng</a>
+                <li class="<?php echo ($current_page == '../order_panel/customer-history.php') ? 'active' : ''; ?>">
+                    <a href="../order_panel/customer-history.php"><i class="fas fa-address-book nav-icon"></i> Lịch sử Khách hàng</a>
                 </li>
-                <li class="<?php echo ($current_page == 'pending-orders.php') ? 'active' : ''; ?>">
-                    <a href="pending-orders.php">
+                <li class="<?php echo ($current_page == '../order_panel/pending-orders.php') ? 'active' : ''; ?>">
+                    <a href="../order_panel/pending-orders.php">
                         <i class="fas fa-user-check nav-icon"></i> Duyệt đơn
                         <?php
                         // Đếm số đơn chờ duyệt và hiển thị badge nếu có
@@ -132,18 +133,9 @@ $is_system_page_active = in_array($current_page, $system_pages);
                         ?>
                     </a>
                 </li>
-                <li class="<?php echo ($current_page == 'stats.php') ? 'active' : ''; ?>">
-                    <a href="stats.php"><i class="fas fa-chart-bar nav-icon"></i> Thống kê</a>
+                <li class="<?php echo ($current_page == '../admin_panel/stats.php') ? 'active' : ''; ?>">
+                    <a href="../admin_panel/stats.php"><i class="fas fa-chart-bar nav-icon"></i> Thống kê</a>
                 </li>
-                <?php endif; ?>
-
-                <?php if (is_admin() || is_manager()): ?>
-                    <li class="<?php echo ($current_page == 'kpi.php') ? 'active' : ''; ?>">
-                        <a href="kpi.php">
-                            <i class="fas fa-bullseye nav-icon"></i> 
-                            <?php echo is_admin() ? 'Quản lý KPI' : 'Xem KPI'; ?>
-                        </a>
-                    </li>
                 <?php endif; ?>
                 
                 <?php if (is_admin() || is_manager()): ?>
@@ -154,30 +146,36 @@ $is_system_page_active = in_array($current_page, $system_pages);
                         <i class="fas fa-chevron-right arrow"></i>
                     </a>
                     <ul class="collapse submenu <?php echo $is_system_page_active ? 'show' : ''; ?>" id="systemSettings">
-                        <li class="<?php echo ($current_page == 'users.php') ? 'active' : ''; ?>">
-                            <a href="users.php">
+						<li class="<?php echo ($current_page == '../admin_panel/kpi.php') ? 'active' : ''; ?>">
+                        <a href="kpi.php">
+                            <i class="fas fa-bullseye nav-icon"></i> 
+                            <?php echo is_admin() ? 'Quản lý KPI' : 'Xem KPI'; ?>
+                        </a>
+                    </li>
+                        <li class="<?php echo ($current_page == '../admin_panel/users.php') ? 'active' : ''; ?>">
+                            <a href="../admin_panel/users.php">
                                 <i class="fas fa-users-cog nav-icon"></i> 
                                 <?php echo is_admin() ? 'Quản lý nhân viên' : 'Xem nhân viên'; ?>
                             </a>
                         </li>
                         
                         <?php if (is_admin()): // Chỉ Admin mới thấy các mục cấu hình sâu ?>
-                        <li class="<?php echo ($current_page == 'manager-assignments.php') ? 'active' : ''; ?>">
-                            <a href="manager-assignments.php"><i class="fas fa-sitemap nav-icon"></i> Phân công Manager</a>
+                        <li class="<?php echo ($current_page == '../admin_panel/manager-assignments.php') ? 'active' : ''; ?>">
+                            <a href="../admin_panel/manager-assignments.php"><i class="fas fa-sitemap nav-icon"></i> Phân công Manager</a>
                         </li>
-                        <li class="<?php echo ($current_page == 'manage-order-labels.php') ? 'active' : ''; ?>">
-							<a href="manage-order-labels.php"><i class="fas fa-tags nav-icon"></i> Nhãn Đơn Hàng</a>
+                        <li class="<?php echo ($current_page == '../admin_panel/manage-order-labels.php') ? 'active' : ''; ?>">
+							<a href="../admin_panel/manage-order-labels.php"><i class="fas fa-tags nav-icon"></i> Nhãn Đơn Hàng</a>
 						</li>
-						<li class="<?php echo ($current_page == 'manage-customer-labels.php') ? 'active' : ''; ?>">
-							<a href="manage-customer-labels.php"><i class="fas fa-user-tag nav-icon"></i> Nhãn Khách Hàng</a>
+						<li class="<?php echo ($current_page == '../admin_panel/manage-customer-labels.php') ? 'active' : ''; ?>">
+							<a href="../admin_panel/manage-customer-labels.php"><i class="fas fa-user-tag nav-icon"></i> Nhãn Khách Hàng</a>
 						</li>
-						<li class="<?php echo ($current_page == 'manage-user-labels.php') ? 'active' : ''; ?>">
-							<a href="manage-user-labels.php"><i class="fas fa-user-shield nav-icon"></i> Nhãn Nhân Viên</a>
+						<li class="<?php echo ($current_page == '../admin_panel/manage-user-labels.php') ? 'active' : ''; ?>">
+							<a href="../admin_panel/manage-user-labels.php"><i class="fas fa-user-shield nav-icon"></i> Nhãn Nhân Viên</a>
 						</li>
-						<li class="<?php echo ($current_page == 'admin-rules.php' || $current_page == 'admin-rules.php') ? 'active' : ''; ?>">
-							<a href="admin-rules.php"><i class="fas fa-magic nav-icon"></i> Xây dựng Quy tắc</a>
+						<li class="<?php echo ($current_page == '../admin_panel/admin-rules.php' || $current_page == '../admin_panel/admin-rules.php') ? 'active' : ''; ?>">
+							<a href="../admin_panel/admin-rules.php"><i class="fas fa-magic nav-icon"></i> Xây dựng Quy tắc</a>
 						</li>
-                         <li class="<?php echo ($current_page == 'settings.php') ? 'active' : ''; ?>">
+                         <li class="<?php echo ($current_page == '../admin_panel/settings.php') ? 'active' : ''; ?>">
                             <a href="settings.php"><i class="fas fa-tools nav-icon"></i> Cài đặt chung</a>
                         </li>
                         <?php endif; ?>

@@ -3,10 +3,10 @@
  * API: Approve or Reject a Manual Order
  */
 define('TSM_ACCESS', true);
-require_once '../config.php';
+require_once '../system/config.php';
 require_once '../includes/transaction_helper.php';
 require_once '../includes/error_handler.php';
-require_once '../functions.php';
+require_once '../system/functions.php';
 require_once '../includes/security_helper.php';
 require_once '../includes/status_helper.php';
 

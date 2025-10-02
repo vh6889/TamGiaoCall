@@ -3,8 +3,8 @@
  * Customer History Page
  */
 define('TSM_ACCESS', true);
-require_once 'config.php';
-require_once 'functions.php';
+require_once '../system/config.php';
+require_once '../system/functions.php';
 
 
 
@@ -59,7 +59,7 @@ if (!empty($customer_phone)) {
     }
 }
 
-include 'includes/header.php';
+include '../includes/header.php';
 ?>
 
 <div class="table-card mb-4">
@@ -176,4 +176,4 @@ include 'includes/header.php';
     <?php endif; ?>
 <?php endif; ?>
 
-<?php include 'includes/footer.php'; ?>
+<?php include '../includes/footer.php'; ?>

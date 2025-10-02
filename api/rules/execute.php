@@ -1,7 +1,7 @@
 
 <?php
-require_once '../../config.php';
-require_once '../../RuleEngine.php';
+require_once '../../system/config.php';
+require_once '../../automations/RuleEngine.php';
 
 header('Content-Type: application/json');
 

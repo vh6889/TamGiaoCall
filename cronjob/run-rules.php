@@ -1,7 +1,7 @@
 <?php
 define('TSM_ACCESS', true);
-require_once '../config.php';
-require_once '../RuleEngine.php';
+require_once '../system/config.php';
+require_once '../automations/RuleEngine.php';
 
 $engine = new RuleEngine($pdo);
 

@@ -4,8 +4,8 @@
  * Admin tạo nhãn và BẮT BUỘC chọn core_status
  */
 define('TSM_ACCESS', true);
-require_once 'config.php';
-require_once 'functions.php';
+require_once '../system/config.php';
+require_once '../system/functions.php';
 require_admin();
 
 $page_title = 'Quản Lý Nhãn Đơn Hàng';
@@ -117,7 +117,7 @@ foreach ($all_labels as $label) {
     $labels_by_core[$label['core_status']][] = $label;
 }
 
-include 'includes/header.php';
+include '../includes/header.php';
 ?>
 
 <div class="table-card">
@@ -323,4 +323,4 @@ function openEditModal(data) {
 }
 </script>
 
-<?php include 'includes/footer.php'; ?>
+include '../includes/footer.php';

@@ -1,16 +1,16 @@
 <?php
 /**
- * Trang Quản lý Nhãn Khách hàng
- * Cho phép Admin tạo, sửa, xóa các nhãn (VIP, Blacklist, etc.)
+ * Trang Quản lý Nhãn Nhân viên
+ * Cho phép Admin tạo, sửa, xóa các nhãn phân loại (Yếu, Trung bình, Giỏi...)
  */
 define('TSM_ACCESS', true);
-require_once 'config.php';
-require_once 'functions.php';
+require_once '../system/config.php';
+require_once '../system/functions.php';
 require_admin();
 
-$page_title = 'Quản Lý Nhãn Khách Hàng';
+$page_title = 'Quản Lý Nhãn Nhân Viên';
 
-// Hàm helper để tạo mã định danh (đã có trong file trước)
+// Hàm helper để tạo mã định danh (đã có trong các file trước)
 function slugify($text) {
     $text = preg_replace('~[^\pL\d]+~u', '-', $text);
     $text = iconv('utf-8', 'us-ascii//TRANSLIT', $text);
@@ -33,39 +33,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_action'])) {
     } else {
         if ($_POST['form_action'] === 'add') {
             $key = slugify($name);
-            $exists = db_get_var("SELECT COUNT(*) FROM customer_labels WHERE label_key = ?", [$key]);
+            $exists = db_get_var("SELECT COUNT(*) FROM user_labels WHERE label_key = ?", [$key]);
             if ($exists > 0) {
                 $key = $key . '-' . time();
             }
-            db_insert('customer_labels', [
+            db_insert('user_labels', [
                 'label_key' => $key,
                 'label_name' => $name,
                 'color' => $color,
                 'description' => $description
             ]);
-            set_flash('success', 'Đã thêm nhãn mới!');
+            set_flash('success', 'Đã thêm nhãn nhân viên mới!');
 
         } elseif ($_POST['form_action'] === 'edit') {
             $key_to_edit = sanitize($_POST['key_to_edit']);
-            db_update('customer_labels', 
+            db_update('user_labels', 
                 ['label_name' => $name, 'color' => $color, 'description' => $description], 
                 'label_key = ?', [$key_to_edit]
             );
-            set_flash('success', 'Đã cập nhật nhãn!');
+            set_flash('success', 'Đã cập nhật nhãn nhân viên!');
         }
     }
-    redirect('manage-customer-labels.php');
+    redirect('manage-user-labels.php');
 }
 
 // Lấy danh sách nhãn để hiển thị
-$labels = db_get_results("SELECT * FROM customer_labels ORDER BY label_name ASC");
+$labels = db_get_results("SELECT * FROM user_labels ORDER BY label_name ASC");
 
-include 'includes/header.php';
+include '../includes/header.php';
 ?>
 
 <div class="table-card">
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5><i class="fas fa-user-tag me-2"></i>Quản lý Nhãn Khách hàng</h5>
+        <h5><i class="fas fa-user-shield me-2"></i>Quản lý Nhãn Phân loại Nhân viên</h5>
         <button class="btn btn-primary" onclick="prepareAddModal()">
             <i class="fas fa-plus me-2"></i> Thêm Nhãn mới
         </button>
@@ -85,7 +85,7 @@ include 'includes/header.php';
         </thead>
         <tbody>
             <?php if (empty($labels)): ?>
-                <tr><td colspan="5" class="text-center text-muted py-4">Chưa có nhãn khách hàng nào được tạo.</td></tr>
+                <tr><td colspan="5" class="text-center text-muted py-4">Chưa có nhãn nhân viên nào được tạo.</td></tr>
             <?php else: ?>
                 <?php foreach ($labels as $label): ?>
                 <tr>
@@ -122,24 +122,24 @@ include 'includes/header.php';
                 <h5 class="modal-title" id="modalTitle"></h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form id="labelForm" method="POST" action="manage-customer-labels.php">
+            <form id="labelForm" method="POST" action="manage-user-labels.php">
                 <div class="modal-body">
                     <input type="hidden" name="form_action" id="form_action">
                     <input type="hidden" name="key_to_edit" id="key_to_edit">
                     
                     <div class="row">
                         <div class="col-8 mb-3">
-                            <label for="name" class="form-label">Tên Nhãn</label>
+                            <label for="name" class="form-label">Tên Nhãn (ví dụ: Nhân viên Giỏi)</label>
                             <input type="text" class="form-control" id="name" name="name" required>
                         </div>
                         <div class="col-4 mb-3">
                             <label for="color" class="form-label">Màu sắc</label>
-                            <input type="color" class="form-control form-control-color w-100" id="color" name="color" value="#6c757d">
+                            <input type="color" class="form-control form-control-color w-100" id="color" name="color" value="#198754">
                         </div>
                     </div>
                      <div class="mb-3">
                         <label for="description" class="form-label">Mô tả</label>
-                        <textarea class="form-control" id="description" name="description" rows="2"></textarea>
+                        <textarea class="form-control" id="description" name="description" rows="2" placeholder="Ví dụ: Dành cho nhân viên có tỷ lệ chốt đơn > 30%"></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -158,9 +158,9 @@ const labelForm = document.getElementById('labelForm');
 
 function prepareAddModal() {
     labelForm.reset();
-    modalTitle.innerText = 'Thêm Nhãn Khách hàng mới';
+    modalTitle.innerText = 'Thêm Nhãn Nhân viên mới';
     labelForm.querySelector('#form_action').value = 'add';
-    labelForm.querySelector('#color').value = '#6c757d';
+    labelForm.querySelector('#color').value = '#198754';
     labelModal.show();
 }
 
@@ -176,4 +176,4 @@ function prepareEditModal(key, name, color, description) {
 }
 </script>
 
-<?php include 'includes/footer.php'; ?>
+include '../includes/footer.php';

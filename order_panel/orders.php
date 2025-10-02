@@ -4,9 +4,9 @@
  * Hiển thị danh sách đơn hàng với filter động theo status
  */
 define('TSM_ACCESS', true);
-require_once 'config.php';
-require_once 'functions.php';
-require_once 'includes/status_helper.php';
+require_once '../system/config.php';
+require_once '../system/functions.php';
+require_once '../includes/status_helper.php';
 
 require_login();
 
@@ -57,7 +57,7 @@ $telesales_list = is_admin() || is_manager() ? get_telesales('active') : [];
 
 // Lấy tất cả USER-DEFINED statuses (không bao gồm free/assigned)
 $user_statuses = get_all_statuses();
-include 'includes/header.php';
+include '../includes/header.php';
 ?>
 
 <div class="container-fluid">

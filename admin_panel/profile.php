@@ -3,8 +3,8 @@
  * User Profile Page
  */
 define('TSM_ACCESS', true);
-require_once 'config.php';
-require_once 'functions.php';
+require_once '../system/config.php';
+require_once '../system/functions.php';
 
 
 
@@ -59,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
 }
 
 
-include 'includes/header.php';
+include '../includes/header.php';
 ?>
 
 <div class="row g-4">
@@ -117,5 +117,5 @@ include 'includes/header.php';
 
 
 <?php
-include 'includes/footer.php';
+include '../includes/footer.php';
 ?>

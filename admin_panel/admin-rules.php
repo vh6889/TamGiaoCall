@@ -4,8 +4,8 @@ if (!defined('TSM_ACCESS')) {
     define('TSM_ACCESS', true);
 }
 
-require_once 'config.php';
-require_once 'functions.php';
+require_once '../system/config.php';
+require_once '../system/functions.php';
 
 // Check authentication
 if (!is_logged_in()) {
@@ -177,7 +177,7 @@ if (isset($_GET['ajax'])) {
     }
 }
 
-include 'includes/header.php';
+include '../includes/header.php';
 ?>
 
 <style>
@@ -1375,4 +1375,4 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 
-<?php include 'includes/footer.php'; ?>
+include '../includes/footer.php';

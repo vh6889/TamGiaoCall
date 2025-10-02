@@ -4,10 +4,10 @@
  * Creates or updates KPI targets for telesale users for a specific month.
  */
 define('TSM_ACCESS', true);
-require_once '../config.php';
+require_once '../system/config.php';
 require_once '../includes/transaction_helper.php';
 require_once '../includes/error_handler.php';
-require_once '../functions.php';
+require_once '../system/functions.php';
 
 header('Content-Type: application/json');
 

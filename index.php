@@ -5,12 +5,12 @@
  */
 
 define('TSM_ACCESS', true);
-require_once 'config.php';
-require_once 'functions.php';
+require_once 'system/config.php';
+require_once 'system/functions.php';
 
 // Nếu đã đăng nhập, redirect về dashboard
 if (is_logged_in()) {
-    redirect('dashboard.php');
+    redirect('admin_panel/dashboard.php');
 }
 
 // Xử lý login
@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Vui lòng nhập đầy đủ thông tin';
     } else {
         if (login_user($username, $password)) {
-            redirect('dashboard.php');
+            redirect('admin_panel/dashboard.php');
         } else {
             $error = 'Tên đăng nhập hoặc mật khẩu không đúng';
         }

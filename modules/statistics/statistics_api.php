@@ -5,8 +5,8 @@
  */
 
 define('TSM_ACCESS', true);
-require_once '../../config.php';
-require_once '../../functions.php';
+require_once '../../system/config.php';
+require_once '../../system/functions.php';
 require_once '../../Modules/Statistics/autoload.php';
 
 // Check authentication

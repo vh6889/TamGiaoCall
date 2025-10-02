@@ -3,9 +3,9 @@
  * Dashboard Page - Dynamic Version
  */
 define('TSM_ACCESS', true);
-require_once 'config.php';
-require_once 'functions.php';
-require_once 'includes/status_helper.php';
+require_once '../system/config.php';
+require_once '../system/functions.php';
+require_once '../includes/status_helper.php';
 
 require_login();
 
@@ -185,7 +185,7 @@ if (is_telesale()) {
     }
 }
 
-include 'includes/header.php';
+include '../includes/header.php';
 ?>
 
 <!-- GIỮ NGUYÊN TOÀN BỘ HTML TỪ ĐÂY TRỞ XUỐNG -->
@@ -647,4 +647,4 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-<?php include 'includes/footer.php'; ?>
+include '../includes/footer.php';
